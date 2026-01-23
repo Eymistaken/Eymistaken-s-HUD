@@ -16,61 +16,69 @@ public class ModMenuIntegration implements ModMenuApi {
 
             ConfigBuilder builder = ConfigBuilder.create()
                     .setParentScreen(parent)
-                    .setTitle(Text.of("SimpleCPS Ayarları"));
+                    .setTitle(Text.of("SimpleCPS Settings"));
 
-            ConfigCategory general = builder.getOrCreateCategory(Text.of("Genel"));
+            ConfigCategory general = builder.getOrCreateCategory(Text.of("General"));
             ConfigEntryBuilder entryBuilder = builder.entryBuilder();
 
-            // Konum Seçici
-            general.addEntry(entryBuilder.startEnumSelector(Text.of("Konum"), SimpleCPSConfig.Anchor.class, SimpleCPSConfig.anchor)
+            // Position
+            general.addEntry(entryBuilder.startEnumSelector(Text.of("Position"), SimpleCPSConfig.Anchor.class, SimpleCPSConfig.anchor)
                     .setDefaultValue(SimpleCPSConfig.Anchor.TOP_LEFT)
                     .setEnumNameProvider(value -> {
-                        if (value == SimpleCPSConfig.Anchor.TOP_LEFT) return Text.of("Sol Üst");
-                        if (value == SimpleCPSConfig.Anchor.TOP_RIGHT) return Text.of("Sağ Üst");
-                        if (value == SimpleCPSConfig.Anchor.TOP_CENTER) return Text.of("Üst Orta");
-                        if (value == SimpleCPSConfig.Anchor.BOTTOM_LEFT) return Text.of("Sol Alt");
-                        if (value == SimpleCPSConfig.Anchor.BOTTOM_RIGHT) return Text.of("Sağ Alt");
-                        if (value == SimpleCPSConfig.Anchor.BOTTOM_CENTER) return Text.of("Alt Orta");
+                        if (value == SimpleCPSConfig.Anchor.TOP_LEFT) return Text.of("Top Left");
+                        if (value == SimpleCPSConfig.Anchor.TOP_RIGHT) return Text.of("Top Right");
+                        if (value == SimpleCPSConfig.Anchor.TOP_CENTER) return Text.of("Top Center");
+                        if (value == SimpleCPSConfig.Anchor.BOTTOM_LEFT) return Text.of("Bottom Left");
+                        if (value == SimpleCPSConfig.Anchor.BOTTOM_RIGHT) return Text.of("Bottom Right");
+                        if (value == SimpleCPSConfig.Anchor.BOTTOM_CENTER) return Text.of("Bottom Center");
                         return Text.of(value.toString());
                     })
                     .setSaveConsumer(newValue -> SimpleCPSConfig.anchor = newValue)
                     .build());
+            
+            // Scale
+            general.addEntry(entryBuilder.startIntSlider(Text.of("Scale (%)"), (int)(SimpleCPSConfig.scale * 100), 50, 300)
+                    .setDefaultValue(100)
+                    .setSaveConsumer(newValue -> SimpleCPSConfig.scale = newValue / 100f)
+                    .setTextGetter(value -> Text.of(value + "%"))
+                    .build());
 
-            // --- YENİ RENK SEÇİCİ ---
-            general.addEntry(entryBuilder.startEnumSelector(Text.of("Renk Modu"), SimpleCPSConfig.ColorMode.class, SimpleCPSConfig.colorMode)
+            // Color Mode
+            general.addEntry(entryBuilder.startEnumSelector(Text.of("Color Mode"), SimpleCPSConfig.ColorMode.class, SimpleCPSConfig.colorMode)
                     .setDefaultValue(SimpleCPSConfig.ColorMode.WHITE)
                     .setEnumNameProvider(value -> {
-                        if (value == SimpleCPSConfig.ColorMode.WHITE) return Text.of("Beyaz");
-                        if (value == SimpleCPSConfig.ColorMode.RED) return Text.of("Kırmızı");
-                        if (value == SimpleCPSConfig.ColorMode.GREEN) return Text.of("Yeşil");
-                        if (value == SimpleCPSConfig.ColorMode.BLUE) return Text.of("Mavi");
-                        if (value == SimpleCPSConfig.ColorMode.GOLD) return Text.of("Altın");
-                        if (value == SimpleCPSConfig.ColorMode.RAINBOW) return Text.of("§cG§6ö§ek§ak§bu§9ş§da§5ğ§dı"); // Renkli yazı
-                        if (value == SimpleCPSConfig.ColorMode.CUSTOM) return Text.of("Özel (Aşağıdan Ayarla)");
+                        if (value == SimpleCPSConfig.ColorMode.WHITE) return Text.of("White");
+                        if (value == SimpleCPSConfig.ColorMode.RED) return Text.of("Red");
+                        if (value == SimpleCPSConfig.ColorMode.GREEN) return Text.of("Green");
+                        if (value == SimpleCPSConfig.ColorMode.BLUE) return Text.of("Blue");
+                        if (value == SimpleCPSConfig.ColorMode.GOLD) return Text.of("Gold");
+                        if (value == SimpleCPSConfig.ColorMode.RAINBOW) return Text.of("§cR§6a§ei§an§bb§9o§dw"); // Gökkuşağı Yazısı
+                        if (value == SimpleCPSConfig.ColorMode.CUSTOM) return Text.of("Custom (Hex)");
                         return Text.of(value.toString());
                     })
                     .setSaveConsumer(newValue -> SimpleCPSConfig.colorMode = newValue)
                     .build());
 
-            // Hex Renk Ayarı (Sadece 'Özel' seçiliyse işe yarar)
-            general.addEntry(entryBuilder.startIntField(Text.of("Özel Renk (Hex)"), SimpleCPSConfig.color)
+            // Custom Color
+            general.addEntry(entryBuilder.startIntField(Text.of("Custom Color (Hex)"), SimpleCPSConfig.color)
                     .setDefaultValue(0xFFFFFFFF)
-                    .setTooltip(Text.of("Yukarıdan 'Özel' seçeneğini seçmelisin."))
+                    .setTooltip(Text.of("Example: 0xFF0000 (Red), 0xFFFFFFFF (White)"))
                     .setSaveConsumer(newValue -> SimpleCPSConfig.color = newValue)
                     .build());
 
-            // Diğer Ayarlar
-            general.addEntry(entryBuilder.startIntField(Text.of("Yatay Kaydırma (X)"), SimpleCPSConfig.x)
+            // Offsets
+            general.addEntry(entryBuilder.startIntField(Text.of("Horizontal Offset (X)"), SimpleCPSConfig.x)
                     .setDefaultValue(4)
                     .setSaveConsumer(newValue -> SimpleCPSConfig.x = newValue)
                     .build());
 
-            general.addEntry(entryBuilder.startIntField(Text.of("Dikey Kaydırma (Y)"), SimpleCPSConfig.y)
+            general.addEntry(entryBuilder.startIntField(Text.of("Vertical Offset (Y)"), SimpleCPSConfig.y)
                     .setDefaultValue(4)
                     .setSaveConsumer(newValue -> SimpleCPSConfig.y = newValue)
                     .build());
 
-            general.addEntry(entryBuilder.startBooleanToggle(Text.of("Sağ Tık Göster"), SimpleCPSConfig.showRightClick)
+            // Right Click Toggle
+            general.addEntry(entryBuilder.startBooleanToggle(Text.of("Show Right Click"), SimpleCPSConfig.showRightClick)
                     .setDefaultValue(true)
                     .setSaveConsumer(newValue -> SimpleCPSConfig.showRightClick = newValue)
                     .build());

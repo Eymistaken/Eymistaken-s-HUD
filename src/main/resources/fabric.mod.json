@@ -3,12 +3,14 @@
     "id": "simplecps",
     "version": "${version}",
     "name": "SimpleCPS",
-    "description": "SimpleCPS by Eymistaken",
+    "description": "A simple, customizable CPS display mod for Fabric.",
     "authors": [
         "Eymistaken"
     ],
     "contact": {
-        "repo": "https://github.com/eymistaken/simplecps"
+        "homepage": "https://github.com/Eymistaken/SimpleCPS",
+        "sources": "https://github.com/Eymistaken/SimpleCPS",
+        "issues": "https://github.com/Eymistaken/SimpleCPS/issues"
     },
     "license": "MIT",
     "icon": "assets/simplecps/icon.png",
@@ -25,9 +27,11 @@
         ]
     },
     "depends": {
-        "fabricloader": ">=0.16.9",
-        "minecraft": "~1.21.11",
-        "java": ">=21",
-        "fabric-api": "*"
+        "fabricloader": ">=0.14.21",
+        "minecraft": ">=1.20.1",
+        "java": ">=17",
+        "fabric-api": "*",
+        "cloth-config": ">=11.0.0",
+        "modmenu": ">=7.0.0"
     }
 }
