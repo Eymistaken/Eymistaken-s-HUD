@@ -19,6 +19,9 @@
         ],
         "client": [
             "com.eymistaken.simplecps.SimpleCPSClient"
+        ],
+        "modmenu": [
+            "com.eymistaken.simplecps.ModMenuIntegration"
         ]
     },
     "depends": {
