@@ -1,0 +1,29 @@
+name: SimpleCPS Derleyici
+
+on: [push, pull_request, workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Kodları Çek (Checkout)
+        uses: actions/checkout@v4
+
+      - name: Java 21 Kurulumu
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Gradle İzni Ver
+        run: chmod +x gradlew
+
+      - name: Modu Derle (Build)
+        run: ./gradlew build
+
+      - name: Dosyayı Yükle (Artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: SimpleCPS-Mod-Dosyasi
+          path: build/libs/*.jar
