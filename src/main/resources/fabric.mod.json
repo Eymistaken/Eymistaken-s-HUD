@@ -1,0 +1,30 @@
+{
+    "schemaVersion": 1,
+    "id": "simplecps",
+    "version": "${version}",
+    "name": "SimpleCPS",
+    "description": "SimpleCPS by Eymistaken",
+    "authors": [
+        "Eymistaken"
+    ],
+    "contact": {
+        "repo": "https://github.com/eymistaken/simplecps"
+    },
+    "license": "MIT",
+    "icon": "assets/simplecps/icon.png",
+    "environment": "*",
+    "entrypoints": {
+        "main": [
+            "com.eymistaken.simplecps.SimpleCPS"
+        ],
+        "client": [
+            "com.eymistaken.simplecps.SimpleCPSClient"
+        ]
+    },
+    "depends": {
+        "fabricloader": ">=0.16.9",
+        "minecraft": "~1.21.11",
+        "java": ">=21",
+        "fabric-api": "*"
+    }
+}
