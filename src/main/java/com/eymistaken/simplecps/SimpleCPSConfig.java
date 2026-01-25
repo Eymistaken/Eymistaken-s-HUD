@@ -1,72 +1,112 @@
 package com.eymistaken.simplecps;
 
-import net.fabricmc.loader.api.FabricLoader;
-import java.io.*;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Properties;
+import me.shedaniel.autoconfig.ConfigData;
+import me.shedaniel.autoconfig.annotation.Config;
+import me.shedaniel.autoconfig.annotation.ConfigEntry;
 
-public class SimpleCPSConfig {
+@Config(name = "simplecps")
+public class SimpleCPSConfig implements ConfigData {
+
+    public enum Position {
+        TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT, CENTER
+    }
+
+    // Yeni: Keystrokes Modu (Harf, Ok veya Özel)
+    public enum KeystrokesMode {
+        LETTERS, // W A S D
+        ARROWS,  // ^ < v >
+        CUSTOM   // Kullanıcının yazdığı
+    }
+
+    // Yeni: Gökkuşağı Hedefi
+    public enum RainbowTarget {
+        TEXT,       // Sadece yazı
+        BACKGROUND  // Sadece kutu
+    }
+
+    // --- CPS AYARLARI ---
+    @ConfigEntry.Gui.Tooltip
+    public boolean enabled = true;
+
+    @ConfigEntry.Gui.Tooltip
+    public Position position = Position.TOP_LEFT;
+
+    @ConfigEntry.Gui.Tooltip
+    public int xOffset = 0;
+
+    @ConfigEntry.Gui.Tooltip
+    public int yOffset = 0;
+
+    @ConfigEntry.Gui.Tooltip
+    public int textColor = 0xFFFFFF;
+
+    @ConfigEntry.Gui.Tooltip
+    public boolean rightClickCps = true;
+
+    @ConfigEntry.Gui.Tooltip
+    public boolean rainbow = false; // CPS için rainbow
+
+    @ConfigEntry.Gui.Tooltip
+    public int scale = 100;
+
+    // --- PING AYARLARI ---
+    @ConfigEntry.Gui.Tooltip
+    public boolean showPing = false;
+
+    @ConfigEntry.Gui.Tooltip
+    public Position pingPosition = Position.TOP_LEFT;
+
+    @ConfigEntry.Gui.Tooltip
+    public int pingXOffset = 0;
+
+    @ConfigEntry.Gui.Tooltip
+    public int pingYOffset = 0;
+
+    @ConfigEntry.Gui.Tooltip
+    public int pingColor = 0xFFFFFF;
+
+    // --- KEYSTROKES AYARLARI ---
+    @ConfigEntry.Gui.Tooltip
+    public boolean showKeystrokes = false;
+
+    @ConfigEntry.Gui.Tooltip
+    public Position keystrokesPosition = Position.TOP_LEFT;
+
+    @ConfigEntry.Gui.Tooltip
+    public int keystrokesXOffset = 0;
+
+    @ConfigEntry.Gui.Tooltip
+    public int keystrokesYOffset = 0;
+
+    @ConfigEntry.Gui.Tooltip
+    public int keystrokesScale = 80;
+
+    @ConfigEntry.Gui.Tooltip
+    public int keystrokesColor = 0xFFFFFF;
+
+    @ConfigEntry.Gui.Tooltip
+    public int keystrokesPressedColor = 0x00FF00;
+
+    // --- YENİ EKLENEN KEYSTROKES ÖZELLİKLERİ ---
     
-    public enum Anchor {
-        TOP_LEFT, TOP_RIGHT, TOP_CENTER,
-        BOTTOM_LEFT, BOTTOM_RIGHT, BOTTOM_CENTER
-    }
+    @ConfigEntry.Gui.Tooltip
+    public KeystrokesMode keystrokesMode = KeystrokesMode.LETTERS;
 
-    public enum ColorMode {
-        WHITE, RED, GREEN, BLUE, GOLD, RAINBOW, CUSTOM
-    }
+    @ConfigEntry.Gui.Tooltip
+    public boolean keystrokesRainbow = false; // Keystrokes için ayrı rainbow
 
-    // Ayarlar
-    public static int x = 4;
-    public static int y = 4;
-    public static int color = 0xFFFFFFFF;
-    public static boolean showRightClick = true;
-    public static Anchor anchor = Anchor.TOP_LEFT;
-    public static ColorMode colorMode = ColorMode.WHITE;
-    
-    // İŞTE EKSİK OLAN O YARAMAZ SATIR BU:
-    public static float scale = 1.0f; 
+    @ConfigEntry.Gui.Tooltip
+    public RainbowTarget keystrokesRainbowTarget = RainbowTarget.TEXT;
 
-    private static final Path CONFIG_PATH = FabricLoader.getInstance().getConfigDir().resolve("simplecps.properties");
-
-    public static void save() {
-        Properties props = new Properties();
-        props.setProperty("x", String.valueOf(x));
-        props.setProperty("y", String.valueOf(y));
-        props.setProperty("color", String.valueOf(color));
-        props.setProperty("showRightClick", String.valueOf(showRightClick));
-        props.setProperty("anchor", anchor.name());
-        props.setProperty("colorMode", colorMode.name());
-        props.setProperty("scale", String.valueOf(scale));
-
-        try (OutputStream out = Files.newOutputStream(CONFIG_PATH)) {
-            props.store(out, "SimpleCPS Ayarlari");
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    public static void load() {
-        if (!Files.exists(CONFIG_PATH)) {
-            save();
-            return;
-        }
-
-        Properties props = new Properties();
-        try (InputStream in = Files.newInputStream(CONFIG_PATH)) {
-            props.load(in);
-            x = Integer.parseInt(props.getProperty("x", "4"));
-            y = Integer.parseInt(props.getProperty("y", "4"));
-            try { color = Integer.parseInt(props.getProperty("color", String.valueOf(0xFFFFFFFF))); } catch (Exception e) { color = 0xFFFFFFFF; }
-            showRightClick = Boolean.parseBoolean(props.getProperty("showRightClick", "true"));
-            try { anchor = Anchor.valueOf(props.getProperty("anchor", "TOP_LEFT")); } catch (Exception e) { anchor = Anchor.TOP_LEFT; }
-            try { colorMode = ColorMode.valueOf(props.getProperty("colorMode", "WHITE")); } catch (Exception e) { colorMode = ColorMode.WHITE; }
-            // Scale yükleme
-            try { scale = Float.parseFloat(props.getProperty("scale", "1.0")); } catch (Exception e) { scale = 1.0f; }
-
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
+    // Custom Yazılar (Reset tuşu ile bunlara dönecek)
+    @ConfigEntry.Gui.Tooltip
+    public String customW = "W";
+    @ConfigEntry.Gui.Tooltip
+    public String customA = "A";
+    @ConfigEntry.Gui.Tooltip
+    public String customS = "S";
+    @ConfigEntry.Gui.Tooltip
+    public String customD = "D";
+    @ConfigEntry.Gui.Tooltip
+    public String customSpace = "----";
 }
