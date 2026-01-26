@@ -11,20 +11,15 @@ public class SimpleCPSConfig implements ConfigData {
         TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT, CENTER
     }
 
-    // Yeni: Keystrokes Modu (Harf, Ok veya Özel)
     public enum KeystrokesMode {
-        LETTERS, // W A S D
-        ARROWS,  // ^ < v >
-        CUSTOM   // Kullanıcının yazdığı
+        LETTERS, ARROWS, CUSTOM
     }
 
-    // Yeni: Gökkuşağı Hedefi
     public enum RainbowTarget {
-        TEXT,       // Sadece yazı
-        BACKGROUND  // Sadece kutu
+        TEXT, BACKGROUND
     }
 
-    // --- CPS AYARLARI ---
+    // --- 1. CPS AYARLARI ---
     @ConfigEntry.Gui.Tooltip
     public boolean enabled = true;
 
@@ -44,12 +39,20 @@ public class SimpleCPSConfig implements ConfigData {
     public boolean rightClickCps = true;
 
     @ConfigEntry.Gui.Tooltip
-    public boolean rainbow = false; // CPS için rainbow
+    public boolean rainbow = false;
 
     @ConfigEntry.Gui.Tooltip
     public int scale = 100;
 
-    // --- PING AYARLARI ---
+    // CPS Arkaplan
+    @ConfigEntry.Gui.Tooltip
+    public boolean cpsShowBackground = false;
+    @ConfigEntry.Gui.Tooltip
+    public int cpsBackgroundColor = 0x000000;
+    @ConfigEntry.Gui.Tooltip
+    public int cpsBackgroundOpacity = 128; // 0-255
+
+    // --- 2. PING AYARLARI ---
     @ConfigEntry.Gui.Tooltip
     public boolean showPing = false;
 
@@ -65,7 +68,48 @@ public class SimpleCPSConfig implements ConfigData {
     @ConfigEntry.Gui.Tooltip
     public int pingColor = 0xFFFFFF;
 
-    // --- KEYSTROKES AYARLARI ---
+    // Ping Arkaplan
+    @ConfigEntry.Gui.Tooltip
+    public boolean pingShowBackground = false;
+    @ConfigEntry.Gui.Tooltip
+    public int pingBackgroundColor = 0x000000;
+    @ConfigEntry.Gui.Tooltip
+    public int pingBackgroundOpacity = 128;
+
+    // --- 3. FPS AYARLARI (YENİ) ---
+    @ConfigEntry.Gui.Tooltip
+    public boolean showFps = false;
+
+    @ConfigEntry.Gui.Tooltip
+    public Position fpsPosition = Position.TOP_LEFT;
+
+    @ConfigEntry.Gui.Tooltip
+    public int fpsXOffset = 0;
+
+    @ConfigEntry.Gui.Tooltip
+    public int fpsYOffset = 0;
+
+    @ConfigEntry.Gui.Tooltip
+    public int fpsColor = 0xFFFFFF;
+
+    @ConfigEntry.Gui.Tooltip
+    public boolean fpsRainbow = false;
+
+    @ConfigEntry.Gui.Tooltip
+    public int fpsScale = 100;
+
+    @ConfigEntry.Gui.Tooltip
+    public String fpsText = "FPS"; // Örnek: "144 FPS"
+
+    // FPS Arkaplan
+    @ConfigEntry.Gui.Tooltip
+    public boolean fpsShowBackground = false;
+    @ConfigEntry.Gui.Tooltip
+    public int fpsBackgroundColor = 0x000000;
+    @ConfigEntry.Gui.Tooltip
+    public int fpsBackgroundOpacity = 128;
+
+    // --- 4. KEYSTROKES AYARLARI ---
     @ConfigEntry.Gui.Tooltip
     public boolean showKeystrokes = false;
 
@@ -82,23 +126,27 @@ public class SimpleCPSConfig implements ConfigData {
     public int keystrokesScale = 80;
 
     @ConfigEntry.Gui.Tooltip
-    public int keystrokesColor = 0xFFFFFF;
-
-    @ConfigEntry.Gui.Tooltip
-    public int keystrokesPressedColor = 0x00FF00;
-
-    // --- YENİ EKLENEN KEYSTROKES ÖZELLİKLERİ ---
-    
-    @ConfigEntry.Gui.Tooltip
     public KeystrokesMode keystrokesMode = KeystrokesMode.LETTERS;
 
     @ConfigEntry.Gui.Tooltip
-    public boolean keystrokesRainbow = false; // Keystrokes için ayrı rainbow
+    public boolean keystrokesRainbow = false;
 
     @ConfigEntry.Gui.Tooltip
     public RainbowTarget keystrokesRainbowTarget = RainbowTarget.TEXT;
 
-    // Custom Yazılar (Reset tuşu ile bunlara dönecek)
+    @ConfigEntry.Gui.Tooltip
+    public int keystrokesColor = 0xFFFFFF; // Yazı Rengi
+
+    @ConfigEntry.Gui.Tooltip
+    public int keystrokesPressedColor = 0x00FF00; // Basılınca Yazı Rengi
+
+    // Keystrokes Arkaplan (Kapatma tuşu YOK, sadece renk/opaklık)
+    @ConfigEntry.Gui.Tooltip
+    public int keystrokesBackgroundColor = 0x000000;
+    @ConfigEntry.Gui.Tooltip
+    public int keystrokesBackgroundOpacity = 128; // Varsayılan yarı saydam
+
+    // Custom Text Fields
     @ConfigEntry.Gui.Tooltip
     public String customW = "W";
     @ConfigEntry.Gui.Tooltip

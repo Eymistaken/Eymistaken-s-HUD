@@ -90,14 +90,11 @@ public class SimpleCPSClient implements ClientModInitializer {
         int screenWidth = drawContext.getScaledWindowWidth();
         int screenHeight = drawContext.getScaledWindowHeight();
 
-        // Stacking
-        int topLeftY = 5;
-        int topRightY = 5;
-        int bottomLeftY = screenHeight - 5;
-        int bottomRightY = screenHeight - 5;
+        // Stacking Variables
+        int topLeftY = 5, topRightY = 5, bottomLeftY = screenHeight - 5, bottomRightY = screenHeight - 5;
         int gap = 4;
 
-        // --- 1. CPS ---
+        // --- 1. CPS ÇİZİMİ ---
         if (config.enabled) {
             String cpsText = String.valueOf(leftClicks.size());
             if (config.rightClickCps) cpsText += " | " + rightClicks.size();
@@ -108,24 +105,36 @@ public class SimpleCPSClient implements ClientModInitializer {
             float scale = config.scale / 100f;
             int textHeight = (int)(client.textRenderer.fontHeight * scale);
             int textWidth = (int)(client.textRenderer.getWidth(cpsText) * scale);
+            int padding = 2; // Arkaplan için kenar boşluğu
 
             int x = 0, y = 0;
             switch (config.position) {
-                case TOP_LEFT -> { x = 5; y = topLeftY; topLeftY += textHeight + gap; }
-                case TOP_RIGHT -> { x = screenWidth - textWidth - 5; y = topRightY; topRightY += textHeight + gap; }
-                case BOTTOM_LEFT -> { y = bottomLeftY - textHeight; bottomLeftY -= (textHeight + gap); x = 5; }
-                case BOTTOM_RIGHT -> { y = bottomRightY - textHeight; bottomRightY -= (textHeight + gap); x = screenWidth - textWidth - 5; }
+                case TOP_LEFT -> { x = 5; y = topLeftY; topLeftY += textHeight + gap + (config.cpsShowBackground ? padding * 2 : 0); }
+                case TOP_RIGHT -> { x = screenWidth - textWidth - 5; y = topRightY; topRightY += textHeight + gap + (config.cpsShowBackground ? padding * 2 : 0); }
+                case BOTTOM_LEFT -> { y = bottomLeftY - textHeight; bottomLeftY -= (textHeight + gap + (config.cpsShowBackground ? padding * 2 : 0)); x = 5; }
+                case BOTTOM_RIGHT -> { y = bottomRightY - textHeight; bottomRightY -= (textHeight + gap + (config.cpsShowBackground ? padding * 2 : 0)); x = screenWidth - textWidth - 5; }
                 case CENTER -> { x = (screenWidth - textWidth) / 2; y = (screenHeight - textHeight) / 2; }
             }
 
             drawContext.getMatrices().pushMatrix();
             drawContext.getMatrices().translate((float)(x + config.xOffset), (float)(y + config.yOffset));
             drawContext.getMatrices().scale(scale, scale);
+            
+            // Arkaplan Çizimi
+            if (config.cpsShowBackground) {
+                int bgX = -padding;
+                int bgY = -padding;
+                int bgW = (int)(textWidth / scale) + (padding * 2); // Scale etkisini geri alıp hesapla
+                int bgH = (int)(textHeight / scale) + (padding * 2);
+                int bgAlphaColor = (config.cpsBackgroundOpacity << 24) | (config.cpsBackgroundColor & 0x00FFFFFF);
+                drawContext.fill(bgX, bgY, bgX + bgW, bgY + bgH, bgAlphaColor);
+            }
+            
             drawContext.drawTextWithShadow(client.textRenderer, cpsText, 0, 0, color);
             drawContext.getMatrices().popMatrix();
         }
 
-        // --- 2. PING ---
+        // --- 2. PING ÇİZİMİ ---
         if (config.showPing) {
             int latency = cachedPing;
             if (cachedEntry != null) latency = cachedEntry.getLatency();
@@ -134,26 +143,75 @@ public class SimpleCPSClient implements ClientModInitializer {
             float scale = 1.0f;
             int textHeight = (int)(client.textRenderer.fontHeight * scale);
             int textWidth = (int)(client.textRenderer.getWidth(pingText) * scale);
+            int padding = 2;
             int pColor = config.pingColor;
             if ((pColor & 0xFF000000) == 0) pColor |= 0xFF000000;
 
             int x = 0, y = 0;
             switch (config.pingPosition) {
-                case TOP_LEFT -> { x = 5; y = topLeftY; topLeftY += textHeight + gap; }
-                case TOP_RIGHT -> { x = screenWidth - textWidth - 5; y = topRightY; topRightY += textHeight + gap; }
-                case BOTTOM_LEFT -> { y = bottomLeftY - textHeight; bottomLeftY -= (textHeight + gap); x = 5; }
-                case BOTTOM_RIGHT -> { y = bottomRightY - textHeight; bottomRightY -= (textHeight + gap); x = screenWidth - textWidth - 5; }
+                case TOP_LEFT -> { x = 5; y = topLeftY; topLeftY += textHeight + gap + (config.pingShowBackground ? padding * 2 : 0); }
+                case TOP_RIGHT -> { x = screenWidth - textWidth - 5; y = topRightY; topRightY += textHeight + gap + (config.pingShowBackground ? padding * 2 : 0); }
+                case BOTTOM_LEFT -> { y = bottomLeftY - textHeight; bottomLeftY -= (textHeight + gap + (config.pingShowBackground ? padding * 2 : 0)); x = 5; }
+                case BOTTOM_RIGHT -> { y = bottomRightY - textHeight; bottomRightY -= (textHeight + gap + (config.pingShowBackground ? padding * 2 : 0)); x = screenWidth - textWidth - 5; }
                 case CENTER -> { x = (screenWidth - textWidth) / 2; y = (screenHeight - textHeight) / 2; }
             }
 
             drawContext.getMatrices().pushMatrix();
             drawContext.getMatrices().translate((float)(x + config.pingXOffset), (float)(y + config.pingYOffset));
             drawContext.getMatrices().scale(scale, scale);
+            
+            if (config.pingShowBackground) {
+                int bgX = -padding;
+                int bgY = -padding;
+                int bgW = (int)(textWidth / scale) + (padding * 2);
+                int bgH = (int)(textHeight / scale) + (padding * 2);
+                int bgAlphaColor = (config.pingBackgroundOpacity << 24) | (config.pingBackgroundColor & 0x00FFFFFF);
+                drawContext.fill(bgX, bgY, bgX + bgW, bgY + bgH, bgAlphaColor);
+            }
+
             drawContext.drawTextWithShadow(client.textRenderer, pingText, 0, 0, pColor);
             drawContext.getMatrices().popMatrix();
         }
 
-        // --- 3. KEYSTROKES ---
+        // --- 3. FPS ÇİZİMİ (YENİ) ---
+        if (config.showFps) {
+            String fpsStr = client.getCurrentFps() + " " + config.fpsText;
+            
+            float scale = config.fpsScale / 100f;
+            int textHeight = (int)(client.textRenderer.fontHeight * scale);
+            int textWidth = (int)(client.textRenderer.getWidth(fpsStr) * scale);
+            int padding = 2;
+            
+            int color = config.fpsRainbow ? getRainbowColor() : config.fpsColor;
+            if ((color & 0xFF000000) == 0) color |= 0xFF000000;
+
+            int x = 0, y = 0;
+            switch (config.fpsPosition) {
+                case TOP_LEFT -> { x = 5; y = topLeftY; topLeftY += textHeight + gap + (config.fpsShowBackground ? padding * 2 : 0); }
+                case TOP_RIGHT -> { x = screenWidth - textWidth - 5; y = topRightY; topRightY += textHeight + gap + (config.fpsShowBackground ? padding * 2 : 0); }
+                case BOTTOM_LEFT -> { y = bottomLeftY - textHeight; bottomLeftY -= (textHeight + gap + (config.fpsShowBackground ? padding * 2 : 0)); x = 5; }
+                case BOTTOM_RIGHT -> { y = bottomRightY - textHeight; bottomRightY -= (textHeight + gap + (config.fpsShowBackground ? padding * 2 : 0)); x = screenWidth - textWidth - 5; }
+                case CENTER -> { x = (screenWidth - textWidth) / 2; y = (screenHeight - textHeight) / 2; }
+            }
+
+            drawContext.getMatrices().pushMatrix();
+            drawContext.getMatrices().translate((float)(x + config.fpsXOffset), (float)(y + config.fpsYOffset));
+            drawContext.getMatrices().scale(scale, scale);
+            
+            if (config.fpsShowBackground) {
+                int bgX = -padding;
+                int bgY = -padding;
+                int bgW = (int)(textWidth / scale) + (padding * 2);
+                int bgH = (int)(textHeight / scale) + (padding * 2);
+                int bgAlphaColor = (config.fpsBackgroundOpacity << 24) | (config.fpsBackgroundColor & 0x00FFFFFF);
+                drawContext.fill(bgX, bgY, bgX + bgW, bgY + bgH, bgAlphaColor);
+            }
+
+            drawContext.drawTextWithShadow(client.textRenderer, fpsStr, 0, 0, color);
+            drawContext.getMatrices().popMatrix();
+        }
+
+        // --- 4. KEYSTROKES ÇİZİMİ ---
         if (config.showKeystrokes) {
             float kScale = config.keystrokesScale / 100f;
             int boxSize = 20;
@@ -174,7 +232,6 @@ public class SimpleCPSClient implements ClientModInitializer {
             x += config.keystrokesXOffset;
             y += config.keystrokesYOffset;
 
-            // Yazıları Belirle
             String txtW = "W", txtA = "A", txtS = "S", txtD = "D", txtSp = "----";
             if (config.keystrokesMode == SimpleCPSConfig.KeystrokesMode.ARROWS) {
                 txtW = "▲"; txtA = "◀"; txtS = "▼"; txtD = "▶";
@@ -183,24 +240,23 @@ public class SimpleCPSClient implements ClientModInitializer {
                 txtD = config.customD; txtSp = config.customSpace;
             }
 
-            // Renkleri Hazırla (Rainbow Logic)
             int normalColor = config.keystrokesColor;
             if ((normalColor & 0xFF000000) == 0) normalColor |= 0xFF000000;
             
             int pressedColor = config.keystrokesPressedColor;
             if ((pressedColor & 0xFF000000) == 0) pressedColor |= 0xFF000000;
             
-            int bgColor = 0x80000000; // Varsayılan arka plan (yarı saydam siyah)
+            // Arkaplan Rengi (Opaklık ayarıyla birleştir)
+            int baseBgColor = (config.keystrokesBackgroundOpacity << 24) | (config.keystrokesBackgroundColor & 0x00FFFFFF);
 
-            // Rainbow Aktifse
             if (config.keystrokesRainbow) {
                 int rainbow = getRainbowColor();
                 if (config.keystrokesRainbowTarget == SimpleCPSConfig.RainbowTarget.TEXT) {
                     normalColor = rainbow;
-                    pressedColor = rainbow; // Basılınca da rainbow kalsın veya istersen değiştirilebilir
+                    pressedColor = rainbow; 
                 } else {
-                    // Arka plana rainbow uygula (Alpha korunarak)
-                    bgColor = (rainbow & 0x00FFFFFF) | 0x80000000;
+                    // Rainbow Background
+                    baseBgColor = (config.keystrokesBackgroundOpacity << 24) | (rainbow & 0x00FFFFFF);
                 }
             }
 
@@ -208,28 +264,27 @@ public class SimpleCPSClient implements ClientModInitializer {
             drawContext.getMatrices().translate((float)x, (float)y);
             drawContext.getMatrices().scale(kScale, kScale);
 
-            // Çizim
             boolean wPressed = client.options.forwardKey.isPressed();
             scaleW = updateAnimation(scaleW, wPressed);
-            drawAnimatedKey(drawContext, client, txtW, boxSize + spacing, 0, boxSize, boxSize, wPressed ? pressedColor : normalColor, bgColor, scaleW);
+            drawAnimatedKey(drawContext, client, txtW, boxSize + spacing, 0, boxSize, boxSize, wPressed ? pressedColor : normalColor, baseBgColor, scaleW);
 
             boolean aPressed = client.options.leftKey.isPressed();
             scaleA = updateAnimation(scaleA, aPressed);
-            drawAnimatedKey(drawContext, client, txtA, 0, boxSize + spacing, boxSize, boxSize, aPressed ? pressedColor : normalColor, bgColor, scaleA);
+            drawAnimatedKey(drawContext, client, txtA, 0, boxSize + spacing, boxSize, boxSize, aPressed ? pressedColor : normalColor, baseBgColor, scaleA);
 
             boolean sPressed = client.options.backKey.isPressed();
             scaleS = updateAnimation(scaleS, sPressed);
-            drawAnimatedKey(drawContext, client, txtS, boxSize + spacing, boxSize + spacing, boxSize, boxSize, sPressed ? pressedColor : normalColor, bgColor, scaleS);
+            drawAnimatedKey(drawContext, client, txtS, boxSize + spacing, boxSize + spacing, boxSize, boxSize, sPressed ? pressedColor : normalColor, baseBgColor, scaleS);
 
             boolean dPressed = client.options.rightKey.isPressed();
             scaleD = updateAnimation(scaleD, dPressed);
-            drawAnimatedKey(drawContext, client, txtD, (boxSize + spacing) * 2, boxSize + spacing, boxSize, boxSize, dPressed ? pressedColor : normalColor, bgColor, scaleD);
+            drawAnimatedKey(drawContext, client, txtD, (boxSize + spacing) * 2, boxSize + spacing, boxSize, boxSize, dPressed ? pressedColor : normalColor, baseBgColor, scaleD);
             
             boolean spacePressed = client.options.jumpKey.isPressed();
             scaleSpace = updateAnimation(scaleSpace, spacePressed);
             int spaceY = (boxSize + spacing) * 2;
             int spaceWidth = (boxSize * 3) + (spacing * 2);
-            drawAnimatedKey(drawContext, client, txtSp, 0, spaceY, spaceWidth, 12, spacePressed ? pressedColor : normalColor, bgColor, scaleSpace);
+            drawAnimatedKey(drawContext, client, txtSp, 0, spaceY, spaceWidth, 12, spacePressed ? pressedColor : normalColor, baseBgColor, scaleSpace);
 
             drawContext.getMatrices().popMatrix();
         }
@@ -252,7 +307,7 @@ public class SimpleCPSClient implements ClientModInitializer {
         context.getMatrices().scale(animScale, animScale);
         context.getMatrices().translate(-centerX, -centerY);
         
-        // Arka plan rengini parametreden alıyoruz (Rainbow olabilir)
+        // Arka plan (bgColor parametresi artık opaklığı içeriyor)
         context.fill(x, y, x + w, y + h, bgColor);
         
         int textWidth = client.textRenderer.getWidth(key);
