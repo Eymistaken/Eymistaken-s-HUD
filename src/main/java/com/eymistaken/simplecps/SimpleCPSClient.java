@@ -5,25 +5,36 @@ import me.shedaniel.autoconfig.serializer.GsonConfigSerializer;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
+import net.fabricmc.fabric.api.event.player.AttackEntityCallback;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.client.render.RenderTickCounter;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.damage.DamageSource;
+import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.util.ActionResult;
+import net.minecraft.util.Hand;
+import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.math.MathHelper;
+import net.minecraft.world.World;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.UUID;
 
 public class SimpleCPSClient implements ClientModInitializer {
+
+    private static SimpleCPSClient instance;
 
     private final List<Long> leftClicks = new ArrayList<>();
     private final List<Long> rightClicks = new ArrayList<>();
     private boolean wasLeftPressed = false;
     private boolean wasRightPressed = false;
-    
+
     private float hue = 0;
-    
+
     // Ping Cache
     private volatile int cachedPing = 0;
     private PlayerListEntry cachedEntry = null;
@@ -35,20 +46,89 @@ public class SimpleCPSClient implements ClientModInitializer {
     private float scaleD = 1.0f;
     private float scaleSpace = 1.0f;
 
+    // --- COMBO VARIABLES ---
+    private int comboCount = 0;
+    private long lastHitTime = 0;
+    private UUID targetUuid = null;
+
     @Override
     public void onInitializeClient() {
+        instance = this;
         AutoConfig.register(SimpleCPSConfig.class, GsonConfigSerializer::new);
         HudRenderCallback.EVENT.register(this::onHudRender);
         ClientTickEvents.END_CLIENT_TICK.register(this::onClientTick);
+        AttackEntityCallback.EVENT.register(this::onAttack);
     }
-    
+
+    public static void onDamageEvent(DamageSource source) {
+        if (instance != null) {
+            instance.handleDamage(source);
+        }
+    }
+
+    private void handleDamage(DamageSource source) {
+        SimpleCPSConfig config = AutoConfig.getConfigHolder(SimpleCPSConfig.class).getConfig();
+        if (comboCount > 0) {
+            if (config.comboResetOnAnyDamage) {
+                resetCombo();
+            } else {
+                Entity attacker = source.getAttacker();
+                if (attacker instanceof PlayerEntity && targetUuid != null) {
+                     if (attacker.getUuid().equals(targetUuid)) {
+                         resetCombo();
+                     }
+                }
+            }
+        }
+    }
+
+    private ActionResult onAttack(PlayerEntity player, World world, Hand hand, Entity entity, EntityHitResult hitResult) {
+        if (world.isClient && hand == Hand.MAIN_HAND) {
+             if (player == MinecraftClient.getInstance().player) {
+                 if (entity instanceof PlayerEntity) {
+                     handleHit((PlayerEntity) entity);
+                 }
+             }
+        }
+        return ActionResult.PASS;
+    }
+
+    private void handleHit(PlayerEntity target) {
+        SimpleCPSConfig config = AutoConfig.getConfigHolder(SimpleCPSConfig.class).getConfig();
+        long now = System.currentTimeMillis();
+
+        // Check timeout manually in case tick hasn't run
+        if (comboCount > 0 && (now - lastHitTime > config.comboTimeout * 1000)) {
+            comboCount = 0;
+            targetUuid = null;
+        }
+
+        UUID newTargetUuid = target.getUuid();
+
+        if (targetUuid != null && !targetUuid.equals(newTargetUuid)) {
+            if (!config.comboContinueOnSwitch) {
+                comboCount = 0;
+            }
+        }
+
+        targetUuid = newTargetUuid;
+        comboCount++;
+        lastHitTime = now;
+    }
+
+    private void resetCombo() {
+        comboCount = 0;
+        targetUuid = null;
+    }
+
     private void onClientTick(MinecraftClient client) {
         if (client.player == null || client.getNetworkHandler() == null) {
             cachedPing = 0;
             cachedEntry = null;
             return;
         }
-        
+
+        // Ping Logic
         PlayerListEntry entry = client.getNetworkHandler().getPlayerListEntry(client.player.getUuid());
         if (entry != null) {
             cachedEntry = entry;
@@ -66,6 +146,14 @@ public class SimpleCPSClient implements ClientModInitializer {
                     }
                 }
             }
+        }
+
+        // Combo Timeout
+        SimpleCPSConfig config = AutoConfig.getConfigHolder(SimpleCPSConfig.class).getConfig();
+        if (comboCount > 0) {
+             if (System.currentTimeMillis() - lastHitTime > config.comboTimeout * 1000) {
+                 resetCombo();
+             }
         }
     }
 
@@ -105,7 +193,7 @@ public class SimpleCPSClient implements ClientModInitializer {
             float scale = config.scale / 100f;
             int textHeight = (int)(client.textRenderer.fontHeight * scale);
             int textWidth = (int)(client.textRenderer.getWidth(cpsText) * scale);
-            int padding = 2; // Arkaplan için kenar boşluğu
+            int padding = 2;
 
             int x = 0, y = 0;
             switch (config.position) {
@@ -119,17 +207,16 @@ public class SimpleCPSClient implements ClientModInitializer {
             drawContext.getMatrices().pushMatrix();
             drawContext.getMatrices().translate((float)(x + config.xOffset), (float)(y + config.yOffset));
             drawContext.getMatrices().scale(scale, scale);
-            
-            // Arkaplan Çizimi
+
             if (config.cpsShowBackground) {
                 int bgX = -padding;
                 int bgY = -padding;
-                int bgW = (int)(textWidth / scale) + (padding * 2); // Scale etkisini geri alıp hesapla
+                int bgW = (int)(textWidth / scale) + (padding * 2);
                 int bgH = (int)(textHeight / scale) + (padding * 2);
                 int bgAlphaColor = (config.cpsBackgroundOpacity << 24) | (config.cpsBackgroundColor & 0x00FFFFFF);
                 drawContext.fill(bgX, bgY, bgX + bgW, bgY + bgH, bgAlphaColor);
             }
-            
+
             drawContext.drawTextWithShadow(client.textRenderer, cpsText, 0, 0, color);
             drawContext.getMatrices().popMatrix();
         }
@@ -139,7 +226,7 @@ public class SimpleCPSClient implements ClientModInitializer {
             int latency = cachedPing;
             if (cachedEntry != null) latency = cachedEntry.getLatency();
             String pingText = latency + " ms";
-            
+
             float scale = 1.0f;
             int textHeight = (int)(client.textRenderer.fontHeight * scale);
             int textWidth = (int)(client.textRenderer.getWidth(pingText) * scale);
@@ -159,7 +246,7 @@ public class SimpleCPSClient implements ClientModInitializer {
             drawContext.getMatrices().pushMatrix();
             drawContext.getMatrices().translate((float)(x + config.pingXOffset), (float)(y + config.pingYOffset));
             drawContext.getMatrices().scale(scale, scale);
-            
+
             if (config.pingShowBackground) {
                 int bgX = -padding;
                 int bgY = -padding;
@@ -173,15 +260,15 @@ public class SimpleCPSClient implements ClientModInitializer {
             drawContext.getMatrices().popMatrix();
         }
 
-        // --- 3. FPS ÇİZİMİ (YENİ) ---
+        // --- 3. FPS ÇİZİMİ ---
         if (config.showFps) {
             String fpsStr = client.getCurrentFps() + " " + config.fpsText;
-            
+
             float scale = config.fpsScale / 100f;
             int textHeight = (int)(client.textRenderer.fontHeight * scale);
             int textWidth = (int)(client.textRenderer.getWidth(fpsStr) * scale);
             int padding = 2;
-            
+
             int color = config.fpsRainbow ? getRainbowColor() : config.fpsColor;
             if ((color & 0xFF000000) == 0) color |= 0xFF000000;
 
@@ -197,7 +284,7 @@ public class SimpleCPSClient implements ClientModInitializer {
             drawContext.getMatrices().pushMatrix();
             drawContext.getMatrices().translate((float)(x + config.fpsXOffset), (float)(y + config.fpsYOffset));
             drawContext.getMatrices().scale(scale, scale);
-            
+
             if (config.fpsShowBackground) {
                 int bgX = -padding;
                 int bgY = -padding;
@@ -211,14 +298,52 @@ public class SimpleCPSClient implements ClientModInitializer {
             drawContext.getMatrices().popMatrix();
         }
 
-        // --- 4. KEYSTROKES ÇİZİMİ ---
+        // --- 4. COMBO ÇİZİMİ (NEW) ---
+        if (config.showCombo && comboCount > 0) {
+            String comboStr = comboCount + " " + config.comboText;
+
+            float scale = config.comboScale / 100f;
+            int textHeight = (int)(client.textRenderer.fontHeight * scale);
+            int textWidth = (int)(client.textRenderer.getWidth(comboStr) * scale);
+            int padding = 2;
+
+            int color = config.comboRainbow ? getRainbowColor() : config.comboColor;
+            if ((color & 0xFF000000) == 0) color |= 0xFF000000;
+
+            int x = 0, y = 0;
+            switch (config.comboPosition) {
+                case TOP_LEFT -> { x = 5; y = topLeftY; topLeftY += textHeight + gap + (config.comboShowBackground ? padding * 2 : 0); }
+                case TOP_RIGHT -> { x = screenWidth - textWidth - 5; y = topRightY; topRightY += textHeight + gap + (config.comboShowBackground ? padding * 2 : 0); }
+                case BOTTOM_LEFT -> { y = bottomLeftY - textHeight; bottomLeftY -= (textHeight + gap + (config.comboShowBackground ? padding * 2 : 0)); x = 5; }
+                case BOTTOM_RIGHT -> { y = bottomRightY - textHeight; bottomRightY -= (textHeight + gap + (config.comboShowBackground ? padding * 2 : 0)); x = screenWidth - textWidth - 5; }
+                case CENTER -> { x = (screenWidth - textWidth) / 2; y = (screenHeight - textHeight) / 2; }
+            }
+
+            drawContext.getMatrices().pushMatrix();
+            drawContext.getMatrices().translate((float)(x + config.comboXOffset), (float)(y + config.comboYOffset));
+            drawContext.getMatrices().scale(scale, scale);
+
+            if (config.comboShowBackground) {
+                int bgX = -padding;
+                int bgY = -padding;
+                int bgW = (int)(textWidth / scale) + (padding * 2);
+                int bgH = (int)(textHeight / scale) + (padding * 2);
+                int bgAlphaColor = (config.comboBackgroundOpacity << 24) | (config.comboBackgroundColor & 0x00FFFFFF);
+                drawContext.fill(bgX, bgY, bgX + bgW, bgY + bgH, bgAlphaColor);
+            }
+
+            drawContext.drawTextWithShadow(client.textRenderer, comboStr, 0, 0, color);
+            drawContext.getMatrices().popMatrix();
+        }
+
+        // --- 5. KEYSTROKES ÇİZİMİ ---
         if (config.showKeystrokes) {
             float kScale = config.keystrokesScale / 100f;
             int boxSize = 20;
             int spacing = 2;
-            
+
             int totalWidth = (int)(((boxSize * 3) + (spacing * 2)) * kScale);
-            int totalHeight = (int)(((boxSize * 2) + 12 + (spacing * 2)) * kScale); 
+            int totalHeight = (int)(((boxSize * 2) + 12 + (spacing * 2)) * kScale);
 
             int x = 0, y = 0;
             switch (config.keystrokesPosition) {
@@ -236,26 +361,24 @@ public class SimpleCPSClient implements ClientModInitializer {
             if (config.keystrokesMode == SimpleCPSConfig.KeystrokesMode.ARROWS) {
                 txtW = "▲"; txtA = "◀"; txtS = "▼"; txtD = "▶";
             } else if (config.keystrokesMode == SimpleCPSConfig.KeystrokesMode.CUSTOM) {
-                txtW = config.customW; txtA = config.customA; txtS = config.customS; 
+                txtW = config.customW; txtA = config.customA; txtS = config.customS;
                 txtD = config.customD; txtSp = config.customSpace;
             }
 
             int normalColor = config.keystrokesColor;
             if ((normalColor & 0xFF000000) == 0) normalColor |= 0xFF000000;
-            
+
             int pressedColor = config.keystrokesPressedColor;
             if ((pressedColor & 0xFF000000) == 0) pressedColor |= 0xFF000000;
-            
-            // Arkaplan Rengi (Opaklık ayarıyla birleştir)
+
             int baseBgColor = (config.keystrokesBackgroundOpacity << 24) | (config.keystrokesBackgroundColor & 0x00FFFFFF);
 
             if (config.keystrokesRainbow) {
                 int rainbow = getRainbowColor();
                 if (config.keystrokesRainbowTarget == SimpleCPSConfig.RainbowTarget.TEXT) {
                     normalColor = rainbow;
-                    pressedColor = rainbow; 
+                    pressedColor = rainbow;
                 } else {
-                    // Rainbow Background
                     baseBgColor = (config.keystrokesBackgroundOpacity << 24) | (rainbow & 0x00FFFFFF);
                 }
             }
@@ -279,7 +402,7 @@ public class SimpleCPSClient implements ClientModInitializer {
             boolean dPressed = client.options.rightKey.isPressed();
             scaleD = updateAnimation(scaleD, dPressed);
             drawAnimatedKey(drawContext, client, txtD, (boxSize + spacing) * 2, boxSize + spacing, boxSize, boxSize, dPressed ? pressedColor : normalColor, baseBgColor, scaleD);
-            
+
             boolean spacePressed = client.options.jumpKey.isPressed();
             scaleSpace = updateAnimation(scaleSpace, spacePressed);
             int spaceY = (boxSize + spacing) * 2;
@@ -300,25 +423,24 @@ public class SimpleCPSClient implements ClientModInitializer {
 
     private void drawAnimatedKey(DrawContext context, MinecraftClient client, String key, int x, int y, int w, int h, int textColor, int bgColor, float animScale) {
         context.getMatrices().pushMatrix();
-        
+
         float centerX = x + (w / 2.0f);
         float centerY = y + (h / 2.0f);
         context.getMatrices().translate(centerX, centerY);
         context.getMatrices().scale(animScale, animScale);
         context.getMatrices().translate(-centerX, -centerY);
-        
-        // Arka plan (bgColor parametresi artık opaklığı içeriyor)
+
         context.fill(x, y, x + w, y + h, bgColor);
-        
+
         int textWidth = client.textRenderer.getWidth(key);
         int textHeight = client.textRenderer.fontHeight;
         context.drawText(client.textRenderer, key, x + (w - textWidth) / 2, y + (h - textHeight) / 2, textColor, false);
-        
+
         context.getMatrices().popMatrix();
     }
 
     private int getRainbowColor() {
-        hue += 0.5f; 
+        hue += 0.5f;
         if (hue > 360) hue = 0;
         int rgb = MathHelper.hsvToRgb(hue / 360f, 1.0f, 1.0f);
         return rgb | 0xFF000000;

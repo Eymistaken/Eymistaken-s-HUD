@@ -15,6 +15,9 @@
     "license": "MIT",
     "icon": "assets/simplecps/icon.png",
     "environment": "*",
+    "mixins": [
+        "simplecps.mixins.json"
+    ],
     "entrypoints": {
         "main": [
             "com.eymistaken.simplecps.SimpleCPS"

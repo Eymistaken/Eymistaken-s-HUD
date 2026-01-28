@@ -157,4 +157,46 @@ public class SimpleCPSConfig implements ConfigData {
     public String customD = "D";
     @ConfigEntry.Gui.Tooltip
     public String customSpace = "----";
+
+    // --- 5. COMBO AYARLARI (BETA) ---
+    @ConfigEntry.Gui.Tooltip
+    public boolean showCombo = false;
+
+    @ConfigEntry.Gui.Tooltip
+    public Position comboPosition = Position.TOP_LEFT;
+
+    @ConfigEntry.Gui.Tooltip
+    public int comboXOffset = 0;
+
+    @ConfigEntry.Gui.Tooltip
+    public int comboYOffset = 0;
+
+    @ConfigEntry.Gui.Tooltip
+    public int comboScale = 100;
+
+    @ConfigEntry.Gui.Tooltip
+    public int comboColor = 0xFFFFFF;
+
+    @ConfigEntry.Gui.Tooltip
+    public boolean comboRainbow = false;
+
+    @ConfigEntry.Gui.Tooltip
+    public String comboText = "Combo";
+
+    @ConfigEntry.Gui.Tooltip
+    public boolean comboShowBackground = false;
+    @ConfigEntry.Gui.Tooltip
+    public int comboBackgroundColor = 0x000000;
+    @ConfigEntry.Gui.Tooltip
+    public int comboBackgroundOpacity = 128;
+
+    // Logic Settings
+    @ConfigEntry.Gui.Tooltip
+    public double comboTimeout = 3.0; // Seconds
+
+    @ConfigEntry.Gui.Tooltip
+    public boolean comboResetOnAnyDamage = true;
+
+    @ConfigEntry.Gui.Tooltip
+    public boolean comboContinueOnSwitch = true;
 }
