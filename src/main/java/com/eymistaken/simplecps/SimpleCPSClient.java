@@ -10,6 +10,9 @@ import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.client.render.RenderTickCounter;
 import net.minecraft.util.math.MathHelper;
+import net.fabricmc.fabric.api.event.player.AttackEntityCallback;
+import net.minecraft.util.ActionResult;
+import net.minecraft.entity.Entity;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -27,6 +30,7 @@ public class SimpleCPSClient implements ClientModInitializer {
     // Ping Cache
     private volatile int cachedPing = 0;
     private PlayerListEntry cachedEntry = null;
+    private int lastHurtTime = 0; // For damage detection
 
     // Animation Scales
     private float scaleW = 1.0f;
@@ -40,6 +44,13 @@ public class SimpleCPSClient implements ClientModInitializer {
         AutoConfig.register(SimpleCPSConfig.class, GsonConfigSerializer::new);
         HudRenderCallback.EVENT.register(this::onHudRender);
         ClientTickEvents.END_CLIENT_TICK.register(this::onClientTick);
+
+        AttackEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> {
+            if (world.isClient()) {
+                ComboTracker.registerHit(entity);
+            }
+            return ActionResult.PASS;
+        });
     }
     
     private void onClientTick(MinecraftClient client) {
@@ -66,6 +77,15 @@ public class SimpleCPSClient implements ClientModInitializer {
                     }
                 }
             }
+        }
+        
+        // Damage Detection Logic
+        if (client.player != null) {
+            if (client.player.hurtTime > lastHurtTime && client.player.hurtTime > 0) {
+                Entity attacker = client.player.getAttacker();
+                ComboTracker.onDamage(attacker);
+            }
+            lastHurtTime = client.player.hurtTime;
         }
     }
 
@@ -211,7 +231,46 @@ public class SimpleCPSClient implements ClientModInitializer {
             drawContext.getMatrices().popMatrix();
         }
 
-        // --- 4. KEYSTROKES ÇİZİMİ ---
+        // --- 4. COMBO ÇİZİMİ (YENİ) ---
+        boolean shouldRenderCombo = config.showCombo && (ComboTracker.getCombo() > 0 || !config.comboHideWhenInactive);
+        if (shouldRenderCombo) {
+            String comboStr = ComboTracker.getCombo() + " " + config.comboText;
+            
+            float scale = config.comboScale / 100f;
+            int textHeight = (int)(client.textRenderer.fontHeight * scale);
+            int textWidth = (int)(client.textRenderer.getWidth(comboStr) * scale);
+            int padding = 2;
+
+            int color = config.comboRainbow ? getRainbowColor() : config.comboColor;
+            if ((color & 0xFF000000) == 0) color |= 0xFF000000;
+
+            int x = 0, y = 0;
+            switch (config.comboPosition) {
+                case TOP_LEFT -> { x = 5; y = topLeftY; topLeftY += textHeight + gap + (config.comboShowBackground ? padding * 2 : 0); }
+                case TOP_RIGHT -> { x = screenWidth - textWidth - 5; y = topRightY; topRightY += textHeight + gap + (config.comboShowBackground ? padding * 2 : 0); }
+                case BOTTOM_LEFT -> { y = bottomLeftY - textHeight; bottomLeftY -= (textHeight + gap + (config.comboShowBackground ? padding * 2 : 0)); x = 5; }
+                case BOTTOM_RIGHT -> { y = bottomRightY - textHeight; bottomRightY -= (textHeight + gap + (config.comboShowBackground ? padding * 2 : 0)); x = screenWidth - textWidth - 5; }
+                case CENTER -> { x = (screenWidth - textWidth) / 2; y = (screenHeight - textHeight) / 2; }
+            }
+
+            drawContext.getMatrices().pushMatrix();
+            drawContext.getMatrices().translate((float)(x + config.comboXOffset), (float)(y + config.comboYOffset));
+            drawContext.getMatrices().scale(scale, scale);
+
+            if (config.comboShowBackground) {
+                int bgX = -padding;
+                int bgY = -padding;
+                int bgW = (int)(textWidth / scale) + (padding * 2);
+                int bgH = (int)(textHeight / scale) + (padding * 2);
+                int bgAlphaColor = (config.comboBackgroundOpacity << 24) | (config.comboBackgroundColor & 0x00FFFFFF);
+                drawContext.fill(bgX, bgY, bgX + bgW, bgY + bgH, bgAlphaColor);
+            }
+
+            drawContext.drawTextWithShadow(client.textRenderer, comboStr, 0, 0, color);
+            drawContext.getMatrices().popMatrix();
+        }
+
+        // --- 5. KEYSTROKES ÇİZİMİ ---
         if (config.showKeystrokes) {
             float kScale = config.keystrokesScale / 100f;
             int boxSize = 20;

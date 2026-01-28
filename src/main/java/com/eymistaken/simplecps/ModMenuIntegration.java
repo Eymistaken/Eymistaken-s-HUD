@@ -269,6 +269,90 @@ public class ModMenuIntegration implements ModMenuApi {
                     .setSaveConsumer(newValue -> config.keystrokesBackgroundOpacity = newValue)
                     .build());
 
+            // ---------------- KATEGORİ 5: COMBO (Beta) ----------------
+            ConfigCategory comboCategory = builder.getOrCreateCategory(Text.of("Combo (Beta)"));
+
+            comboCategory.addEntry(entryBuilder.startBooleanToggle(Text.of("Show Combo"), config.showCombo)
+                    .setDefaultValue(false)
+                    .setSaveConsumer(newValue -> config.showCombo = newValue)
+                    .build());
+
+            comboCategory.addEntry(entryBuilder.startEnumSelector(Text.of("Position"), SimpleCPSConfig.Position.class, config.comboPosition)
+                    .setDefaultValue(SimpleCPSConfig.Position.TOP_LEFT)
+                    .setSaveConsumer(newValue -> config.comboPosition = newValue)
+                    .build());
+
+            comboCategory.addEntry(entryBuilder.startIntField(Text.of("X Offset"), config.comboXOffset)
+                    .setDefaultValue(0)
+                    .setSaveConsumer(newValue -> config.comboXOffset = newValue)
+                    .build());
+
+            comboCategory.addEntry(entryBuilder.startIntField(Text.of("Y Offset"), config.comboYOffset)
+                    .setDefaultValue(0)
+                    .setSaveConsumer(newValue -> config.comboYOffset = newValue)
+                    .build());
+            
+            comboCategory.addEntry(entryBuilder.startIntSlider(Text.of("Scale (%)"), config.comboScale, 50, 300)
+                    .setDefaultValue(100)
+                    .setSaveConsumer(newValue -> config.comboScale = newValue)
+                    .build());
+
+            comboCategory.addEntry(entryBuilder.startStrField(Text.of("Label Text"), config.comboText)
+                    .setDefaultValue("Combo")
+                    .setSaveConsumer(newValue -> config.comboText = newValue)
+                    .build());
+
+            comboCategory.addEntry(entryBuilder.startBooleanToggle(Text.of("Rainbow Mode"), config.comboRainbow)
+                    .setDefaultValue(false)
+                    .setSaveConsumer(newValue -> config.comboRainbow = newValue)
+                    .build());
+
+            comboCategory.addEntry(entryBuilder.startColorField(Text.of("Text Color"), config.comboColor)
+                    .setDefaultValue(0xFFFFFF)
+                    .setTooltip(colorTooltip)
+                    .setSaveConsumer(newValue -> config.comboColor = newValue)
+                    .build());
+
+            // Combo Background
+            comboCategory.addEntry(entryBuilder.startBooleanToggle(Text.of("Show Background"), config.comboShowBackground)
+                    .setDefaultValue(false)
+                    .setSaveConsumer(newValue -> config.comboShowBackground = newValue)
+                    .build());
+            comboCategory.addEntry(entryBuilder.startColorField(Text.of("Background Color"), config.comboBackgroundColor)
+                    .setDefaultValue(0x000000)
+                    .setTooltip(colorTooltip)
+                    .setSaveConsumer(newValue -> config.comboBackgroundColor = newValue)
+                    .build());
+            comboCategory.addEntry(entryBuilder.startIntSlider(Text.of("Background Opacity"), config.comboBackgroundOpacity, 0, 255)
+                    .setDefaultValue(128)
+                    .setSaveConsumer(newValue -> config.comboBackgroundOpacity = newValue)
+                    .build());
+
+            // Logic Settings
+            comboCategory.addEntry(entryBuilder.startIntSlider(Text.of("Combo Timeout (s)"), (int)(config.comboTimeout * 10), 5, 100)
+                    .setDefaultValue(30)
+                    .setTextGetter(value -> Text.of(String.format("%.1fs", value / 10.0)))
+                    .setSaveConsumer(newValue -> config.comboTimeout = newValue / 10.0)
+                    .build());
+
+            comboCategory.addEntry(entryBuilder.startBooleanToggle(Text.of("Reset on Any Damage"), config.comboResetOnAnyDamage)
+                    .setDefaultValue(true)
+                    .setTooltip(Text.of("If true, ANY damage resets combo. If false, only target damage resets it."))
+                    .setSaveConsumer(newValue -> config.comboResetOnAnyDamage = newValue)
+                    .build());
+
+            comboCategory.addEntry(entryBuilder.startBooleanToggle(Text.of("Continue on Switch"), config.comboContinueOnSwitch)
+                    .setDefaultValue(true)
+                    .setTooltip(Text.of("If true, hitting a NEW player keeps the combo."))
+                    .setSaveConsumer(newValue -> config.comboContinueOnSwitch = newValue)
+                    .build());
+
+            comboCategory.addEntry(entryBuilder.startBooleanToggle(Text.of("Only Show While Comboing"), config.comboHideWhenInactive)
+                    .setDefaultValue(false)
+                    .setTooltip(Text.of("If true, hides the counter when combo is 0."))
+                    .setSaveConsumer(newValue -> config.comboHideWhenInactive = newValue)
+                    .build());
+
             return builder.build();
         };
     }
