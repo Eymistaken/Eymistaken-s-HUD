@@ -1,5 +1,6 @@
 package com.eymistaken.simplecps;
 
+import com.eymistaken.simplecps.gui.HudEditorScreen;
 import net.fabricmc.api.ClientModInitializer;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
@@ -10,7 +11,9 @@ import net.minecraft.entity.Entity;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class SimpleCPSClient implements ClientModInitializer {
 
@@ -32,6 +35,15 @@ public class SimpleCPSClient implements ClientModInitializer {
     private static float scaleS = 1.0f;
     private static float scaleD = 1.0f;
     private static float scaleSpace = 1.0f;
+
+    // Module Bounds for Editor
+    public static class ModuleBounds {
+        public int x, y, w, h;
+        public ModuleBounds(int x, int y, int w, int h) {
+            this.x = x; this.y = y; this.w = w; this.h = h;
+        }
+    }
+    public static final Map<String, ModuleBounds> MODULE_BOUNDS = new HashMap<>();
 
     @Override
     public void onInitializeClient() {
@@ -78,7 +90,12 @@ public class SimpleCPSClient implements ClientModInitializer {
 
     public static void onHudRender(DrawContext drawContext, RenderTickCounter tickCounter) {
         MinecraftClient client = MinecraftClient.getInstance();
-        if (client.player == null || client.world == null || client.options.hudHidden) return;
+        if (client.player == null || client.world == null || client.options.hudHidden) return; // Check main HUD hidden
+        
+        boolean isEditor = client.currentScreen instanceof HudEditorScreen;
+        if (client.options.hudHidden && !isEditor) return; 
+        
+        MODULE_BOUNDS.clear();
 
         // Input
         boolean isLeftPressed = client.options.attackKey.isPressed();
@@ -98,11 +115,18 @@ public class SimpleCPSClient implements ClientModInitializer {
         int screenHeight = drawContext.getScaledWindowHeight();
 
         // Stacking Variables
-        int topLeftY = 5, topRightY = 5, bottomLeftY = screenHeight - 5, bottomRightY = screenHeight - 5;
-        int gap = 4;
+        int stackGap = 5;
+        // The stacks accumulate height for items with 0 offsets
+        int topLeftStack = stackGap;
+        int topRightStack = stackGap;
+        int bottomLeftStack = screenHeight - stackGap;
+        int bottomRightStack = screenHeight - stackGap;
+        int centerStack = (screenHeight) / 2; // Center stack usually not used but logic exists
 
-        // --- 1. CPS ÇİZİMİ ---
-        if (config.enabled) {
+        int gap = 4; // Between items in stack
+
+        // --- 1. CPS ---
+        if (config.enabled || isEditor) {
             String cpsText = String.valueOf(leftClicks.size());
             if (config.rightClickCps) cpsText += " | " + rightClicks.size();
 
@@ -114,39 +138,78 @@ public class SimpleCPSClient implements ClientModInitializer {
             int textWidth = (int)(client.textRenderer.getWidth(cpsText) * scale);
             int padding = 2; 
 
+            // Calculate Base Position
             int x = 0, y = 0;
+            boolean detached = config.xOffset != 0 || config.yOffset != 0;
+            
+            // Stacking Logic
+            int usedHeight = textHeight + (config.cpsShowBackground ? padding * 2 : 0);
+            
             switch (config.position) {
-                case TOP_LEFT -> { x = 5; y = topLeftY; topLeftY += textHeight + gap + (config.cpsShowBackground ? padding * 2 : 0); }
-                case TOP_RIGHT -> { x = screenWidth - textWidth - 5; y = topRightY; topRightY += textHeight + gap + (config.cpsShowBackground ? padding * 2 : 0); }
-                case BOTTOM_LEFT -> { y = bottomLeftY - textHeight; bottomLeftY -= (textHeight + gap + (config.cpsShowBackground ? padding * 2 : 0)); x = 5; }
-                case BOTTOM_RIGHT -> { y = bottomRightY - textHeight; bottomRightY -= (textHeight + gap + (config.cpsShowBackground ? padding * 2 : 0)); x = screenWidth - textWidth - 5; }
-                case CENTER -> { x = (screenWidth - textWidth) / 2; y = (screenHeight - textHeight) / 2; }
+                case TOP_LEFT -> { 
+                    x = stackGap; 
+                    y = detached ? stackGap : topLeftStack; 
+                    if(!detached) topLeftStack += usedHeight + gap; 
+                }
+                case TOP_RIGHT -> { 
+                    x = screenWidth - textWidth - stackGap; 
+                    y = detached ? stackGap : topRightStack; 
+                    if(!detached) topRightStack += usedHeight + gap; 
+                }
+                case BOTTOM_LEFT -> { 
+                    x = stackGap; 
+                    // Bottom stack grows UPwards
+                    if (!detached) bottomLeftStack -= usedHeight;
+                    y = detached ? (screenHeight - usedHeight - stackGap) : bottomLeftStack;
+                    if (!detached) bottomLeftStack -= gap;
+                }
+                case BOTTOM_RIGHT -> { 
+                    x = screenWidth - textWidth - stackGap; 
+                     if (!detached) bottomRightStack -= usedHeight;
+                    y = detached ? (screenHeight - usedHeight - stackGap) : bottomRightStack;
+                    if (!detached) bottomRightStack -= gap;
+                }
+                case CENTER -> { 
+                    x = (screenWidth - textWidth) / 2; 
+                    y = (screenHeight - textHeight) / 2; 
+                }
             }
 
+            int finalX = x + config.xOffset;
+            int finalY = y + config.yOffset;
+            
+            // Bounds
+            int boundW = config.cpsShowBackground ? (int)(((textWidth / scale) + padding * 2) * scale) : textWidth;
+            int boundH = config.cpsShowBackground ? (int)(((textHeight / scale) + padding * 2) * scale) : textHeight;
+            int boundX = config.cpsShowBackground ? finalX - (int)(padding * scale) : finalX;
+            int boundY = config.cpsShowBackground ? finalY - (int)(padding * scale) : finalY;
+            
+            MODULE_BOUNDS.put("CPS", new ModuleBounds(boundX, boundY, boundW, boundH));
+
             drawContext.getMatrices().pushMatrix();
-            drawContext.getMatrices().translate((float)(x + config.xOffset), (float)(y + config.yOffset));
+            drawContext.getMatrices().translate((float)finalX, (float)finalY);
             drawContext.getMatrices().scale(scale, scale);
             
             if (config.cpsShowBackground) {
                 int bgX = -padding;
                 int bgY = -padding;
-                int bgW = (int)(textWidth / scale) + (padding * 2); 
-                int bgH = (int)(textHeight / scale) + (padding * 2);
+                int bgW_local = (int)(textWidth / scale) + (padding * 2); 
+                int bgH_local = (int)(textHeight / scale) + (padding * 2);
                 int bgAlphaColor = (config.cpsBackgroundOpacity << 24) | (config.cpsBackgroundColor & 0x00FFFFFF);
-                drawContext.fill(bgX, bgY, bgX + bgW, bgY + bgH, bgAlphaColor);
+                drawContext.fill(bgX, bgY, bgX + bgW_local, bgY + bgH_local, bgAlphaColor);
             }
             
             drawContext.drawTextWithShadow(client.textRenderer, cpsText, 0, 0, color);
             drawContext.getMatrices().popMatrix();
         }
 
-        // --- 2. PING ÇİZİMİ ---
-        if (config.showPing) {
+        // --- 2. PING ---
+        if (config.showPing || isEditor) {
             int latency = cachedPing;
             if (cachedEntry != null) latency = cachedEntry.getLatency();
             String pingText = latency + " ms";
             
-            float scale = 1.0f;
+            float scale = 1.0f; 
             int textHeight = (int)(client.textRenderer.fontHeight * scale);
             int textWidth = (int)(client.textRenderer.getWidth(pingText) * scale);
             int padding = 2;
@@ -154,33 +217,67 @@ public class SimpleCPSClient implements ClientModInitializer {
             if ((pColor & 0xFF000000) == 0) pColor |= 0xFF000000;
 
             int x = 0, y = 0;
-            switch (config.pingPosition) {
-                case TOP_LEFT -> { x = 5; y = topLeftY; topLeftY += textHeight + gap + (config.pingShowBackground ? padding * 2 : 0); }
-                case TOP_RIGHT -> { x = screenWidth - textWidth - 5; y = topRightY; topRightY += textHeight + gap + (config.pingShowBackground ? padding * 2 : 0); }
-                case BOTTOM_LEFT -> { y = bottomLeftY - textHeight; bottomLeftY -= (textHeight + gap + (config.pingShowBackground ? padding * 2 : 0)); x = 5; }
-                case BOTTOM_RIGHT -> { y = bottomRightY - textHeight; bottomRightY -= (textHeight + gap + (config.pingShowBackground ? padding * 2 : 0)); x = screenWidth - textWidth - 5; }
-                case CENTER -> { x = (screenWidth - textWidth) / 2; y = (screenHeight - textHeight) / 2; }
+            boolean detached = config.pingXOffset != 0 || config.pingYOffset != 0;
+            int usedHeight = textHeight + (config.pingShowBackground ? padding * 2 : 0);
+
+             switch (config.pingPosition) {
+                case TOP_LEFT -> { 
+                    x = stackGap; 
+                    y = detached ? stackGap : topLeftStack; 
+                    if(!detached) topLeftStack += usedHeight + gap; 
+                }
+                case TOP_RIGHT -> { 
+                    x = screenWidth - textWidth - stackGap; 
+                    y = detached ? stackGap : topRightStack; 
+                    if(!detached) topRightStack += usedHeight + gap; 
+                }
+                case BOTTOM_LEFT -> { 
+                    x = stackGap; 
+                    if (!detached) bottomLeftStack -= usedHeight;
+                    y = detached ? (screenHeight - usedHeight - stackGap) : bottomLeftStack;
+                    if (!detached) bottomLeftStack -= gap;
+                }
+                case BOTTOM_RIGHT -> { 
+                    x = screenWidth - textWidth - stackGap; 
+                     if (!detached) bottomRightStack -= usedHeight;
+                    y = detached ? (screenHeight - usedHeight - stackGap) : bottomRightStack;
+                    if (!detached) bottomRightStack -= gap;
+                }
+                case CENTER -> { 
+                    x = (screenWidth - textWidth) / 2; 
+                    y = (screenHeight - textHeight) / 2; 
+                }
             }
+            
+            int finalX = x + config.pingXOffset;
+            int finalY = y + config.pingYOffset;
+
+            int boundW = config.pingShowBackground ? (int)(((textWidth / scale) + padding * 2) * scale) : textWidth;
+            int boundH = config.pingShowBackground ? (int)(((textHeight / scale) + padding * 2) * scale) : textHeight;
+            int boundX = config.pingShowBackground ? finalX - (int)(padding * scale) : finalX;
+            int boundY = config.pingShowBackground ? finalY - (int)(padding * scale) : finalY;
+            
+            MODULE_BOUNDS.put("Ping", new ModuleBounds(boundX, boundY, boundW, boundH));
 
             drawContext.getMatrices().pushMatrix();
-            drawContext.getMatrices().translate((float)(x + config.pingXOffset), (float)(y + config.pingYOffset));
+            drawContext.getMatrices().translate((float)finalX, (float)finalY);
             drawContext.getMatrices().scale(scale, scale);
             
             if (config.pingShowBackground) {
                 int bgX = -padding;
                 int bgY = -padding;
-                int bgW = (int)(textWidth / scale) + (padding * 2);
-                int bgH = (int)(textHeight / scale) + (padding * 2);
+                int bgW_local = (int)(textWidth / scale) + (padding * 2);
+                int bgH_local = (int)(textHeight / scale) + (padding * 2);
                 int bgAlphaColor = (config.pingBackgroundOpacity << 24) | (config.pingBackgroundColor & 0x00FFFFFF);
-                drawContext.fill(bgX, bgY, bgX + bgW, bgY + bgH, bgAlphaColor);
+                drawContext.fill(bgX, bgY, bgX + bgW_local, bgY + bgH_local, bgAlphaColor);
             }
 
             drawContext.drawTextWithShadow(client.textRenderer, pingText, 0, 0, pColor);
             drawContext.getMatrices().popMatrix();
         }
 
-        // --- 3. FPS ÇİZİMİ ---
-        if (config.showFps) {
+        // --- 3. FPS ---
+        if (config.showFps || isEditor) {
             String fpsStr = client.getCurrentFps() + " " + config.fpsText;
             
             float scale = config.fpsScale / 100f;
@@ -192,35 +289,69 @@ public class SimpleCPSClient implements ClientModInitializer {
             if ((color & 0xFF000000) == 0) color |= 0xFF000000;
 
             int x = 0, y = 0;
+            boolean detached = config.fpsXOffset != 0 || config.fpsYOffset != 0;
+            int usedHeight = textHeight + (config.fpsShowBackground ? padding * 2 : 0);
+
             switch (config.fpsPosition) {
-                case TOP_LEFT -> { x = 5; y = topLeftY; topLeftY += textHeight + gap + (config.fpsShowBackground ? padding * 2 : 0); }
-                case TOP_RIGHT -> { x = screenWidth - textWidth - 5; y = topRightY; topRightY += textHeight + gap + (config.fpsShowBackground ? padding * 2 : 0); }
-                case BOTTOM_LEFT -> { y = bottomLeftY - textHeight; bottomLeftY -= (textHeight + gap + (config.fpsShowBackground ? padding * 2 : 0)); x = 5; }
-                case BOTTOM_RIGHT -> { y = bottomRightY - textHeight; bottomRightY -= (textHeight + gap + (config.fpsShowBackground ? padding * 2 : 0)); x = screenWidth - textWidth - 5; }
-                case CENTER -> { x = (screenWidth - textWidth) / 2; y = (screenHeight - textHeight) / 2; }
+                case TOP_LEFT -> { 
+                    x = stackGap; 
+                    y = detached ? stackGap : topLeftStack; 
+                    if(!detached) topLeftStack += usedHeight + gap; 
+                }
+                case TOP_RIGHT -> { 
+                    x = screenWidth - textWidth - stackGap; 
+                    y = detached ? stackGap : topRightStack; 
+                    if(!detached) topRightStack += usedHeight + gap; 
+                }
+                case BOTTOM_LEFT -> { 
+                    x = stackGap; 
+                    if (!detached) bottomLeftStack -= usedHeight;
+                    y = detached ? (screenHeight - usedHeight - stackGap) : bottomLeftStack;
+                    if (!detached) bottomLeftStack -= gap;
+                }
+                case BOTTOM_RIGHT -> { 
+                    x = screenWidth - textWidth - stackGap; 
+                     if (!detached) bottomRightStack -= usedHeight;
+                    y = detached ? (screenHeight - usedHeight - stackGap) : bottomRightStack;
+                    if (!detached) bottomRightStack -= gap;
+                }
+                case CENTER -> { 
+                    x = (screenWidth - textWidth) / 2; 
+                    y = (screenHeight - textHeight) / 2; 
+                }
             }
+            
+            int finalX = x + config.fpsXOffset;
+            int finalY = y + config.fpsYOffset;
+
+            int boundW = config.fpsShowBackground ? (int)(((textWidth / scale) + padding * 2) * scale) : textWidth;
+            int boundH = config.fpsShowBackground ? (int)(((textHeight / scale) + padding * 2) * scale) : textHeight;
+            int boundX = config.fpsShowBackground ? finalX - (int)(padding * scale) : finalX;
+            int boundY = config.fpsShowBackground ? finalY - (int)(padding * scale) : finalY;
+            
+            MODULE_BOUNDS.put("FPS", new ModuleBounds(boundX, boundY, boundW, boundH));
 
             drawContext.getMatrices().pushMatrix();
-            drawContext.getMatrices().translate((float)(x + config.fpsXOffset), (float)(y + config.fpsYOffset));
+            drawContext.getMatrices().translate((float)finalX, (float)finalY);
             drawContext.getMatrices().scale(scale, scale);
             
             if (config.fpsShowBackground) {
                 int bgX = -padding;
                 int bgY = -padding;
-                int bgW = (int)(textWidth / scale) + (padding * 2);
-                int bgH = (int)(textHeight / scale) + (padding * 2);
+                int bgW_local = (int)(textWidth / scale) + (padding * 2);
+                int bgH_local = (int)(textHeight / scale) + (padding * 2);
                 int bgAlphaColor = (config.fpsBackgroundOpacity << 24) | (config.fpsBackgroundColor & 0x00FFFFFF);
-                drawContext.fill(bgX, bgY, bgX + bgW, bgY + bgH, bgAlphaColor);
+                drawContext.fill(bgX, bgY, bgX + bgW_local, bgY + bgH_local, bgAlphaColor);
             }
 
             drawContext.drawTextWithShadow(client.textRenderer, fpsStr, 0, 0, color);
             drawContext.getMatrices().popMatrix();
         }
 
-        // --- 4. COMBO ÇİZİMİ ---
+        // --- 4. COMBO ---
         boolean shouldRenderCombo = config.showCombo && (ComboTracker.getCombo() > 0 || !config.comboHideWhenInactive);
-        if (shouldRenderCombo) {
-            String comboStr = ComboTracker.getCombo() + " " + config.comboText;
+        if (shouldRenderCombo || isEditor) {
+            String comboStr = (isEditor && ComboTracker.getCombo() == 0 ? "0" : ComboTracker.getCombo()) + " " + config.comboText;
             
             float scale = config.comboScale / 100f;
             int textHeight = (int)(client.textRenderer.fontHeight * scale);
@@ -231,33 +362,67 @@ public class SimpleCPSClient implements ClientModInitializer {
             if ((color & 0xFF000000) == 0) color |= 0xFF000000;
 
             int x = 0, y = 0;
+            boolean detached = config.comboXOffset != 0 || config.comboYOffset != 0;
+            int usedHeight = textHeight + (config.comboShowBackground ? padding * 2 : 0);
+
             switch (config.comboPosition) {
-                case TOP_LEFT -> { x = 5; y = topLeftY; topLeftY += textHeight + gap + (config.comboShowBackground ? padding * 2 : 0); }
-                case TOP_RIGHT -> { x = screenWidth - textWidth - 5; y = topRightY; topRightY += textHeight + gap + (config.comboShowBackground ? padding * 2 : 0); }
-                case BOTTOM_LEFT -> { y = bottomLeftY - textHeight; bottomLeftY -= (textHeight + gap + (config.comboShowBackground ? padding * 2 : 0)); x = 5; }
-                case BOTTOM_RIGHT -> { y = bottomRightY - textHeight; bottomRightY -= (textHeight + gap + (config.comboShowBackground ? padding * 2 : 0)); x = screenWidth - textWidth - 5; }
-                case CENTER -> { x = (screenWidth - textWidth) / 2; y = (screenHeight - textHeight) / 2; }
+                case TOP_LEFT -> { 
+                    x = stackGap; 
+                    y = detached ? stackGap : topLeftStack; 
+                    if(!detached) topLeftStack += usedHeight + gap; 
+                }
+                case TOP_RIGHT -> { 
+                    x = screenWidth - textWidth - stackGap; 
+                    y = detached ? stackGap : topRightStack; 
+                    if(!detached) topRightStack += usedHeight + gap; 
+                }
+                case BOTTOM_LEFT -> { 
+                    x = stackGap; 
+                    if (!detached) bottomLeftStack -= usedHeight;
+                    y = detached ? (screenHeight - usedHeight - stackGap) : bottomLeftStack;
+                    if (!detached) bottomLeftStack -= gap;
+                }
+                case BOTTOM_RIGHT -> { 
+                    x = screenWidth - textWidth - stackGap; 
+                     if (!detached) bottomRightStack -= usedHeight;
+                    y = detached ? (screenHeight - usedHeight - stackGap) : bottomRightStack;
+                    if (!detached) bottomRightStack -= gap;
+                }
+                case CENTER -> { 
+                    x = (screenWidth - textWidth) / 2; 
+                    y = (screenHeight - textHeight) / 2; 
+                }
             }
+            
+            int finalX = x + config.comboXOffset;
+            int finalY = y + config.comboYOffset;
+
+            int boundW = config.comboShowBackground ? (int)(((textWidth / scale) + padding * 2) * scale) : textWidth;
+            int boundH = config.comboShowBackground ? (int)(((textHeight / scale) + padding * 2) * scale) : textHeight;
+            int boundX = config.comboShowBackground ? finalX - (int)(padding * scale) : finalX;
+            int boundY = config.comboShowBackground ? finalY - (int)(padding * scale) : finalY;
+            
+            MODULE_BOUNDS.put("Combo", new ModuleBounds(boundX, boundY, boundW, boundH));
 
             drawContext.getMatrices().pushMatrix();
-            drawContext.getMatrices().translate((float)(x + config.comboXOffset), (float)(y + config.comboYOffset));
+            drawContext.getMatrices().translate((float)finalX, (float)finalY);
             drawContext.getMatrices().scale(scale, scale);
 
             if (config.comboShowBackground) {
                 int bgX = -padding;
                 int bgY = -padding;
-                int bgW = (int)(textWidth / scale) + (padding * 2);
-                int bgH = (int)(textHeight / scale) + (padding * 2);
+                int bgW_local = (int)(textWidth / scale) + (padding * 2);
+                int bgH_local = (int)(textHeight / scale) + (padding * 2);
                 int bgAlphaColor = (config.comboBackgroundOpacity << 24) | (config.comboBackgroundColor & 0x00FFFFFF);
-                drawContext.fill(bgX, bgY, bgX + bgW, bgY + bgH, bgAlphaColor);
+                drawContext.fill(bgX, bgY, bgX + bgW_local, bgY + bgH_local, bgAlphaColor);
             }
 
             drawContext.drawTextWithShadow(client.textRenderer, comboStr, 0, 0, color);
             drawContext.getMatrices().popMatrix();
         }
 
-        // --- 5. KEYSTROKES ÇİZİMİ ---
-        if (config.showKeystrokes) {
+        // --- 5. KEYSTROKES ---
+        if (config.showKeystrokes || isEditor) {
             float kScale = config.keystrokesScale / 100f;
             int boxSize = 20;
             int spacing = 2;
@@ -266,16 +431,41 @@ public class SimpleCPSClient implements ClientModInitializer {
             int totalHeight = (int)(((boxSize * 2) + 12 + (spacing * 2)) * kScale); 
 
             int x = 0, y = 0;
+            boolean detached = config.keystrokesXOffset != 0 || config.keystrokesYOffset != 0;
+            
             switch (config.keystrokesPosition) {
-                case TOP_LEFT -> { x = 5; y = topLeftY; topLeftY += totalHeight + gap; }
-                case TOP_RIGHT -> { x = screenWidth - totalWidth - 5; y = topRightY; topRightY += totalHeight + gap; }
-                case BOTTOM_LEFT -> { y = bottomLeftY - totalHeight; bottomLeftY -= (totalHeight + gap); x = 5; }
-                case BOTTOM_RIGHT -> { y = bottomRightY - totalHeight; bottomRightY -= (totalHeight + gap); x = screenWidth - totalWidth - 5; }
-                case CENTER -> { x = (screenWidth - totalWidth) / 2; y = (screenHeight - totalHeight) / 2; }
+                case TOP_LEFT -> { 
+                    x = stackGap; 
+                    y = detached ? stackGap : topLeftStack; 
+                    if(!detached) topLeftStack += totalHeight + gap; 
+                }
+                case TOP_RIGHT -> { 
+                    x = screenWidth - totalWidth - stackGap; 
+                    y = detached ? stackGap : topRightStack; 
+                    if(!detached) topRightStack += totalHeight + gap; 
+                }
+                case BOTTOM_LEFT -> { 
+                    x = stackGap; 
+                    if (!detached) bottomLeftStack -= totalHeight;
+                    y = detached ? (screenHeight - totalHeight - stackGap) : bottomLeftStack;
+                    if (!detached) bottomLeftStack -= gap;
+                }
+                case BOTTOM_RIGHT -> { 
+                    x = screenWidth - totalWidth - stackGap; 
+                    if (!detached) bottomRightStack -= totalHeight;
+                    y = detached ? (screenHeight - totalHeight - stackGap) : bottomRightStack;
+                    if (!detached) bottomRightStack -= gap;
+                }
+                case CENTER -> { 
+                    x = (screenWidth - totalWidth) / 2; 
+                    y = (screenHeight - totalHeight) / 2; 
+                }
             }
 
-            x += config.keystrokesXOffset;
-            y += config.keystrokesYOffset;
+            int finalX = x + config.keystrokesXOffset;
+            int finalY = y + config.keystrokesYOffset;
+            
+            MODULE_BOUNDS.put("Keystrokes", new ModuleBounds(finalX, finalY, totalWidth, totalHeight));
 
             String txtW = "W", txtA = "A", txtS = "S", txtD = "D", txtSp = "----";
             if (config.keystrokesMode == SimpleCPSConfig.KeystrokesMode.ARROWS) {
@@ -304,7 +494,7 @@ public class SimpleCPSClient implements ClientModInitializer {
             }
 
             drawContext.getMatrices().pushMatrix();
-            drawContext.getMatrices().translate((float)x, (float)y);
+            drawContext.getMatrices().translate((float)finalX, (float)finalY);
             drawContext.getMatrices().scale(kScale, kScale);
 
             boolean wPressed = client.options.forwardKey.isPressed();
