@@ -2,8 +2,8 @@
     "schemaVersion": 1,
     "id": "simplecps",
     "version": "${version}",
-    "name": "SimpleCPS",
-    "description": "A simple, customizable CPS display mod for Fabric.",
+    "name": "Eymistaken's HUD",
+    "description": "A customizable HUD mod with CPS, FPS, Ping, Keystrokes, and Combo Counter.",
     "authors": [
         "Eymistaken"
     ],

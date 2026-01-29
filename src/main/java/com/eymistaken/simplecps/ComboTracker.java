@@ -10,10 +10,20 @@ public class ComboTracker {
     private static long lastHitTime = 0;
     private static UUID currentTargetUuid = null;
 
-    public static void registerHit(Entity target) {
+    public static void registerHit(Entity target, PlayerEntity attacker) {
         if (!(target instanceof PlayerEntity)) return;
 
         SimpleCPSConfig config = AutoConfig.getConfigHolder(SimpleCPSConfig.class).getConfig();
+        
+        // 1.9+ Modern Combat Logic
+        if (config.combatMode == SimpleCPSConfig.CombatMode.MODERN) {
+            float cooldown = attacker.getAttackCooldownProgress(0.5f);
+            if (cooldown < 0.9f) {
+                // Ignore spam/weak hits
+                return;
+            }
+        }
+
         long now = System.currentTimeMillis();
         long timeoutMs = (long)(config.comboTimeout * 1000);
 

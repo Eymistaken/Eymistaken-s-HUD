@@ -47,7 +47,7 @@ public class SimpleCPSClient implements ClientModInitializer {
 
         AttackEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> {
             if (world.isClient()) {
-                ComboTracker.registerHit(entity);
+                ComboTracker.registerHit(entity, player);
             }
             return ActionResult.PASS;
         });

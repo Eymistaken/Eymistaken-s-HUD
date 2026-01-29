@@ -17,7 +17,7 @@ public class ModMenuIntegration implements ModMenuApi {
             
             ConfigBuilder builder = ConfigBuilder.create()
                     .setParentScreen(parent)
-                    .setTitle(Text.of("SimpleCPS Settings"))
+                    .setTitle(Text.of("Eymistaken's HUD Settings"))
                     .setSavingRunnable(() -> {
                         AutoConfig.getConfigHolder(SimpleCPSConfig.class).save();
                     });
@@ -329,6 +329,12 @@ public class ModMenuIntegration implements ModMenuApi {
                     .build());
 
             // Logic Settings
+            comboCategory.addEntry(entryBuilder.startEnumSelector(Text.of("Combat Mode"), SimpleCPSConfig.CombatMode.class, config.combatMode)
+                    .setDefaultValue(SimpleCPSConfig.CombatMode.MODERN)
+                    .setTooltip(Text.of("Modern: Requires attack cooldown.\nClassic: Spam clicking allowed."))
+                    .setSaveConsumer(newValue -> config.combatMode = newValue)
+                    .build());
+
             comboCategory.addEntry(entryBuilder.startIntSlider(Text.of("Combo Timeout (s)"), (int)(config.comboTimeout * 10), 5, 100)
                     .setDefaultValue(30)
                     .setTextGetter(value -> Text.of(String.format("%.1fs", value / 10.0)))

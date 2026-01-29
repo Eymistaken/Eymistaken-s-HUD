@@ -19,6 +19,10 @@ public class SimpleCPSConfig implements ConfigData {
         TEXT, BACKGROUND
     }
 
+    public enum CombatMode {
+        CLASSIC, MODERN
+    }
+
     // --- 1. CPS AYARLARI ---
     @ConfigEntry.Gui.Tooltip
     public boolean enabled = true;
@@ -191,6 +195,9 @@ public class SimpleCPSConfig implements ConfigData {
     public int comboBackgroundOpacity = 128;
 
     // Logic
+    @ConfigEntry.Gui.Tooltip
+    public CombatMode combatMode = CombatMode.MODERN;
+
     @ConfigEntry.Gui.Tooltip
     public double comboTimeout = 3.0; // Seconds
 
