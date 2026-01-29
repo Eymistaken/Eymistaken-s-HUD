@@ -1,17 +1,11 @@
 package com.eymistaken.simplecps;
 
-import me.shedaniel.autoconfig.AutoConfig;
-import me.shedaniel.autoconfig.serializer.GsonConfigSerializer;
 import net.fabricmc.api.ClientModInitializer;
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.client.render.RenderTickCounter;
 import net.minecraft.util.math.MathHelper;
-import net.fabricmc.fabric.api.event.player.AttackEntityCallback;
-import net.minecraft.util.ActionResult;
 import net.minecraft.entity.Entity;
 
 import java.util.ArrayList;
@@ -20,46 +14,48 @@ import java.util.List;
 
 public class SimpleCPSClient implements ClientModInitializer {
 
-    private final List<Long> leftClicks = new ArrayList<>();
-    private final List<Long> rightClicks = new ArrayList<>();
-    private boolean wasLeftPressed = false;
-    private boolean wasRightPressed = false;
+    private static final List<Long> leftClicks = new ArrayList<>();
+    private static final List<Long> rightClicks = new ArrayList<>();
+    private static boolean wasLeftPressed = false;
+    private static boolean wasRightPressed = false;
     
-    private float hue = 0;
+    private static float hue = 0;
     
     // Ping Cache
-    private volatile int cachedPing = 0;
-    private PlayerListEntry cachedEntry = null;
-    private int lastHurtTime = 0; // For damage detection
+    private static volatile int cachedPing = 0;
+    private static PlayerListEntry cachedEntry = null;
+    private static int lastHurtTime = 0; 
 
     // Animation Scales
-    private float scaleW = 1.0f;
-    private float scaleA = 1.0f;
-    private float scaleS = 1.0f;
-    private float scaleD = 1.0f;
-    private float scaleSpace = 1.0f;
+    private static float scaleW = 1.0f;
+    private static float scaleA = 1.0f;
+    private static float scaleS = 1.0f;
+    private static float scaleD = 1.0f;
+    private static float scaleSpace = 1.0f;
 
     @Override
     public void onInitializeClient() {
-        AutoConfig.register(SimpleCPSConfig.class, GsonConfigSerializer::new);
-        HudRenderCallback.EVENT.register(this::onHudRender);
-        ClientTickEvents.END_CLIENT_TICK.register(this::onClientTick);
-
-        AttackEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> {
-            if (world.isClient()) {
-                ComboTracker.registerHit(entity, player);
-            }
-            return ActionResult.PASS;
-        });
+        // Load Config
+        SimpleCPSConfig.load();
+        System.out.println("Eymistaken's HUD (Standalone) Initialized!");
     }
     
-    private void onClientTick(MinecraftClient client) {
+    public static void onClientTick(MinecraftClient client) {
         if (client.player == null || client.getNetworkHandler() == null) {
             cachedPing = 0;
             cachedEntry = null;
             return;
         }
         
+        // Damage Detection Logic
+        if (client.player != null) {
+            if (client.player.hurtTime > lastHurtTime && client.player.hurtTime > 0) {
+                Entity attacker = client.player.getAttacker();
+                ComboTracker.onDamage(attacker);
+            }
+            lastHurtTime = client.player.hurtTime;
+        }
+
         PlayerListEntry entry = client.getNetworkHandler().getPlayerListEntry(client.player.getUuid());
         if (entry != null) {
             cachedEntry = entry;
@@ -78,18 +74,9 @@ public class SimpleCPSClient implements ClientModInitializer {
                 }
             }
         }
-        
-        // Damage Detection Logic
-        if (client.player != null) {
-            if (client.player.hurtTime > lastHurtTime && client.player.hurtTime > 0) {
-                Entity attacker = client.player.getAttacker();
-                ComboTracker.onDamage(attacker);
-            }
-            lastHurtTime = client.player.hurtTime;
-        }
     }
 
-    private void onHudRender(DrawContext drawContext, RenderTickCounter tickCounter) {
+    public static void onHudRender(DrawContext drawContext, RenderTickCounter tickCounter) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player == null || client.world == null || client.options.hudHidden) return;
 
@@ -106,7 +93,7 @@ public class SimpleCPSClient implements ClientModInitializer {
         leftClicks.removeIf(time -> now - time > 1000);
         rightClicks.removeIf(time -> now - time > 1000);
 
-        SimpleCPSConfig config = AutoConfig.getConfigHolder(SimpleCPSConfig.class).getConfig();
+        SimpleCPSConfig config = SimpleCPSConfig.instance;
         int screenWidth = drawContext.getScaledWindowWidth();
         int screenHeight = drawContext.getScaledWindowHeight();
 
@@ -125,7 +112,7 @@ public class SimpleCPSClient implements ClientModInitializer {
             float scale = config.scale / 100f;
             int textHeight = (int)(client.textRenderer.fontHeight * scale);
             int textWidth = (int)(client.textRenderer.getWidth(cpsText) * scale);
-            int padding = 2; // Arkaplan için kenar boşluğu
+            int padding = 2; 
 
             int x = 0, y = 0;
             switch (config.position) {
@@ -140,11 +127,10 @@ public class SimpleCPSClient implements ClientModInitializer {
             drawContext.getMatrices().translate((float)(x + config.xOffset), (float)(y + config.yOffset));
             drawContext.getMatrices().scale(scale, scale);
             
-            // Arkaplan Çizimi
             if (config.cpsShowBackground) {
                 int bgX = -padding;
                 int bgY = -padding;
-                int bgW = (int)(textWidth / scale) + (padding * 2); // Scale etkisini geri alıp hesapla
+                int bgW = (int)(textWidth / scale) + (padding * 2); 
                 int bgH = (int)(textHeight / scale) + (padding * 2);
                 int bgAlphaColor = (config.cpsBackgroundOpacity << 24) | (config.cpsBackgroundColor & 0x00FFFFFF);
                 drawContext.fill(bgX, bgY, bgX + bgW, bgY + bgH, bgAlphaColor);
@@ -193,7 +179,7 @@ public class SimpleCPSClient implements ClientModInitializer {
             drawContext.getMatrices().popMatrix();
         }
 
-        // --- 3. FPS ÇİZİMİ (YENİ) ---
+        // --- 3. FPS ÇİZİMİ ---
         if (config.showFps) {
             String fpsStr = client.getCurrentFps() + " " + config.fpsText;
             
@@ -231,7 +217,7 @@ public class SimpleCPSClient implements ClientModInitializer {
             drawContext.getMatrices().popMatrix();
         }
 
-        // --- 4. COMBO ÇİZİMİ (YENİ) ---
+        // --- 4. COMBO ÇİZİMİ ---
         boolean shouldRenderCombo = config.showCombo && (ComboTracker.getCombo() > 0 || !config.comboHideWhenInactive);
         if (shouldRenderCombo) {
             String comboStr = ComboTracker.getCombo() + " " + config.comboText;
@@ -305,7 +291,6 @@ public class SimpleCPSClient implements ClientModInitializer {
             int pressedColor = config.keystrokesPressedColor;
             if ((pressedColor & 0xFF000000) == 0) pressedColor |= 0xFF000000;
             
-            // Arkaplan Rengi (Opaklık ayarıyla birleştir)
             int baseBgColor = (config.keystrokesBackgroundOpacity << 24) | (config.keystrokesBackgroundColor & 0x00FFFFFF);
 
             if (config.keystrokesRainbow) {
@@ -314,7 +299,6 @@ public class SimpleCPSClient implements ClientModInitializer {
                     normalColor = rainbow;
                     pressedColor = rainbow; 
                 } else {
-                    // Rainbow Background
                     baseBgColor = (config.keystrokesBackgroundOpacity << 24) | (rainbow & 0x00FFFFFF);
                 }
             }
@@ -349,7 +333,7 @@ public class SimpleCPSClient implements ClientModInitializer {
         }
     }
 
-    private float updateAnimation(float currentScale, boolean isPressed) {
+    private static float updateAnimation(float currentScale, boolean isPressed) {
         float target = isPressed ? 0.85f : 1.0f;
         float speed = 0.2f;
         float diff = target - currentScale;
@@ -357,7 +341,7 @@ public class SimpleCPSClient implements ClientModInitializer {
         return currentScale + (diff * speed);
     }
 
-    private void drawAnimatedKey(DrawContext context, MinecraftClient client, String key, int x, int y, int w, int h, int textColor, int bgColor, float animScale) {
+    private static void drawAnimatedKey(DrawContext context, MinecraftClient client, String key, int x, int y, int w, int h, int textColor, int bgColor, float animScale) {
         context.getMatrices().pushMatrix();
         
         float centerX = x + (w / 2.0f);
@@ -366,7 +350,6 @@ public class SimpleCPSClient implements ClientModInitializer {
         context.getMatrices().scale(animScale, animScale);
         context.getMatrices().translate(-centerX, -centerY);
         
-        // Arka plan (bgColor parametresi artık opaklığı içeriyor)
         context.fill(x, y, x + w, y + h, bgColor);
         
         int textWidth = client.textRenderer.getWidth(key);
@@ -376,7 +359,7 @@ public class SimpleCPSClient implements ClientModInitializer {
         context.getMatrices().popMatrix();
     }
 
-    private int getRainbowColor() {
+    private static int getRainbowColor() {
         hue += 0.5f; 
         if (hue > 360) hue = 0;
         int rgb = MathHelper.hsvToRgb(hue / 360f, 1.0f, 1.0f);

@@ -2,7 +2,6 @@ package com.eymistaken.simplecps;
 
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
-import me.shedaniel.autoconfig.AutoConfig;
 import java.util.UUID;
 
 public class ComboTracker {
@@ -13,7 +12,7 @@ public class ComboTracker {
     public static void registerHit(Entity target, PlayerEntity attacker) {
         if (!(target instanceof PlayerEntity)) return;
 
-        SimpleCPSConfig config = AutoConfig.getConfigHolder(SimpleCPSConfig.class).getConfig();
+        SimpleCPSConfig config = SimpleCPSConfig.instance;
         
         // 1.9+ Modern Combat Logic
         if (config.combatMode == SimpleCPSConfig.CombatMode.MODERN) {
@@ -46,7 +45,7 @@ public class ComboTracker {
     }
 
     public static void onDamage(Entity attacker) {
-        SimpleCPSConfig config = AutoConfig.getConfigHolder(SimpleCPSConfig.class).getConfig();
+        SimpleCPSConfig config = SimpleCPSConfig.instance;
         
         if (config.comboResetOnAnyDamage) {
             reset();
@@ -67,7 +66,7 @@ public class ComboTracker {
     }
 
     public static int getCombo() {
-        SimpleCPSConfig config = AutoConfig.getConfigHolder(SimpleCPSConfig.class).getConfig();
+        SimpleCPSConfig config = SimpleCPSConfig.instance;
         long now = System.currentTimeMillis();
         long timeoutMs = (long)(config.comboTimeout * 1000);
 

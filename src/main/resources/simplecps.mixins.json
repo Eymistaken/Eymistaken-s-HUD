@@ -1,0 +1,15 @@
+{
+    "required": true,
+    "minVersion": "0.8",
+    "package": "com.eymistaken.simplecps.mixin",
+    "compatibilityLevel": "JAVA_21",
+    "mixins": [
+        "MixinInGameHud",
+        "MixinMinecraftClient",
+        "MixinClientPlayerInteractionManager",
+        "MixinOptionsScreen"
+    ],
+    "injectors": {
+        "defaultRequire": 1
+    }
+}

@@ -14,6 +14,9 @@
     },
     "license": "MIT",
     "icon": "assets/simplecps/icon.png",
+    "mixins": [
+        "simplecps.mixins.json"
+    ],
     "environment": "*",
     "entrypoints": {
         "main": [
@@ -29,9 +32,7 @@
     "depends": {
         "fabricloader": ">=0.14.21",
         "minecraft": ">=1.20.1",
-        "java": ">=17",
-        "fabric-api": "*",
-        "cloth-config": ">=11.0.0"
+        "java": ">=17"
     },
     "suggests": {
         "modmenu": ">=7.0.0"
