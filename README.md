@@ -40,7 +40,7 @@ Adapt the mod to your game version's mechanics.
 
 | Combo Counter | Keystrokes |
 |:---:|:---:|
-| *![Combo GIF Placeholder](https://via.placeholder.com/400x200?text=Place+Combo+GIF+Here)* | *![Keystrokes Placeholder](https://via.placeholder.com/400x200?text=Place+Keystrokes+IMG+Here)* |
+| *![Combo GIF Placeholder](<img width="1920" height="1080" alt="Image" src="https://github.com/user-attachments/assets/69e1d824-beff-4e99-8917-796a798e427a" />)* | *![Keystrokes Placeholder](https://via.placeholder.com/400x200?text=Place+Keystrokes+IMG+Here)* |
 | *Modern Mode Logic* | *RGB Mode Enabled* |
 
 *(Screenshots coming soon)*
