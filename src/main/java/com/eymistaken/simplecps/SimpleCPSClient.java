@@ -8,6 +8,7 @@ import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.client.render.RenderTickCounter;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.entity.Entity;
+import com.mojang.authlib.GameProfile;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -25,7 +26,7 @@ public class SimpleCPSClient implements ClientModInitializer {
     private static float hue = 0;
     
     // Ping Cache
-    private static volatile int cachedPing = 0;
+    private static volatile int cachedPing = -1;
     private static PlayerListEntry cachedEntry = null;
     private static int lastHurtTime = 0; 
 
@@ -54,7 +55,7 @@ public class SimpleCPSClient implements ClientModInitializer {
     
     public static void onClientTick(MinecraftClient client) {
         if (client.player == null || client.getNetworkHandler() == null) {
-            cachedPing = 0;
+            cachedPing = -1;
             cachedEntry = null;
             return;
         }
@@ -69,22 +70,23 @@ public class SimpleCPSClient implements ClientModInitializer {
         }
 
         PlayerListEntry entry = client.getNetworkHandler().getPlayerListEntry(client.player.getUuid());
+        
+        if (entry == null) {
+            for (PlayerListEntry p : client.getNetworkHandler().getPlayerList()) {
+                // FALLBACK: Use GameProfile.name() for comparison (Java record accessor)
+                if (p.getProfile() != null && p.getProfile().name().equals(client.player.getName().getString())) {
+                    entry = p;
+                    break;
+                }
+            }
+        }
+
         if (entry != null) {
             cachedEntry = entry;
             cachedPing = entry.getLatency();
         } else {
-            String myName = client.player.getName().getString();
-            Collection<PlayerListEntry> allPlayers = client.getNetworkHandler().getPlayerList();
-            for (PlayerListEntry p : allPlayers) {
-                if (p.getProfile() != null) {
-                    String profileDump = p.getProfile().toString();
-                    if (profileDump.contains("name='" + myName + "'") || profileDump.contains("name=" + myName)) {
-                        cachedEntry = p;
-                        cachedPing = p.getLatency();
-                        break;
-                    }
-                }
-            }
+            cachedEntry = null;
+            cachedPing = -1;
         }
     }
 
@@ -207,7 +209,7 @@ public class SimpleCPSClient implements ClientModInitializer {
         if (config.showPing || isEditor) {
             int latency = cachedPing;
             if (cachedEntry != null) latency = cachedEntry.getLatency();
-            String pingText = latency + " ms";
+            String pingText = (latency < 0) ? "? ms" : (latency + " ms");
             
             float scale = 1.0f; 
             int textHeight = (int)(client.textRenderer.fontHeight * scale);
