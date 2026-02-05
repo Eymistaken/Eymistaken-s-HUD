@@ -69,22 +69,14 @@ public class SimpleCPSClient implements ClientModInitializer {
             lastHurtTime = client.player.hurtTime;
         }
 
+        // Only use UUID-based lookup - no name fallback
         PlayerListEntry entry = client.getNetworkHandler().getPlayerListEntry(client.player.getUuid());
-        
-        if (entry == null) {
-            for (PlayerListEntry p : client.getNetworkHandler().getPlayerList()) {
-                // FALLBACK: Use GameProfile.name() for comparison (Java record accessor)
-                if (p.getProfile() != null && p.getProfile().name().equals(client.player.getName().getString())) {
-                    entry = p;
-                    break;
-                }
-            }
-        }
 
         if (entry != null) {
             cachedEntry = entry;
             cachedPing = entry.getLatency();
         } else {
+            // UUID bulunamadı - ping bilinmiyor
             cachedEntry = null;
             cachedPing = -1;
         }
