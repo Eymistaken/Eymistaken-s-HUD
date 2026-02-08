@@ -47,6 +47,7 @@ public class HudEditorScreen extends Screen {
                     case "FPS" -> config.fpsScale = clamp(config.fpsScale + scaleChange);
                     case "Combo" -> config.comboScale = clamp(config.comboScale + scaleChange);
                     case "Keystrokes" -> config.keystrokesScale = clamp(config.keystrokesScale + scaleChange);
+                    case "Reach" -> config.reachScale = clamp(config.reachScale + scaleChange);
                 }
                 return true;
             }
@@ -119,6 +120,10 @@ public class HudEditorScreen extends Screen {
                              config.keystrokesPosition = SimpleCPSConfig.Position.TOP_LEFT; 
                              config.keystrokesXOffset = 0; config.keystrokesYOffset = 0; 
                         }
+                        case "Reach" -> { 
+                             config.reachPosition = SimpleCPSConfig.Position.TOP_LEFT; 
+                             config.reachXOffset = 0; config.reachYOffset = 0; 
+                        }
                     }
                     break;
                 }
@@ -176,6 +181,10 @@ public class HudEditorScreen extends Screen {
                 case "Keystrokes" -> { 
                     config.keystrokesPosition = newAnchor; 
                     config.keystrokesXOffset = newOffsetX; config.keystrokesYOffset = newOffsetY; 
+                }
+                case "Reach" -> { 
+                    config.reachPosition = newAnchor; 
+                    config.reachXOffset = newOffsetX; config.reachYOffset = newOffsetY; 
                 }
             }
         }

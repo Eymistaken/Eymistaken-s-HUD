@@ -113,4 +113,20 @@ public class SimpleCPSConfig {
     public boolean comboContinueOnSwitch = true;
     public boolean comboHideWhenInactive = false;
     public CombatMode combatMode = CombatMode.MODERN;
+
+    // --- REACH DISPLAY ---
+    public boolean showReach = false;
+    public Position reachPosition = Position.TOP_LEFT;
+    public int reachXOffset = 0;
+    public int reachYOffset = 0;
+    public int reachColor = 0xFFFFFF;
+    public boolean reachRainbow = false;
+    public double reachTimeout = 3.0;
+    public int reachScale = 100;
+    public boolean reachShowBackground = false;
+    public int reachBackgroundColor = 0x000000;
+    public int reachBackgroundOpacity = 128;
+    public boolean reachOnlyPlayers = true;
+    public boolean reachAlwaysShow = false;
+    public String reachNoHitText = "No Hit";
 }

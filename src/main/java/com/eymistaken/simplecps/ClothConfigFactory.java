@@ -318,6 +318,79 @@ public class ClothConfigFactory {
                 .setSaveConsumer(val -> config.comboHideWhenInactive = val)
                 .build());
 
+        // --- REACH DISPLAY ---
+        ConfigCategory reach = builder.getOrCreateCategory(Text.of("Reach Display"));
+        reach.addEntry(entryBuilder.startBooleanToggle(Text.of("Show Reach Display"), config.showReach)
+                .setDefaultValue(false)
+                .setTooltip(Text.of("Toggle Reach Display visibility"))
+                .setSaveConsumer(val -> config.showReach = val)
+                .build());
+        reach.addEntry(entryBuilder.startEnumSelector(Text.of("Position"), SimpleCPSConfig.Position.class, config.reachPosition)
+                .setDefaultValue(SimpleCPSConfig.Position.CENTER)
+                .setTooltip(Text.of("Anchor position for Reach Display"))
+                .setSaveConsumer(val -> config.reachPosition = val)
+                .build());
+        reach.addEntry(entryBuilder.startIntField(Text.of("X Offset"), config.reachXOffset)
+                .setDefaultValue(0)
+                .setTooltip(Text.of("Horizontal offset from anchor"))
+                .setSaveConsumer(val -> config.reachXOffset = val)
+                .build());
+        reach.addEntry(entryBuilder.startIntField(Text.of("Y Offset"), config.reachYOffset)
+                .setDefaultValue(0)
+                .setTooltip(Text.of("Vertical offset from anchor"))
+                .setSaveConsumer(val -> config.reachYOffset = val)
+                .build());
+        reach.addEntry(entryBuilder.startColorField(Text.of("Text Color"), config.reachColor)
+                .setDefaultValue(0xFFFFFF)
+                .setTooltip(Text.of("Color of the text"))
+                .setSaveConsumer(val -> config.reachColor = val)
+                .build());
+        reach.addEntry(entryBuilder.startBooleanToggle(Text.of("Rainbow"), config.reachRainbow)
+                .setDefaultValue(false)
+                .setTooltip(Text.of("Enable rainbow text effect"))
+                .setSaveConsumer(val -> config.reachRainbow = val)
+                .build());
+        reach.addEntry(entryBuilder.startIntSlider(Text.of("Scale %"), config.reachScale, 50, 300)
+                .setDefaultValue(100)
+                .setTooltip(Text.of("Size of the Reach display"))
+                .setSaveConsumer(val -> config.reachScale = val)
+                .build());
+        reach.addEntry(entryBuilder.startIntSlider(Text.of("Timeout (s)"), (int)config.reachTimeout, 1, 10)
+                .setDefaultValue(3)
+                .setTooltip(Text.of("Seconds before display disappears"))
+                .setSaveConsumer(val -> config.reachTimeout = val)
+                .build());
+        reach.addEntry(entryBuilder.startBooleanToggle(Text.of("Show Background"), config.reachShowBackground)
+                .setDefaultValue(true)
+                .setTooltip(Text.of("Show background box"))
+                .setSaveConsumer(val -> config.reachShowBackground = val)
+                .build());
+        reach.addEntry(entryBuilder.startColorField(Text.of("Background Color"), config.reachBackgroundColor)
+                .setDefaultValue(0x000000)
+                .setTooltip(Text.of("Color of the background"))
+                .setSaveConsumer(val -> config.reachBackgroundColor = val)
+                .build());
+        reach.addEntry(entryBuilder.startIntSlider(Text.of("Background Opacity"), config.reachBackgroundOpacity, 0, 255)
+                .setDefaultValue(128)
+                .setTooltip(Text.of("Transparency of the background"))
+                .setSaveConsumer(val -> config.reachBackgroundOpacity = val)
+                .build());
+        reach.addEntry(entryBuilder.startBooleanToggle(Text.of("Only Players"), config.reachOnlyPlayers)
+                .setDefaultValue(true)
+                .setTooltip(Text.of("Only show reach when hitting players"))
+                .setSaveConsumer(val -> config.reachOnlyPlayers = val)
+                .build());
+        reach.addEntry(entryBuilder.startBooleanToggle(Text.of("Always Show"), config.reachAlwaysShow)
+                .setDefaultValue(false)
+                .setTooltip(Text.of("Show reach display even when inactive"))
+                .setSaveConsumer(val -> config.reachAlwaysShow = val)
+                .build());
+        reach.addEntry(entryBuilder.startStrField(Text.of("No Hit Text"), config.reachNoHitText)
+                .setDefaultValue("No Hit")
+                .setTooltip(Text.of("Text to show when no hit has occurred"))
+                .setSaveConsumer(val -> config.reachNoHitText = val)
+                .build());
+
         // --- NEW LAYOUT TAB ---
         ConfigCategory layout = builder.getOrCreateCategory(Text.of("Layout"));
         layout.addEntry(entryBuilder.startTextDescription(Text.of("To open the Drag & Drop Editor: Enable the toggle below and click 'Save & Quit'."))

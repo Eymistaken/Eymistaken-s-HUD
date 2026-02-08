@@ -515,6 +515,82 @@ public class SimpleCPSClient implements ClientModInitializer {
 
             drawContext.getMatrices().popMatrix();
         }
+
+        // --- 6. REACH DISPLAY ---
+        boolean shouldRenderReach = config.showReach && (ReachTracker.getReachDisplay() != null || isEditor);
+        if (shouldRenderReach) {
+            String reachText = ReachTracker.getReachDisplay();
+            if (isEditor && reachText == null) reachText = "No Hit";
+            
+            float scale = config.reachScale / 100f;
+            int textHeight = (int)(client.textRenderer.fontHeight * scale);
+            int textWidth = (int)(client.textRenderer.getWidth(reachText) * scale);
+            int padding = 2;
+            
+            int color = config.reachRainbow ? getRainbowColor() : config.reachColor;
+            if ((color & 0xFF000000) == 0) color |= 0xFF000000;
+
+            int x = 0, y = 0;
+            boolean detached = config.reachXOffset != 0 || config.reachYOffset != 0;
+            int usedHeight = textHeight + (config.reachShowBackground ? padding * 2 : 0);
+
+             switch (config.reachPosition) {
+                case TOP_LEFT -> { 
+                    x = stackGap; 
+                    y = detached ? stackGap : topLeftStack; 
+                    if(!detached) topLeftStack += usedHeight + gap; 
+                }
+                case TOP_RIGHT -> { 
+                    x = screenWidth - textWidth - stackGap; 
+                    y = detached ? stackGap : topRightStack; 
+                    if(!detached) topRightStack += usedHeight + gap; 
+                }
+                case BOTTOM_LEFT -> { 
+                    x = stackGap; 
+                    if (!detached) bottomLeftStack -= usedHeight;
+                    y = detached ? (screenHeight - usedHeight - stackGap) : bottomLeftStack;
+                    if (!detached) bottomLeftStack -= gap;
+                }
+                case BOTTOM_RIGHT -> { 
+                    x = screenWidth - textWidth - stackGap; 
+                    if (!detached) bottomRightStack -= usedHeight;
+                    y = detached ? (screenHeight - usedHeight - stackGap) : bottomRightStack;
+                    if (!detached) bottomRightStack -= gap;
+                }
+                case CENTER -> { 
+                    x = (screenWidth - textWidth) / 2; 
+                    y = (screenHeight - textHeight) / 2; 
+                    // Push down slightly if in center to avoid crosshair overlap by default
+                    if (!detached) y += 15; 
+                }
+            }
+            
+            int finalX = x + config.reachXOffset;
+            int finalY = y + config.reachYOffset;
+
+            int boundW = config.reachShowBackground ? (int)(((textWidth / scale) + padding * 2) * scale) : textWidth;
+            int boundH = config.reachShowBackground ? (int)(((textHeight / scale) + padding * 2) * scale) : textHeight;
+            int boundX = config.reachShowBackground ? finalX - (int)(padding * scale) : finalX;
+            int boundY = config.reachShowBackground ? finalY - (int)(padding * scale) : finalY;
+            
+            MODULE_BOUNDS.put("Reach", new ModuleBounds(boundX, boundY, boundW, boundH));
+
+            drawContext.getMatrices().pushMatrix();
+            drawContext.getMatrices().translate((float)finalX, (float)finalY);
+            drawContext.getMatrices().scale(scale, scale);
+            
+            if (config.reachShowBackground) {
+                int bgX = -padding;
+                int bgY = -padding;
+                int bgW_local = (int)(textWidth / scale) + (padding * 2);
+                int bgH_local = (int)(textHeight / scale) + (padding * 2);
+                int bgAlphaColor = (config.reachBackgroundOpacity << 24) | (config.reachBackgroundColor & 0x00FFFFFF);
+                drawContext.fill(bgX, bgY, bgX + bgW_local, bgY + bgH_local, bgAlphaColor);
+            }
+
+            drawContext.drawTextWithShadow(client.textRenderer, reachText, 0, 0, color);
+            drawContext.getMatrices().popMatrix();
+        }
     }
 
     private static float updateAnimation(float currentScale, boolean isPressed) {
