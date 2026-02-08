@@ -204,6 +204,31 @@ public class ClothConfigFactory {
                 .setTooltip(Text.of("Display style (WASD, Arrows, Custom)"))
                 .setSaveConsumer(val -> config.keystrokesMode = val)
                 .build());
+        keys.addEntry(entryBuilder.startStrField(Text.of("Custom W"), config.customW)
+                .setDefaultValue("W")
+                .setTooltip(Text.of("Text for Forward key (Custom Mode)"))
+                .setSaveConsumer(val -> config.customW = val)
+                .build());
+        keys.addEntry(entryBuilder.startStrField(Text.of("Custom A"), config.customA)
+                .setDefaultValue("A")
+                .setTooltip(Text.of("Text for Left key (Custom Mode)"))
+                .setSaveConsumer(val -> config.customA = val)
+                .build());
+        keys.addEntry(entryBuilder.startStrField(Text.of("Custom S"), config.customS)
+                .setDefaultValue("S")
+                .setTooltip(Text.of("Text for Back key (Custom Mode)"))
+                .setSaveConsumer(val -> config.customS = val)
+                .build());
+        keys.addEntry(entryBuilder.startStrField(Text.of("Custom D"), config.customD)
+                .setDefaultValue("D")
+                .setTooltip(Text.of("Text for Right key (Custom Mode)"))
+                .setSaveConsumer(val -> config.customD = val)
+                .build());
+        keys.addEntry(entryBuilder.startStrField(Text.of("Custom Space"), config.customSpace)
+                .setDefaultValue("----")
+                .setTooltip(Text.of("Text for Jump key (Custom Mode)"))
+                .setSaveConsumer(val -> config.customSpace = val)
+                .build());
          keys.addEntry(entryBuilder.startIntSlider(Text.of("Scale %"), config.keystrokesScale, 50, 300)
                 .setDefaultValue(80)
                 .setTooltip(Text.of("Size of the keystrokes"))
