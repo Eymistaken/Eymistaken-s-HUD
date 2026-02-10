@@ -1,0 +1,40 @@
+{
+    "schemaVersion": 1,
+    "id": "simplecps",
+    "version": "${version}",
+    "name": "Eymistaken's HUD",
+    "description": "A customizable HUD mod with CPS, FPS, Ping, Keystrokes, and Combo Counter.",
+    "authors": [
+        "Eymistaken"
+    ],
+    "contact": {
+        "homepage": "https://github.com/Eymistaken/SimpleCPS",
+        "sources": "https://github.com/Eymistaken/SimpleCPS",
+        "issues": "https://github.com/Eymistaken/SimpleCPS/issues"
+    },
+    "license": "MIT",
+    "icon": "assets/simplecps/icon.png",
+    "mixins": [
+        "simplecps.mixins.json"
+    ],
+    "environment": "*",
+    "entrypoints": {
+        "main": [
+            "com.eymistaken.simplecps.SimpleCPS"
+        ],
+        "client": [
+            "com.eymistaken.simplecps.SimpleCPSClient"
+        ],
+        "modmenu": [
+            "com.eymistaken.simplecps.ModMenuIntegration"
+        ]
+    },
+    "depends": {
+        "fabricloader": ">=0.14.21",
+        "minecraft": ">=1.20.1",
+        "java": ">=17"
+    },
+    "suggests": {
+        "modmenu": ">=7.0.0"
+    }
+}

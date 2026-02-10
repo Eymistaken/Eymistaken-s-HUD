@@ -1,0 +1,50 @@
+name: Otomatik Release Sistemi
+
+on:
+  push:
+    branches: [ "main" ] # Kodu main'e attığın an çalışır
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Kodları Çek
+        uses: actions/checkout@v4
+
+      - name: Java 21 Kurulumu
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Gradle İzni Ver
+        run: chmod +x gradlew
+
+      # --- 1. ADIM: Versiyonu Dosyadan Çal ---
+      - name: Versiyonu Oku
+        id: get_version
+        run: |
+          # gradle.properties dosyasından mod_version satırını bulur
+          # 'mod_version=1.0.5' -> '1.0.5' kısmını alır
+          VERSION=$(grep "mod_version" gradle.properties | cut -d'=' -f2 | tr -d '[:space:]')
+          echo "Bulunan Versiyon: $VERSION"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      # --- 2. ADIM: Derle ---
+      - name: Modu Derle
+        run: ./gradlew build
+
+      # --- 3. ADIM: Release Patlat (Etiketle Uğraşmadan) ---
+      - name: Release Oluştur
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ env.VERSION }} # Otomatik 'v1.0.5' etiketi basar
+          name: Sürüm v${{ env.VERSION }} # Başlık 'Sürüm v1.0.5' olur
+          files: build/libs/*.jar
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
