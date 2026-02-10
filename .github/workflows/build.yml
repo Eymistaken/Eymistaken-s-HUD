@@ -43,7 +43,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ env.VERSION }} # Otomatik 'v1.0.5' etiketi basar
-          name: Sürüm v${{ env.VERSION }} # Başlık 'Sürüm v1.0.5' olur
+          name: Version v${{ env.VERSION }} # Başlık 'Sürüm v1.0.5' olur
           files: build/libs/*.jar
           generate_release_notes: true
         env:
