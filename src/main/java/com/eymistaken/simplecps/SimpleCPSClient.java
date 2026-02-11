@@ -558,20 +558,47 @@ public class SimpleCPSClient implements ClientModInitializer {
         return currentScale + (diff * speed);
     }
 
-    private static void drawAnimatedKey(DrawContext context, MinecraftClient client, String key, int x, int y, int w, int h, int textColor, int bgColor, float animScale) {
+    private static void drawAnimatedKey(DrawContext context, MinecraftClient client, SimpleCPSConfig.KeyButtonData btn, int textColor, int bgColor, float animScale) {
         context.getMatrices().pushMatrix();
         
-        float centerX = x + (w / 2.0f);
-        float centerY = y + (h / 2.0f);
+        float centerX = btn.x + (btn.w / 2.0f);
+        float centerY = btn.y + (btn.h / 2.0f);
         context.getMatrices().translate(centerX, centerY);
         context.getMatrices().scale(animScale, animScale);
         context.getMatrices().translate(-centerX, -centerY);
         
-        context.fill(x, y, x + w, y + h, bgColor);
+        context.fill(btn.x, btn.y, btn.x + btn.w, btn.y + btn.h, bgColor);
         
-        int textWidth = client.textRenderer.getWidth(key);
+        // Prepare Text text
+        net.minecraft.text.MutableText text = net.minecraft.text.Text.literal(btn.label);
+        net.minecraft.text.Style style = net.minecraft.text.Style.EMPTY;
+        if (btn.bold) style = style.withBold(true);
+        if (btn.italic) style = style.withItalic(true);
+        if (btn.underlined) style = style.withUnderline(true);
+        text.setStyle(style);
+        
+        int textWidth = client.textRenderer.getWidth(text);
         int textHeight = client.textRenderer.fontHeight;
-        context.drawText(client.textRenderer, key, x + (w - textWidth) / 2, y + (h - textHeight) / 2, textColor, false);
+        
+        // Calculate Position (Fix Label Sync Config)
+        int lx, ly;
+        if (btn.labelX == -1) {
+            lx = btn.x + (btn.w - textWidth) / 2;
+        } else {
+            lx = btn.x + btn.labelX;
+        }
+        
+        if (btn.labelY == -1) {
+            ly = btn.y + (btn.h - textHeight) / 2;
+        } else {
+            ly = btn.y + btn.labelY;
+        }
+        
+        if (btn.shadow) {
+            context.drawTextWithShadow(client.textRenderer, text, lx, ly, textColor);
+        } else {
+            context.drawText(client.textRenderer, text, lx, ly, textColor, false);
+        }
         
         context.getMatrices().popMatrix();
     }
@@ -618,7 +645,7 @@ public class SimpleCPSClient implements ClientModInitializer {
              float newAnim = updateAnimation(currentAnim, isPressed);
              keyScales.put(btn.keyCode, newAnim);
              
-             drawAnimatedKey(drawContext, client, btn.label, btn.x, btn.y, btn.w, btn.h, isPressed ? pressedColor : normalColor, baseBgColor, newAnim);
+             drawAnimatedKey(drawContext, client, btn, isPressed ? pressedColor : normalColor, baseBgColor, newAnim);
         }
 
         drawContext.getMatrices().popMatrix();

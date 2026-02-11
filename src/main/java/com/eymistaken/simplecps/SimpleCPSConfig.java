@@ -98,6 +98,8 @@ public class SimpleCPSConfig {
         public int keyCode;
         public boolean shadow = true;
         public boolean bold = false;
+        public boolean italic = false;
+        public boolean underlined = false;
         public int labelX = -1, labelY = -1; // -1 means center
 
         public KeyButtonData(String label, int x, int y, int w, int h, int keyCode) {
