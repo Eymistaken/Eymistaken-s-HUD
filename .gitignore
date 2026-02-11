@@ -1,0 +1,22 @@
+# --- Build & Cache (Derleme ve Önbellek) ---
+build/
+.gradle/
+out/
+bin/
+.fabric/
+
+# --- IDE Settings (Editör Ayarları) ---
+.idea/
+.vscode/
+*.ipr
+*.iws
+*.iml
+
+# --- Runtime (Oyun Çalışırken Oluşanlar) ---
+run/
+logs/
+crash-reports/
+
+# --- OS Junk (İşletim Sistemi Çöpleri) ---
+.DS_Store
+Thumbs.db
