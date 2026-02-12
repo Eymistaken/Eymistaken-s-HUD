@@ -91,11 +91,18 @@ public class SimpleCPSConfig {
     public int keystrokesPressedColor = 0x00FF00;
     public int keystrokesBackgroundColor = 0x000000;
     public int keystrokesBackgroundOpacity = 128;
+    
+    // Toggleable Defaults
+    public boolean showLCTRL = true;
+    public boolean showLSHIFT = true;
+    public boolean showSpace = true; // Migrated logic if needed, but space is usually in list
 
     public static class KeyButtonData {
         public String label;
         public int x, y, w, h;
         public int keyCode;
+        public boolean isMouse = false; // New: Mouse Button Support
+        public boolean showCps = false; // New: CPS Counter
         public boolean shadow = true;
         public boolean bold = false;
         public boolean italic = false;
@@ -103,24 +110,57 @@ public class SimpleCPSConfig {
         public int labelX = -1, labelY = -1; // -1 means center
 
         public KeyButtonData(String label, int x, int y, int w, int h, int keyCode) {
+            this(label, x, y, w, h, keyCode, false);
+        }
+
+        public KeyButtonData(String label, int x, int y, int w, int h, int keyCode, boolean isMouse) {
             this.label = label;
             this.x = x;
             this.y = y;
             this.w = w;
             this.h = h;
             this.keyCode = keyCode;
+            this.isMouse = isMouse;
         }
     }
 
     public List<KeyButtonData> keystrokesLayout = new ArrayList<>();
 
     public SimpleCPSConfig() {
-        // Default Layout (WASD + Space)
+        // Default Layout: WASD + Space + Mouse + Modifiers
+        resetLayout();
+    }
+    
+    public void resetLayout() {
+        keystrokesLayout.clear();
+        // WASD
         keystrokesLayout.add(new KeyButtonData("W", 22, 0, 20, 20, GLFW.GLFW_KEY_W));
         keystrokesLayout.add(new KeyButtonData("A", 0, 22, 20, 20, GLFW.GLFW_KEY_A));
         keystrokesLayout.add(new KeyButtonData("S", 22, 22, 20, 20, GLFW.GLFW_KEY_S));
         keystrokesLayout.add(new KeyButtonData("D", 44, 22, 20, 20, GLFW.GLFW_KEY_D));
+        
+        // Mouse Buttons (LMB, RMB) - Split Mouse Style
+        // keystrokesLayout.add(new KeyButtonData("LMB", -22, 22, 20, 42, 0, true)); // OLD Vertical
+        // keystrokesLayout.add(new KeyButtonData("RMB", 66, 22, 20, 42, 1, true));  // OLD Vertical
+        
+        // Space
         keystrokesLayout.add(new KeyButtonData("----", 0, 44, 64, 12, GLFW.GLFW_KEY_SPACE));
+        
+        // Modifiers (LCTRL, LSHIFT)
+        keystrokesLayout.add(new KeyButtonData("LCTRL", 0, 58, 31, 12, GLFW.GLFW_KEY_LEFT_CONTROL));
+        keystrokesLayout.add(new KeyButtonData("LSHIFT", 33, 58, 31, 12, GLFW.GLFW_KEY_LEFT_SHIFT));
+
+        // Mouse Buttons (LMB, RMB) - Wide Style Below Modifiers
+        // Align with LCTRL (0) and LSHIFT (33)
+        // Default CPS enabled for mouse buttons? User asked for option to toggle. Let's default true for buttons? Or false. 
+        // User: "bu seçenek ... kapatılabilsin" -> imply it might be on or off. Let's default false, user can enable. Or default true? "altında ufak bir sayı olsun... kapatılabilsin" sounds like feature request.
+        KeyButtonData lmb = new KeyButtonData("LMB", 0, 72, 31, 12, 0, true);
+        lmb.showCps = true;
+        keystrokesLayout.add(lmb);
+        
+        KeyButtonData rmb = new KeyButtonData("RMB", 33, 72, 31, 12, 1, true);
+        rmb.showCps = true;
+        keystrokesLayout.add(rmb);
     }
 
     // --- COMBO ---

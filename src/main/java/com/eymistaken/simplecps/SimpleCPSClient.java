@@ -569,7 +569,7 @@ public class SimpleCPSClient implements ClientModInitializer {
         
         context.fill(btn.x, btn.y, btn.x + btn.w, btn.y + btn.h, bgColor);
         
-        // Prepare Text text
+        // Prepare Key Label
         net.minecraft.text.MutableText text = net.minecraft.text.Text.literal(btn.label);
         net.minecraft.text.Style style = net.minecraft.text.Style.EMPTY;
         if (btn.bold) style = style.withBold(true);
@@ -580,7 +580,11 @@ public class SimpleCPSClient implements ClientModInitializer {
         int textWidth = client.textRenderer.getWidth(text);
         int textHeight = client.textRenderer.fontHeight;
         
-        // Calculate Position (Fix Label Sync Config)
+        // Handle CPS Display Layout
+        // If showing CPS, maybe move label up slightly?
+        int yOffset = btn.showCps ? -3 : 0; // Move label up a bit if CPS is shown
+        
+        // Label Position
         int lx, ly;
         if (btn.labelX == -1) {
             lx = btn.x + (btn.w - textWidth) / 2;
@@ -589,7 +593,7 @@ public class SimpleCPSClient implements ClientModInitializer {
         }
         
         if (btn.labelY == -1) {
-            ly = btn.y + (btn.h - textHeight) / 2;
+            ly = btn.y + (btn.h - textHeight) / 2 + yOffset;
         } else {
             ly = btn.y + btn.labelY;
         }
@@ -598,6 +602,34 @@ public class SimpleCPSClient implements ClientModInitializer {
             context.drawTextWithShadow(client.textRenderer, text, lx, ly, textColor);
         } else {
             context.drawText(client.textRenderer, text, lx, ly, textColor, false);
+        }
+        
+        // CPS Counter
+        if (btn.showCps && btn.isMouse) {
+            int cps = 0;
+            if (btn.keyCode == 0) cps = leftClicks.size(); // LMB
+            else if (btn.keyCode == 1) cps = rightClicks.size(); // RMB
+            
+            String cpsStr = String.valueOf(cps);
+            
+            // Draw small
+            context.getMatrices().pushMatrix();
+            float smallScale = 0.6f;
+            int cpsW = client.textRenderer.getWidth(cpsStr);
+            
+            // Position at bottom center (or customized?)
+            // Center X relative to button
+            // Bottom Y relative to button
+            float cpsX = btn.x + (btn.w - (cpsW * smallScale)) / 2.0f;
+            float cpsY = btn.y + btn.h - (client.textRenderer.fontHeight * smallScale) - 1;
+            
+            context.getMatrices().translate(cpsX, cpsY);
+            context.getMatrices().scale(smallScale, smallScale);
+            
+            int cpsColor = textColor; // Or maybe different? Use same as text for now.
+            context.drawTextWithShadow(client.textRenderer, cpsStr, 0, 0, cpsColor);
+            
+            context.getMatrices().popMatrix();
         }
         
         context.getMatrices().popMatrix();
@@ -637,13 +669,21 @@ public class SimpleCPSClient implements ClientModInitializer {
         long handle = client.getWindow().getHandle();
 
         for (SimpleCPSConfig.KeyButtonData btn : config.keystrokesLayout) {
-             // For now assume keyboard, TODO: Mouse support if needed
-             boolean isPressed = GLFW.glfwGetKey(handle, btn.keyCode) == GLFW.GLFW_PRESS;
+             boolean isPressed = false;
+             
+             if (btn.isMouse) {
+                 // Mouse Buttons
+                 // 0 = Left, 1 = Right, 2 = Middle
+                 isPressed = GLFW.glfwGetMouseButton(handle, btn.keyCode) == GLFW.GLFW_PRESS;
+             } else {
+                 // Keyboard Keys
+                 isPressed = GLFW.glfwGetKey(handle, btn.keyCode) == GLFW.GLFW_PRESS;
+             }
              
              // Animation
-             float currentAnim = keyScales.getOrDefault(btn.keyCode, 1.0f);
+             float currentAnim = keyScales.getOrDefault(btn.keyCode + (btn.isMouse ? 1000 : 0), 1.0f);
              float newAnim = updateAnimation(currentAnim, isPressed);
-             keyScales.put(btn.keyCode, newAnim);
+             keyScales.put(btn.keyCode + (btn.isMouse ? 1000 : 0), newAnim);
              
              drawAnimatedKey(drawContext, client, btn, isPressed ? pressedColor : normalColor, baseBgColor, newAnim);
         }
