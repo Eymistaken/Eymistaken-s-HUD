@@ -284,8 +284,9 @@ public class KeystrokesDesignerScreen extends Screen {
              // Handle Menu Clicks
              int w = 140; 
              int menuY = contextMenuY;
-             int fullH = (contextMenuTarget != null) ? 160 : 140; // Sync with renderContextMenu (8 items vs 7)
-             if (menuY + fullH > this.height) menuY = menuY - fullH;
+             int fullH = getMenuHeight(contextMenuTarget != null);
+             
+             // No dynamic calculation here! Use stored constraints.
              if (mouseX >= contextMenuX && mouseX <= contextMenuX + w && mouseY >= menuY && mouseY <= menuY + fullH) {
                  int index = (int)((mouseY - menuY) / 20);
                  handleMenuAction(index);
@@ -511,10 +512,35 @@ public class KeystrokesDesignerScreen extends Screen {
                          selectedButtons.add(rightClickTarget);
                          currentState = InteractionState.BOX_SELECTED;
                     }
-                    contextMenuOpen = true;
-                    contextMenuX = (int)mouseX;
-                    contextMenuY = (int)mouseY;
+                } else {
+                    contextMenuTarget = null;
                 }
+                
+                contextMenuOpen = true;
+                contextMenuX = (int)mouseX;
+                
+                // Smart Positioning (Clamp to Screen)
+                int h = getMenuHeight(contextMenuTarget != null);
+                int y = (int)mouseY;
+                
+                // 1. If it hits bottom, flip up
+                if (y + h > this.height) {
+                    y = y - h;
+                }
+                
+                // 2. If flipped up and hits top, clamp to 0
+                if (y < 0) {
+                    y = 0;
+                }
+                
+                // 3. If standard down hits bottom (and wasn't flipped? or just general clamp)
+                // actually if y was adjusted, we just check bounds.
+                if (y + h > this.height) {
+                     y = this.height - h;
+                }
+                
+                contextMenuY = y;
+                
                 rightClickTarget = null;
             }
         }
@@ -538,10 +564,14 @@ public class KeystrokesDesignerScreen extends Screen {
             boolean shift = (modifiers & GLFW.GLFW_MOD_SHIFT) != 0;
             int step = shift ? 5 : 1;
             
-            if (keyCode == GLFW.GLFW_KEY_UP) target.labelY = (target.labelY == -1 ? (target.h - 8)/2 : target.labelY) - step;
-            else if (keyCode == GLFW.GLFW_KEY_DOWN) target.labelY = (target.labelY == -1 ? (target.h - 8)/2 : target.labelY) + step;
-            else if (keyCode == GLFW.GLFW_KEY_LEFT) target.labelX = (target.labelX == -1 ? (target.w - 10)/2 : target.labelX) - step;
-            else if (keyCode == GLFW.GLFW_KEY_RIGHT) target.labelX = (target.labelX == -1 ? (target.w - 10)/2 : target.labelX) + step;
+            // Dynamic Size Calculation for smooth transition from Center (-1)
+            int textW = textRenderer.getWidth(target.label);
+            int textH = textRenderer.fontHeight;
+            
+            if (keyCode == GLFW.GLFW_KEY_UP) target.labelY = (target.labelY == -1 ? (target.h - textH)/2 : target.labelY) - step;
+            else if (keyCode == GLFW.GLFW_KEY_DOWN) target.labelY = (target.labelY == -1 ? (target.h - textH)/2 : target.labelY) + step;
+            else if (keyCode == GLFW.GLFW_KEY_LEFT) target.labelX = (target.labelX == -1 ? (target.w - textW)/2 : target.labelX) - step;
+            else if (keyCode == GLFW.GLFW_KEY_RIGHT) target.labelX = (target.labelX == -1 ? (target.w - textW)/2 : target.labelX) + step;
             
             else if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_ESCAPE) {
                 currentState = InteractionState.BOX_SELECTED; 
@@ -628,13 +658,12 @@ public class KeystrokesDesignerScreen extends Screen {
             h = 140; // 7 items (Add x5 + Reset + Close?)
         }
         
-        // Smart Positioning (Open Upwards if overflow)
+        // Position is already clamped in onMouseReleased/onMouseClicked
         int x = contextMenuX;
         int y = contextMenuY;
         
-        if (y + h > this.height) {
-            y = y - h;
-        }
+        // Ensure strictly inside?
+        // It should be. But let's just render at stored pos.
         
         context.fill(x, y, x + w, y + h, 0xFF222222);
         drawBorder(context, x, y, w, h, 0xFFFFFFFF);
@@ -661,7 +690,7 @@ public class KeystrokesDesignerScreen extends Screen {
             drawContextMenuItem(context, "Add Mouse (Left)", x, y, mouseX, mouseY, 2);
             drawContextMenuItem(context, "Add Mouse (Right)", x, y, mouseX, mouseY, 3);
             // Removed Side Mouse
-            drawContextMenuItem(context, "Add Modifier (Ctrl)", x, y, mouseX, mouseY, 4);
+            drawContextMenuItem(context, "Add Modifier", x, y, mouseX, mouseY, 4);
             drawContextMenuItem(context, "Reset Layout", x, y, mouseX, mouseY, 5);
         }
     }
@@ -681,6 +710,10 @@ public class KeystrokesDesignerScreen extends Screen {
         context.fill(x, y + h - 1, x + w, y + h, color);
         context.fill(x, y, x + 1, y + h, color);
         context.fill(x + w - 1, y, x + w, y + h, color);
+    }
+    
+    private int getMenuHeight(boolean hasTarget) {
+        return hasTarget ? 160 : 140;
     }
     
     private void handleMenuAction(int index) {
@@ -734,13 +767,13 @@ public class KeystrokesDesignerScreen extends Screen {
             saveUndo();
             switch(index) {
                 case 0: // Add 1x1 Key
-                    addNewButton("K", 0, 0, 20, 20, GLFW.GLFW_KEY_UNKNOWN); 
+                    addNewButton("K", 0, 0, 21, 21, GLFW.GLFW_KEY_UNKNOWN); // 21x21
                     break;
                 case 1: // Add Space (Wide)
-                    addNewButton("SPACE", 0, 40, 64, 12, GLFW.GLFW_KEY_SPACE);
+                    addNewButton("-----", 0, 40, 67, 13, GLFW.GLFW_KEY_SPACE); // 67x13
                     break;
                 case 2: // Add LMB (Wide Style)
-                    SimpleCPSConfig.KeyButtonData lmb = new SimpleCPSConfig.KeyButtonData("LMB", 0, 60, 31, 12, 0, true);
+                    SimpleCPSConfig.KeyButtonData lmb = new SimpleCPSConfig.KeyButtonData("LMB", 0, 60, 33, 21, 0, true); // 33x21
                     lmb.showCps = true;
                     config.keystrokesLayout.add(lmb);
                     selectedButtons.clear();
@@ -748,7 +781,7 @@ public class KeystrokesDesignerScreen extends Screen {
                     currentState = InteractionState.BOX_SELECTED;
                     break;
                 case 3: // Add RMB (Wide Style)
-                    SimpleCPSConfig.KeyButtonData rmb = new SimpleCPSConfig.KeyButtonData("RMB", 33, 60, 31, 12, 1, true);
+                    SimpleCPSConfig.KeyButtonData rmb = new SimpleCPSConfig.KeyButtonData("RMB", 33, 60, 33, 21, 1, true); // 33x21
                     rmb.showCps = true;
                     config.keystrokesLayout.add(rmb);
                     selectedButtons.clear();
@@ -756,7 +789,7 @@ public class KeystrokesDesignerScreen extends Screen {
                     currentState = InteractionState.BOX_SELECTED;
                     break;
                 case 4: // Add Modifier
-                    addNewButton("CTRL", 0, 80, 31, 12, GLFW.GLFW_KEY_LEFT_CONTROL);
+                    addNewButton("MOD", 0, 80, 33, 13, GLFW.GLFW_KEY_LEFT_CONTROL); // 33x13
                     break;
                 case 5: // Reset
                     config.resetLayout();
@@ -773,7 +806,7 @@ public class KeystrokesDesignerScreen extends Screen {
             SimpleCPSConfig.KeyButtonData last = selectedButtons.get(selectedButtons.size() - 1);
             x = last.x + 10;
             y = last.y + 10;
-            // Bound check? Na.
+            // Do NOT copy w/h. Use the passed arguments.
         }
         
         SimpleCPSConfig.KeyButtonData newBtn = new SimpleCPSConfig.KeyButtonData(label, x, y, w, h, key);
