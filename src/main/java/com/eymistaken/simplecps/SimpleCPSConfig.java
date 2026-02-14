@@ -133,34 +133,32 @@ public class SimpleCPSConfig {
     
     public void resetLayout() {
         keystrokesLayout.clear();
-        // WASD
-        keystrokesLayout.add(new KeyButtonData("W", 22, 0, 20, 20, GLFW.GLFW_KEY_W));
-        keystrokesLayout.add(new KeyButtonData("A", 0, 22, 20, 20, GLFW.GLFW_KEY_A));
-        keystrokesLayout.add(new KeyButtonData("S", 22, 22, 20, 20, GLFW.GLFW_KEY_S));
-        keystrokesLayout.add(new KeyButtonData("D", 44, 22, 20, 20, GLFW.GLFW_KEY_D));
+        // WASD (Row 1 & 2)
+        // W: centered in 3-key width (67px). x=23.
+        keystrokesLayout.add(new KeyButtonData("W", 23, 0, 21, 21, GLFW.GLFW_KEY_W));
+        keystrokesLayout.add(new KeyButtonData("A", 0, 23, 21, 21, GLFW.GLFW_KEY_A));
+        keystrokesLayout.add(new KeyButtonData("S", 23, 23, 21, 21, GLFW.GLFW_KEY_S));
+        keystrokesLayout.add(new KeyButtonData("D", 46, 23, 21, 21, GLFW.GLFW_KEY_D));
         
-        // Mouse Buttons (LMB, RMB) - Split Mouse Style
-        // keystrokesLayout.add(new KeyButtonData("LMB", -22, 22, 20, 42, 0, true)); // OLD Vertical
-        // keystrokesLayout.add(new KeyButtonData("RMB", 66, 22, 20, 42, 1, true));  // OLD Vertical
-        
-        // Space
-        keystrokesLayout.add(new KeyButtonData("----", 0, 44, 64, 12, GLFW.GLFW_KEY_SPACE));
-        
-        // Modifiers (LCTRL, LSHIFT)
-        keystrokesLayout.add(new KeyButtonData("LCTRL", 0, 58, 31, 12, GLFW.GLFW_KEY_LEFT_CONTROL));
-        keystrokesLayout.add(new KeyButtonData("LSHIFT", 33, 58, 31, 12, GLFW.GLFW_KEY_LEFT_SHIFT));
-
-        // Mouse Buttons (LMB, RMB) - Wide Style Below Modifiers
-        // Align with LCTRL (0) and LSHIFT (33)
-        // Default CPS enabled for mouse buttons? User asked for option to toggle. Let's default true for buttons? Or false. 
-        // User: "bu seçenek ... kapatılabilsin" -> imply it might be on or off. Let's default false, user can enable. Or default true? "altında ufak bir sayı olsun... kapatılabilsin" sounds like feature request.
-        KeyButtonData lmb = new KeyButtonData("LMB", 0, 72, 31, 12, 0, true);
-        lmb.showCps = true;
+        // LMB / RMB (Row 3, Taller but slightly reduced per request)
+        // Previous Height: 27. Requested 3/4 size -> ~21.
+        // y = 23 + 21 + 2 = 46. Height 21.
+        KeyButtonData lmb = new KeyButtonData("LMB", 0, 46, 33, 21, 0, true);
+        lmb.showCps = false; // Default off
         keystrokesLayout.add(lmb);
         
-        KeyButtonData rmb = new KeyButtonData("RMB", 33, 72, 31, 12, 1, true);
-        rmb.showCps = true;
+        KeyButtonData rmb = new KeyButtonData("RMB", 34, 46, 33, 21, 1, true);
+        rmb.showCps = false; // Default off
         keystrokesLayout.add(rmb);
+        
+        // Space (Row 4)
+        // y = 46 + 21 + 2 = 69. Width 67. Height 13.
+        keystrokesLayout.add(new KeyButtonData("-----", 0, 69, 67, 13, GLFW.GLFW_KEY_SPACE));
+        
+        // Modifiers (Row 5 - Below Space)
+        // y = 69 + 13 + 2 = 84. Height 13.
+        keystrokesLayout.add(new KeyButtonData("CTRL", 0, 84, 33, 13, GLFW.GLFW_KEY_LEFT_CONTROL));
+        keystrokesLayout.add(new KeyButtonData("SHIFT", 34, 84, 33, 13, GLFW.GLFW_KEY_LEFT_SHIFT));
     }
 
     // --- COMBO ---

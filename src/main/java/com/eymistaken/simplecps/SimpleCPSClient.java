@@ -582,7 +582,7 @@ public class SimpleCPSClient implements ClientModInitializer {
         
         // Handle CPS Display Layout
         // If showing CPS, maybe move label up slightly?
-        int yOffset = btn.showCps ? -3 : 0; // Move label up a bit if CPS is shown
+        int yOffset = (btn.showCps && btn.isMouse) ? -4 : 0; // Move label up a bit if CPS is shown
         
         // Label Position
         int lx, ly;

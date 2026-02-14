@@ -16,28 +16,56 @@ import java.util.ArrayList;
 public class KeystrokesDesignerScreen extends Screen {
 
     private final SimpleCPSConfig config;
-    private SimpleCPSConfig.KeyButtonData selectedButton = null;
-    private boolean dragging = false;
-    private boolean resizing = false;
-    private boolean draggingLabel = false;
-    private boolean editingLabel = false;
+    
+    // State Machine Vars
+    private enum InteractionState {
+        IDLE,
+        BOX_SELECTED, // One or more buttons selected
+        TEXT_EDIT_MODE, // Specialized mode for label editing
+        DRAGGING_BOX, // Moving buttons
+        TEXT_DRAGGING, // Moving Label (Right Click Drag)
+        RESIZING // Scaling via scroll (handled in state check)
+    }
+    private InteractionState currentState = InteractionState.IDLE;
+    private final List<SimpleCPSConfig.KeyButtonData> selectedButtons = new ArrayList<>();
     
     // Undo/Redo
     private final Stack<String> undoStack = new Stack<>();
     private final Stack<String> redoStack = new Stack<>();
     private final Gson gson = new Gson();
 
+    // Right Click Logic
+    private double rightClickStartX, rightClickStartY;
+    private boolean isRightClickDrag = false;
+    private SimpleCPSConfig.KeyButtonData rightClickTarget = null;
+
+    // Polling State restoration
+    private boolean wasLeftDown = false;
+    private boolean wasRightDown = false;
+    private double lastMouseX = 0, lastMouseY = 0;
+
     // Drag offsets & State
     private double dragStartX, dragStartY;
-    private int originalX, originalY, originalW, originalH;
-    private int originalLabelX, originalLabelY;
-
-    private enum ResizeHandle {
-        TOP_LEFT, TOP, TOP_RIGHT, LEFT, RIGHT, BOTTOM_LEFT, BOTTOM, BOTTOM_RIGHT, NONE, MOVE
+    // We need a map or relative offsets for multi-drag? 
+    // Just store delta since drag start for simplicity, applied to original positions.
+    // Actually, storing original pos for ALL selected buttons is safer.
+    private static class ButtonSnapshot {
+        int x, y, w, h, labelX, labelY;
+        SimpleCPSConfig.KeyButtonData btn;
+        
+        ButtonSnapshot(SimpleCPSConfig.KeyButtonData btn) {
+            this.btn = btn;
+            this.x = btn.x; this.y = btn.y;
+            this.w = btn.w; this.h = btn.h;
+            this.labelX = btn.labelX; this.labelY = btn.labelY;
+        }
     }
-    private ResizeHandle draggingHandle = ResizeHandle.NONE;
-    private ResizeHandle hoveredHandle = ResizeHandle.NONE;
+    private final List<ButtonSnapshot> dragSnapshots = new ArrayList<>();
 
+    // Enum for Resize handles - REMOVED for Scroll Scaling, but keeping enum if needed for logic or remove entirely?
+    // User said "Remove drag-to-resize handles".
+    // We can remove the enum and logic.
+    
     // Snapping lines
     private Integer snapX = null;
     private Integer snapY = null;
@@ -54,9 +82,9 @@ public class KeystrokesDesignerScreen extends Screen {
         this(null);
     }
 
-    // Polling State
-    private boolean wasLeftDown = false;
-    private boolean wasRightDown = false;
+    // Polling State for double click detection?
+    private long lastClickTime = 0;
+    private static final long DOUBLE_CLICK_INTERVAL = 250;
 
     // Canvas Logic
     private static final int CANVAS_W = 400;
@@ -78,7 +106,8 @@ public class KeystrokesDesignerScreen extends Screen {
         // Gradient Background (matching HudEditorScreen)
         context.fillGradient(0, 0, this.width, this.height, 0xC0000000, 0xD0000000); 
         
-        handleInput(mouseX, mouseY);
+        // Polling Input
+        updateInput(mouseX, mouseY);
 
         // Draw Canvas (Centered Safe Area)
         int centerX = width / 2;
@@ -104,18 +133,28 @@ public class KeystrokesDesignerScreen extends Screen {
         for (SimpleCPSConfig.KeyButtonData btn : config.keystrokesLayout) {
             int x = centerX + btn.x;
             int y = centerY + btn.y;
-            boolean isSelected = (btn == selectedButton);
+            boolean isSelected = selectedButtons.contains(btn);
             
             int bgColor = 0xAA000000;
             if (btn == contextMenuTarget) bgColor = 0xAA444400; // Highlight target
-            int borderColor = isSelected ? 0xFF00FF00 : 0xFFFFFFFF;
+            
+            // Visual Styles for State
+            int borderColor = 0xFFFFFFFF; // Default White
+            if (isSelected) {
+                if (currentState == InteractionState.TEXT_EDIT_MODE) {
+                     // Blue border but focuses on text?
+                     borderColor = 0xFF00FFFF; // Cyan for box context
+                } else {
+                     borderColor = 0xFF00FF00; // Green (or Blue per request) for Box Mode
+                }
+            }
             
             context.fill(x, y, x + btn.w, y + btn.h, bgColor);
             drawBorder(context, x, y, btn.w, btn.h, borderColor);
             
             // Label
             String label = btn.label;
-            if (waitingForKeybind && btn == selectedButton) label = "PRESS KEY...";
+            if (waitingForKeybind && isSelected) label = "...";
 
             net.minecraft.text.MutableText text = net.minecraft.text.Text.literal(label);
             net.minecraft.text.Style style = net.minecraft.text.Style.EMPTY;
@@ -130,33 +169,461 @@ public class KeystrokesDesignerScreen extends Screen {
             int lx = (btn.labelX == -1) ? x + (btn.w - labelW) / 2 : x + btn.labelX;
             int ly = (btn.labelY == -1) ? y + (btn.h - labelH) / 2 : y + btn.labelY;
             
+            // Dynamic Label Centering for Mouse Buttons with CPS
+            if (btn.isMouse && btn.showCps && btn.labelY == -1) {
+                ly -= 4; // Shift up 4px to make room
+            }
+            
             context.drawText(textRenderer, text, lx, ly, 0xFFFFFFFF, btn.shadow);
             
-            if (isSelected && !contextMenuOpen) {
-                drawResizeHandles(context, x, y, btn.w, btn.h);
+            // Render CPS Preview
+            if (btn.isMouse && btn.showCps) {
+                String cpsPreview = "0"; 
+                int cpsW = textRenderer.getWidth(cpsPreview);
+                // Center CPS horizontally
+                int cpsX = x + (btn.w - cpsW) / 2;
+                int cpsY = ly + labelH + 1; // Below label
+                
+                context.drawText(textRenderer, cpsPreview, cpsX, cpsY, 0xFFAAAAAA, btn.shadow);
+            }
+            
+            // TEXT EDIT MODE VISUAL
+            if (isSelected && currentState == InteractionState.TEXT_EDIT_MODE) {
+                // Dotted Yellow Border around text
+                drawBorder(context, lx - 2, ly - 2, labelW + 4, labelH + 4, 0xFFFFFF00);
             }
             
             // Draw visual indicator for specific button types (Mouse)
             if (btn.isMouse) {
-                 // Optional: draw small mouse icon or just trust text
+                  // e.g. CPS count preview if enabled? 
             }
         }
         
-        context.drawText(textRenderer, "Drag to move | Drag Corner to resize | Right Click to Edit", 10, 10, 0xFFFFFF, true);
+        context.drawText(textRenderer, "Click: Select | Ctrl+Click: Multi | Dbl Click: Text Mode | Scroll: resize", 10, 10, 0xFFFFFF, true);
+        context.drawText(textRenderer, "Right-Drag: Move Text | Left-Drag: Move Box", 10, 22, 0xAAAAAA, true);
 
-        // Context Menu
-        if (contextMenuOpen) {
+        // Visual Aid for Centering (Red Lines)
+        if (currentState == InteractionState.TEXT_DRAGGING && rightClickTarget != null) {
+            int cx = centerX + rightClickTarget.x + rightClickTarget.w / 2;
+            int cy = centerY + rightClickTarget.y + rightClickTarget.h / 2;
+            
+            // If label is centered horizontally
+            if (rightClickTarget.labelX == -1) {
+                context.fill(cx, centerY + rightClickTarget.y, cx + 1, centerY + rightClickTarget.y + rightClickTarget.h, 0xFFFF0000);
+            }
+            // If label is centered vertically
+            if (rightClickTarget.labelY == -1) {
+                context.fill(centerX + rightClickTarget.x, cy, centerX + rightClickTarget.x + rightClickTarget.w, cy + 1, 0xFFFF0000);
+            }
+        }
+
+         if (contextMenuOpen) {
             renderContextMenu(context, mouseX, mouseY);
         }
     }
 
+    private void updateInput(int mouseX, int mouseY) {
+         long windowHandle = client.getWindow().getHandle();
+         boolean isLeftDown = GLFW.glfwGetMouseButton(windowHandle, 0) == GLFW.GLFW_PRESS;
+         boolean isRightDown = GLFW.glfwGetMouseButton(windowHandle, 1) == GLFW.GLFW_PRESS;
+         
+         // Click / Release
+         if (isLeftDown && !wasLeftDown) onMouseClicked(mouseX, mouseY, 0);
+         else if (!isLeftDown && wasLeftDown) onMouseReleased(mouseX, mouseY, 0);
+         
+         if (isRightDown && !wasRightDown) onMouseClicked(mouseX, mouseY, 1);
+         else if (!isRightDown && wasRightDown) onMouseReleased(mouseX, mouseY, 1);
+         
+         // Drag
+         if (isLeftDown || isRightDown) {
+             double deltaX = mouseX - lastMouseX;
+             double deltaY = mouseY - lastMouseY;
+             if (deltaX != 0 || deltaY != 0) {
+                 int btn = isLeftDown ? 0 : 1;
+                 onMouseDragged(mouseX, mouseY, btn, deltaX, deltaY);
+             }
+         }
+         
+         lastMouseX = mouseX;
+         lastMouseY = mouseY;
+         wasLeftDown = isLeftDown;
+         wasRightDown = isRightDown;
+         
+         // Keys
+         updateKeys(windowHandle);
+    }
+    
+    private void updateKeys(long windowHandle) {
+        if (waitingForKeybind || currentState == InteractionState.TEXT_EDIT_MODE || !selectedButtons.isEmpty()) {
+             for (int k = 32; k < GLFW.GLFW_KEY_LAST; k++) {
+                  if (GLFW.glfwGetKey(windowHandle, k) == GLFW.GLFW_PRESS) {
+                      // Skip modifiers from repeat logic unless binding a key
+                      boolean isModifier = (k >= 340 && k <= 348);
+                      if (isModifier && !waitingForKeybind) continue;
+                      
+                      if (lastPressedKey != k || (System.currentTimeMillis() - lastPressTime > 200)) { 
+                          lastPressTime = System.currentTimeMillis();
+                          lastPressedKey = k;
+                          
+                          int modifiers = 0;
+                          if (GLFW.glfwGetKey(windowHandle, GLFW.GLFW_KEY_LEFT_CONTROL) == GLFW.GLFW_PRESS || GLFW.glfwGetKey(windowHandle, GLFW.GLFW_KEY_RIGHT_CONTROL) == GLFW.GLFW_PRESS) modifiers |= GLFW.GLFW_MOD_CONTROL;
+                          if (GLFW.glfwGetKey(windowHandle, GLFW.GLFW_KEY_LEFT_SHIFT) == GLFW.GLFW_PRESS || GLFW.glfwGetKey(windowHandle, GLFW.GLFW_KEY_RIGHT_SHIFT) == GLFW.GLFW_PRESS) modifiers |= GLFW.GLFW_MOD_SHIFT;
+                          
+                          onKeyPressed(k, 0, modifiers);
+                      }
+                  }
+             }
+             if (lastPressedKey != -1 && GLFW.glfwGetKey(windowHandle, lastPressedKey) == GLFW.GLFW_RELEASE) {
+                  lastPressedKey = -1;
+             }
+        }
+    }
+
+    public boolean onMouseClicked(double mouseX, double mouseY, int button) {
+        if (contextMenuOpen) {
+             // Handle Menu Clicks
+             int w = 140; 
+             int menuY = contextMenuY;
+             int fullH = (contextMenuTarget != null) ? 160 : 140; // Sync with renderContextMenu (8 items vs 7)
+             if (menuY + fullH > this.height) menuY = menuY - fullH;
+             if (mouseX >= contextMenuX && mouseX <= contextMenuX + w && mouseY >= menuY && mouseY <= menuY + fullH) {
+                 int index = (int)((mouseY - menuY) / 20);
+                 handleMenuAction(index);
+                 contextMenuOpen = false;
+                 return true;
+             }
+             contextMenuOpen = false;
+             return true; 
+        }
+
+        int centerX = width / 2;
+        int centerY = height / 2;
+        int mX = (int)mouseX;
+        int mY = (int)mouseY;
+        
+        // Find Hit
+        SimpleCPSConfig.KeyButtonData hitBtn = null;
+        List<SimpleCPSConfig.KeyButtonData> layout = config.keystrokesLayout;
+        for (int i = layout.size() - 1; i >= 0; i--) {
+            SimpleCPSConfig.KeyButtonData btn = layout.get(i);
+            if (mX >= centerX + btn.x && mX <= centerX + btn.x + btn.w && 
+                mY >= centerY + btn.y && mY <= centerY + btn.y + btn.h) {
+                hitBtn = btn;
+                break;
+            }
+        }
+
+        if (button == 0) { // Left Click
+            long now = System.currentTimeMillis();
+            boolean doubleClick = (now - lastClickTime < DOUBLE_CLICK_INTERVAL);
+            lastClickTime = now;
+
+            if (hitBtn != null) {
+                if (doubleClick) {
+                    saveUndo();
+                    currentState = InteractionState.TEXT_EDIT_MODE;
+                    selectedButtons.clear();
+                    selectedButtons.add(hitBtn);
+                    return true;
+                }
+
+                boolean ctrl = isCtrlDown();
+                
+                if (currentState == InteractionState.TEXT_EDIT_MODE) {
+                    if (!selectedButtons.contains(hitBtn)) {
+                        currentState = InteractionState.BOX_SELECTED;
+                        selectedButtons.clear();
+                        selectedButtons.add(hitBtn);
+                    }
+                } else {
+                    if (ctrl) {
+                        if (selectedButtons.contains(hitBtn)) selectedButtons.remove(hitBtn);
+                        else selectedButtons.add(hitBtn);
+                    } else {
+                        if (!selectedButtons.contains(hitBtn)) {
+                             selectedButtons.clear();
+                             selectedButtons.add(hitBtn);
+                        }
+                    }
+                    currentState = InteractionState.BOX_SELECTED;
+                    
+                    // Bring to front
+                    if (selectedButtons.contains(hitBtn)) {
+                         config.keystrokesLayout.remove(hitBtn);
+                         config.keystrokesLayout.add(hitBtn);
+                    }
+                }
+                
+                // Prepare Drag (Left = Box)
+                if (currentState == InteractionState.BOX_SELECTED) {
+                    currentState = InteractionState.DRAGGING_BOX;
+                    dragStartX = mouseX;
+                    dragStartY = mouseY;
+                    dragSnapshots.clear();
+                    for (SimpleCPSConfig.KeyButtonData b : selectedButtons) {
+                        dragSnapshots.add(new ButtonSnapshot(b));
+                    }
+                }
+
+            } else {
+                // Clicked Empty Space
+                if (currentState == InteractionState.TEXT_EDIT_MODE) {
+                    currentState = InteractionState.IDLE;
+                } else {
+                    selectedButtons.clear();
+                    currentState = InteractionState.IDLE;
+                }
+            }
+            return true;
+            
+        } else if (button == 1) { // Right Click
+            if (hitBtn != null) {
+                rightClickTarget = hitBtn;
+                rightClickStartX = mouseX;
+                rightClickStartY = mouseY;
+                isRightClickDrag = false; 
+                // Don't open menu yet, wait for release
+                return true;
+            } else {
+                // Right click on empty space -> Immediate Context Menu
+                contextMenuTarget = null;
+                contextMenuOpen = true;
+                contextMenuX = mX;
+                contextMenuY = mY;
+                return true;
+            }
+        }
+
+        return false; // Handled manually
+    }
+    
+    public boolean onMouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
+        if (button == 0 && currentState == InteractionState.DRAGGING_BOX) { // Left Drag
+            double rawDx = mouseX - dragStartX;
+            double rawDy = mouseY - dragStartY;
+            
+            if (selectedButtons.isEmpty()) return false;
+            
+            for (ButtonSnapshot snap : dragSnapshots) {
+                snap.btn.x = snap.x + (int)rawDx;
+                snap.btn.y = snap.y + (int)rawDy;
+            }
+            
+            SimpleCPSConfig.KeyButtonData leader = selectedButtons.get(0);
+            applySnapping(leader, true); // Snap Leader
+            
+            int finalDx = leader.x - dragSnapshots.get(0).x;
+            int finalDy = leader.y - dragSnapshots.get(0).y;
+            
+            for (int i = 1; i < dragSnapshots.size(); i++) {
+                ButtonSnapshot snap = dragSnapshots.get(i);
+                snap.btn.x = snap.x + finalDx;
+                snap.btn.y = snap.y + finalDy;
+            }
+            return true;
+        } 
+        else if (button == 1) { // Right Drag (Text)
+            if (rightClickTarget != null) {
+                if (!isRightClickDrag) {
+                    // Check threshold
+                    if (Math.abs(mouseX - rightClickStartX) > 2 || Math.abs(mouseY - rightClickStartY) > 2) {
+                        isRightClickDrag = true;
+                        currentState = InteractionState.TEXT_DRAGGING;
+                        saveUndo();
+                        
+                        // Select this button if not selected (visualization)
+                        if (!selectedButtons.contains(rightClickTarget)) {
+                            selectedButtons.clear();
+                            selectedButtons.add(rightClickTarget);
+                        }
+                    }
+                }
+                
+                if (isRightClickDrag) {
+                    // Text Movement Logic
+                    // Calculate relative mouse position within button
+                    int centerX = width / 2;
+                    int centerY = height / 2;
+                    int btnX = centerX + rightClickTarget.x;
+                    int btnY = centerY + rightClickTarget.y;
+                    
+                    // We want the text center to follow the mouse? Or just offset?
+                    // Let's make it follow offset.
+                    // Actually, simpler: Set label pos based on mouse pos relative to button
+                    
+                    int relX = (int)mouseX - btnX;
+                    int relY = (int)mouseY - btnY;
+                    
+                    // Center check (Threshold 4px)
+                    int midX = rightClickTarget.w / 2;
+                    int midY = rightClickTarget.h / 2;
+                    
+                    // Update labelX
+                    String label = rightClickTarget.label;
+                    int labelW = textRenderer.getWidth(label);
+                    int labelH = textRenderer.fontHeight;
+                    
+                    // Calculate Top-Left of label based on mouse being center of label?
+                    // Let's assume user grabs "center" of text.
+                    int targetLX = relX - labelW / 2;
+                    int targetLY = relY - labelH / 2;
+                    
+                    // Check for centering
+                    // Label Center X = targetLX + labelW/2 = relX
+                    // Button Center X = w/2
+                    if (Math.abs(relX - midX) < 4) {
+                        rightClickTarget.labelX = -1; // Snap Center X
+                    } else {
+                        rightClickTarget.labelX = targetLX;
+                    }
+                    
+                    if (Math.abs(relY - midY) < 4) {
+                        rightClickTarget.labelY = -1; // Snap Center Y
+                    } else {
+                        rightClickTarget.labelY = targetLY;
+                    }
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+    
+    public boolean onMouseReleased(double mouseX, double mouseY, int button) {
+        if (button == 0) {
+            if (currentState == InteractionState.DRAGGING_BOX) {
+                currentState = InteractionState.BOX_SELECTED;
+                dragSnapshots.clear();
+                snapX = null;
+                snapY = null;
+            }
+        } else if (button == 1) {
+            if (isRightClickDrag) {
+                isRightClickDrag = false;
+                rightClickTarget = null;
+                currentState = InteractionState.BOX_SELECTED; // Return to normal state
+            } else {
+                // Was a click! Open Menu
+                if (rightClickTarget != null) {
+                    contextMenuTarget = rightClickTarget;
+                    if (!selectedButtons.contains(rightClickTarget)) {
+                         selectedButtons.clear();
+                         selectedButtons.add(rightClickTarget);
+                         currentState = InteractionState.BOX_SELECTED;
+                    }
+                    contextMenuOpen = true;
+                    contextMenuX = (int)mouseX;
+                    contextMenuY = (int)mouseY;
+                }
+                rightClickTarget = null;
+            }
+        }
+        return false;
+    }
+
+    public boolean onKeyPressed(int keyCode, int scanCode, int modifiers) {
+        if (waitingForKeybind) {
+            if (keyCode != GLFW.GLFW_KEY_ESCAPE) {
+                 if (contextMenuTarget != null) {
+                      contextMenuTarget.keyCode = keyCode;
+                      contextMenuTarget.label = getKeyName(keyCode);
+                 }
+            }
+            waitingForKeybind = false;
+            return true;
+        }
+
+        if (currentState == InteractionState.TEXT_EDIT_MODE && !selectedButtons.isEmpty()) {
+            SimpleCPSConfig.KeyButtonData target = selectedButtons.get(0);
+            boolean shift = (modifiers & GLFW.GLFW_MOD_SHIFT) != 0;
+            int step = shift ? 5 : 1;
+            
+            if (keyCode == GLFW.GLFW_KEY_UP) target.labelY = (target.labelY == -1 ? (target.h - 8)/2 : target.labelY) - step;
+            else if (keyCode == GLFW.GLFW_KEY_DOWN) target.labelY = (target.labelY == -1 ? (target.h - 8)/2 : target.labelY) + step;
+            else if (keyCode == GLFW.GLFW_KEY_LEFT) target.labelX = (target.labelX == -1 ? (target.w - 10)/2 : target.labelX) - step;
+            else if (keyCode == GLFW.GLFW_KEY_RIGHT) target.labelX = (target.labelX == -1 ? (target.w - 10)/2 : target.labelX) + step;
+            
+            else if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_ESCAPE) {
+                currentState = InteractionState.BOX_SELECTED; 
+            } 
+            else if (keyCode == GLFW.GLFW_KEY_BACKSPACE) {
+                 if (!target.label.isEmpty()) target.label = target.label.substring(0, target.label.length() - 1);
+            }
+            else if (keyCode == GLFW.GLFW_KEY_SPACE) {
+                 target.label += " ";
+            }
+            else {
+                 // Manual Text Input Logic
+                 String keyName = GLFW.glfwGetKeyName(keyCode, scanCode);
+                 if (keyName != null && !keyName.isEmpty()) {
+                     // Check if valid char (not F1, etc which return null usually but just in case)
+                     // Actually glfwGetKeyName returns "f1" sometimes? No, usually null for non-printable.
+                     // But for letters it returns "a", "b".
+                     
+                     // Filter out non-printable if needed, or valid chars.
+                     // Length 1 usually means char.
+                     if (keyName.length() == 1) {
+                         char c = keyName.charAt(0);
+                         // shift already defined in scope? Let's check. 
+                         // Actually, look at line 534 in view file.
+                         // "boolean shift = (modifiers & GLFW.GLFW_MOD_SHIFT) != 0;"
+                         // Yes. So remove declaration here.
+                         
+                         // Re-use shift
+                         boolean caps = false; 
+                         
+                         if (shift) {
+                             c = Character.toUpperCase(c);
+                         }
+                         
+                         target.label += c;
+                     }
+                 }
+            }
+            return true;
+        }
+        
+        if (currentState == InteractionState.BOX_SELECTED && !selectedButtons.isEmpty()) {
+             boolean shift = (modifiers & GLFW.GLFW_MOD_SHIFT) != 0;
+             boolean ctrl = (modifiers & GLFW.GLFW_MOD_CONTROL) != 0;
+             int step = shift ? 5 : 1;
+             
+             if (keyCode == GLFW.GLFW_KEY_UP) { for (SimpleCPSConfig.KeyButtonData b : selectedButtons) b.y -= step; return true; }
+             if (keyCode == GLFW.GLFW_KEY_DOWN) { for (SimpleCPSConfig.KeyButtonData b : selectedButtons) b.y += step; return true; }
+             if (keyCode == GLFW.GLFW_KEY_LEFT) { for (SimpleCPSConfig.KeyButtonData b : selectedButtons) b.x -= step; return true; }
+             if (keyCode == GLFW.GLFW_KEY_RIGHT) { for (SimpleCPSConfig.KeyButtonData b : selectedButtons) b.x += step; return true; }
+             
+             if (keyCode == GLFW.GLFW_KEY_DELETE) {
+                 saveUndo();
+                 config.keystrokesLayout.removeAll(selectedButtons);
+                 selectedButtons.clear();
+                 currentState = InteractionState.IDLE;
+                 return true;
+             }
+             if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
+                 selectedButtons.clear();
+                 currentState = InteractionState.IDLE;
+                 return true;
+             }
+             // Undo/Redo
+             if (keyCode == GLFW.GLFW_KEY_Z && ctrl) { if (shift) redo(); else undo(); return true; }
+             if (keyCode == GLFW.GLFW_KEY_Y && ctrl) { redo(); return true; }
+        }
+        
+        return false;
+    }
+
+
+
+
+    
     private void renderContextMenu(DrawContext context, int mouseX, int mouseY) {
         int w = 140; // Slightly wider for new options
         int h = 0;
         
         // Calculate height based on items
         if (contextMenuTarget != null) {
-            h = 140; // 7 items * 20
+            h = 160; // 8 items * 20
         } else {
             h = 140; // 7 items (Add x5 + Reset + Close?)
         }
@@ -175,17 +642,18 @@ public class KeystrokesDesignerScreen extends Screen {
         if (contextMenuTarget != null) {
             drawContextMenuItem(context, "Set Keybind", x, y, mouseX, mouseY, 0);
             drawContextMenuItem(context, "Edit Label", x, y, mouseX, mouseY, 1);
-            drawContextMenuItem(context, "Toggle Bold", x, y, mouseX, mouseY, 2);
-            drawContextMenuItem(context, "Toggle Italic", x, y, mouseX, mouseY, 3);
-            drawContextMenuItem(context, "Toggle Underline", x, y, mouseX, mouseY, 4);
+            drawContextMenuItem(context, "Center Label", x, y, mouseX, mouseY, 2);
+            drawContextMenuItem(context, "Toggle Bold", x, y, mouseX, mouseY, 3);
+            drawContextMenuItem(context, "Toggle Italic", x, y, mouseX, mouseY, 4);
+            drawContextMenuItem(context, "Toggle Underline", x, y, mouseX, mouseY, 5);
             
             if (contextMenuTarget.isMouse) {
-                 drawContextMenuItem(context, "Toggle CPS", x, y, mouseX, mouseY, 5);
-                 drawContextMenuItem(context, "Delete", x, y, mouseX, mouseY, 6);
-                 // 7 items
+                 drawContextMenuItem(context, "Toggle CPS", x, y, mouseX, mouseY, 6);
+                 drawContextMenuItem(context, "Delete", x, y, mouseX, mouseY, 7);
+                 // 8 items
             } else {
-                 drawContextMenuItem(context, "Delete", x, y, mouseX, mouseY, 5);
-                 drawContextMenuItem(context, "Duplicate", x, y, mouseX, mouseY, 6);
+                 drawContextMenuItem(context, "Delete", x, y, mouseX, mouseY, 6);
+                 drawContextMenuItem(context, "Duplicate", x, y, mouseX, mouseY, 7);
             }
         } else {
             drawContextMenuItem(context, "Add Key (1x1)", x, y, mouseX, mouseY, 0);
@@ -214,326 +682,48 @@ public class KeystrokesDesignerScreen extends Screen {
         context.fill(x, y, x + 1, y + h, color);
         context.fill(x + w - 1, y, x + w, y + h, color);
     }
-
-    private void handleInput(int mouseX, int mouseY) {
-        long windowHandle = client.getWindow().getHandle();
-        boolean isLeftDown = GLFW.glfwGetMouseButton(windowHandle, 0) == GLFW.GLFW_PRESS;
-        boolean isRightDown = GLFW.glfwGetMouseButton(windowHandle, 1) == GLFW.GLFW_PRESS;
-
-        // Keybind Setting & Label Editing & Hotkeys
-        if ((waitingForKeybind || editingLabel || selectedButton != null || true) && !contextMenuOpen) { // Scan keys
-             for (int k = 32; k < GLFW.GLFW_KEY_LAST; k++) {
-                  if (GLFW.glfwGetKey(windowHandle, k) == GLFW.GLFW_PRESS) {
-                      if (lastPressedKey != k || (System.currentTimeMillis() - lastPressTime > 200)) { // Debounce + Repeat
-                          lastPressTime = System.currentTimeMillis();
-                          lastPressedKey = k;
-                          
-                          boolean ctrl = (GLFW.glfwGetKey(windowHandle, GLFW.GLFW_KEY_LEFT_CONTROL) == GLFW.GLFW_PRESS || GLFW.glfwGetKey(windowHandle, GLFW.GLFW_KEY_RIGHT_CONTROL) == GLFW.GLFW_PRESS);
-                          boolean shift = (GLFW.glfwGetKey(windowHandle, GLFW.GLFW_KEY_LEFT_SHIFT) == GLFW.GLFW_PRESS || GLFW.glfwGetKey(windowHandle, GLFW.GLFW_KEY_RIGHT_SHIFT) == GLFW.GLFW_PRESS);
-
-                          if (waitingForKeybind) {
-                              if (k != GLFW.GLFW_KEY_ESCAPE) {
-                                  if (selectedButton != null) {
-                                      selectedButton.keyCode = k;
-                                      selectedButton.label = getKeyName(k);
-                                  }
-                              }
-                              waitingForKeybind = false;
-                              return;
-                          } 
-                          
-                           // Delete Key Support
-                           if (k == GLFW.GLFW_KEY_DELETE && selectedButton != null && !editingLabel && !waitingForKeybind) {
-                               saveUndo();
-                               config.keystrokesLayout.remove(selectedButton);
-                               selectedButton = null;
-                               return;
-                           }
-
-                           if (editingLabel && selectedButton != null) {
-                               if (k == GLFW.GLFW_KEY_ENTER || k == GLFW.GLFW_KEY_ESCAPE) {
-                                   editingLabel = false;
-                                   saveUndo();
-                               } else if (k == GLFW.GLFW_KEY_BACKSPACE) {
-                                   String lbl = selectedButton.label;
-                                   if (!lbl.isEmpty()) selectedButton.label = lbl.substring(0, lbl.length() - 1);
-                               } else {
-                                   if (k == GLFW.GLFW_KEY_SPACE) selectedButton.label += " ";
-                                   else {
-                                       String n = GLFW.glfwGetKeyName(k, 0);
-                                       if (n != null) selectedButton.label += shift ? n.toUpperCase() : n;
-                                       else {
-                                           if (k >= GLFW.GLFW_KEY_0 && k <= GLFW.GLFW_KEY_9) selectedButton.label += (k - GLFW.GLFW_KEY_0);
-                                       }
-                                   }
-                               }
-                               return;
-                           }
-                           
-                           // Undo/Redo
-                           if (k == GLFW.GLFW_KEY_Z && ctrl) {
-                               if (shift) redo(); else undo();
-                               return;
-                           }
-                           if (k == GLFW.GLFW_KEY_Y && ctrl) {
-                               redo();
-                               return;
-                           }
-                           
-                           // Arrows
-                           if (selectedButton != null && !editingLabel) {
-                               int step = shift ? 10 : 1;
-                               boolean moved = false;
-                               if (k == GLFW.GLFW_KEY_UP) { saveUndo(); selectedButton.y -= step; moved = true; }
-                               if (k == GLFW.GLFW_KEY_DOWN) { saveUndo(); selectedButton.y += step; moved = true; }
-                               if (k == GLFW.GLFW_KEY_LEFT) { saveUndo(); selectedButton.x -= step; moved = true; }
-                               if (k == GLFW.GLFW_KEY_RIGHT) { saveUndo(); selectedButton.x += step; moved = true; }
-                               if (moved) return;
-                           }
-                       }
-                       return; // Handle one key per frame
-                   }
-              }
-              // Reset debounce if key released
-              if (lastPressedKey != -1 && GLFW.glfwGetKey(windowHandle, lastPressedKey) == GLFW.GLFW_RELEASE) {
-                  lastPressedKey = -1;
-              }
-         }
-        
-        // Mouse Click Handling
-        if (contextMenuOpen) {
-            if (isLeftDown && !wasLeftDown) {
-                int w = 140; // Updated width
-                // Adjust click detection for smart positioning
-                int menuY = contextMenuY;
-                int fullH = (contextMenuTarget != null) ? 140 : 140; // Updated height
-                
-                if (menuY + fullH > this.height) {
-                    menuY = menuY - fullH;
-                }
-                
-                if (mouseX >= contextMenuX && mouseX <= contextMenuX + w && mouseY >= menuY && mouseY <= menuY + fullH) {
-                    int index = (int)((mouseY - menuY) / 20);
-                    handleMenuAction(index);
-                }
-                contextMenuOpen = false; 
-            }
-        } else {
-             if (isLeftDown && !wasLeftDown) { // On Click
-                 onMouseClick(mouseX, mouseY, 0);
-             } else if (isRightDown && !wasRightDown) { // On Right Click
-                 onMouseClick(mouseX, mouseY, 1);
-             } else if (isLeftDown && wasLeftDown) { // On Drag
-                 onMouseDrag(mouseX, mouseY);
-             } else if (!isLeftDown && wasLeftDown) { // On Release
-                 onMouseRelease(mouseX, mouseY);
-             }
-        }
-
-        wasLeftDown = isLeftDown;
-        wasRightDown = isRightDown;
-    }
-
-    private void onMouseClick(int mouseX, int mouseY, int button) {
-        int centerX = width / 2;
-        int centerY = height / 2;
-
-        if (button == 0) { // Left Click
-             // Check if we are hovering a handle on the ALREADY selected button
-             if (selectedButton != null && !contextMenuOpen) {
-                 int x = centerX + selectedButton.x;
-                 int y = centerY + selectedButton.y;
-                 ResizeHandle handle = getHandle(mouseX, mouseY, x, y, selectedButton.w, selectedButton.h);
-                 
-                 if (handle != ResizeHandle.NONE && handle != ResizeHandle.MOVE) {
-                     saveUndo();
-                     draggingHandle = handle;
-                     dragStartX = mouseX;
-                     dragStartY = mouseY;
-                     originalX = selectedButton.x;
-                     originalY = selectedButton.y;
-                     originalW = selectedButton.w;
-                     originalH = selectedButton.h;
-                     return;
-                 }
-             }
-
-            // Check Buttons (Reverse order for Z-index)
-            List<SimpleCPSConfig.KeyButtonData> layout = config.keystrokesLayout;
-            for (int i = layout.size() - 1; i >= 0; i--) {
-                SimpleCPSConfig.KeyButtonData btn = layout.get(i);
-                int x = centerX + btn.x;
-                int y = centerY + btn.y;
-                
-                if (mouseX >= x && mouseX <= x + btn.w && mouseY >= y && mouseY <= y + btn.h) {
-                    selectedButton = btn;
-                    
-                    // Label selection logic - Improved to require explicit click in "Label Selection Mode" (triggered if clicked ON LABEL text)
-                    net.minecraft.text.MutableText text = net.minecraft.text.Text.literal(btn.label);
-                    net.minecraft.text.Style style = net.minecraft.text.Style.EMPTY;
-                    if (btn.bold) style = style.withBold(true);
-                    text.setStyle(style);
-                    int labelW = textRenderer.getWidth(text);
-                    int labelH = textRenderer.fontHeight;
-                    int lx = (btn.labelX == -1) ? x + (btn.w - labelW) / 2 : x + btn.labelX;
-                    int ly = (btn.labelY == -1) ? y + (btn.h - labelH) / 2 : y + btn.labelY;
-                    
-                    if (mouseX >= lx && mouseX <= lx + labelW && mouseY >= ly && mouseY <= ly + labelH) {
-                        saveUndo();
-                        draggingLabel = true;
-                        // Store offset from mouse to label pos
-                        originalLabelX = (btn.labelX == -1) ? (btn.w - labelW) / 2 : btn.labelX;
-                        originalLabelY = (btn.labelY == -1) ? (btn.h - labelH) / 2 : btn.labelY;
-                        
-                        // We also set selectedButton so we can see which one we are editing
-                        // draggingLabel handles the "Move label" logic in drag
-                    } else {
-                        saveUndo();
-                        draggingHandle = ResizeHandle.MOVE;
-                        originalX = btn.x;
-                        originalY = btn.y;
-                    }
-                    
-                    dragStartX = mouseX;
-                    dragStartY = mouseY;
-                    return;
-                }
-            }
-            selectedButton = null; // Deselect
-        } else if (button == 1) { // Right Click
-             List<SimpleCPSConfig.KeyButtonData> layout = config.keystrokesLayout;
-             SimpleCPSConfig.KeyButtonData clickedBtn = null;
-            for (int i = layout.size() - 1; i >= 0; i--) {
-                SimpleCPSConfig.KeyButtonData btn = layout.get(i);
-                int x = centerX + btn.x;
-                int y = centerY + btn.y;
-                 if (mouseX >= x && mouseX <= x + btn.w && mouseY >= y && mouseY <= y + btn.h) {
-                     clickedBtn = btn;
-                     selectedButton = btn;
-                     break;
-                 }
-            }
-            contextMenuTarget = clickedBtn;
-            contextMenuOpen = true;
-            contextMenuX = mouseX;
-            contextMenuY = mouseY;
-        }
-    }
-
-    private void onMouseDrag(int mouseX, int mouseY) {
-        if (selectedButton != null) {
-            double dx = mouseX - dragStartX;
-            double dy = mouseY - dragStartY;
-
-            if (draggingLabel) {
-                int newLabelX = originalLabelX + (int)dx;
-                int newLabelY = originalLabelY + (int)dy;
-                
-                net.minecraft.text.MutableText text = net.minecraft.text.Text.literal(selectedButton.label);
-                net.minecraft.text.Style style = net.minecraft.text.Style.EMPTY;
-                if (selectedButton.bold) style = style.withBold(true);
-                text.setStyle(style);
-                int labelW = textRenderer.getWidth(text);
-                int labelH = textRenderer.fontHeight;
-                
-                int padding = 4;
-                int maxX = selectedButton.w - labelW - padding;
-                int maxY = selectedButton.h - labelH - padding;
-                
-                if (maxX < padding) maxX = padding;
-                if (maxY < padding) maxY = padding;
-                
-                int finalX = Math.max(padding, Math.min(newLabelX, maxX));
-                int finalY = Math.max(padding, Math.min(newLabelY, maxY));
-                
-                // Snap to Center
-                int centerX = (selectedButton.w - labelW) / 2;
-                int centerY = (selectedButton.h - labelH) / 2;
-                if (Math.abs(finalX - centerX) <= 5) finalX = -1;
-                if (Math.abs(finalY - centerY) <= 5) finalY = -1;
-                
-                selectedButton.labelX = finalX;
-                selectedButton.labelY = finalY;
-            
-            } else if (draggingHandle == ResizeHandle.MOVE) {
-                selectedButton.x = originalX + (int)dx;
-                selectedButton.y = originalY + (int)dy;
-                applySnapping(selectedButton, ResizeHandle.MOVE);
-                
-            } else if (draggingHandle != ResizeHandle.NONE) {
-                int newX = originalX;
-                int newY = originalY;
-                int newW = originalW;
-                int newH = originalH;
-
-                if (draggingHandle == ResizeHandle.RIGHT || draggingHandle == ResizeHandle.TOP_RIGHT || draggingHandle == ResizeHandle.BOTTOM_RIGHT) {
-                    newW = Math.max(10, originalW + (int)dx);
-                }
-                if (draggingHandle == ResizeHandle.LEFT || draggingHandle == ResizeHandle.TOP_LEFT || draggingHandle == ResizeHandle.BOTTOM_LEFT) {
-                    int delta = (int)Math.min(dx, originalW - 10);
-                    newX = originalX + delta;
-                    newW = originalW - delta;
-                }
-                
-                if (draggingHandle == ResizeHandle.BOTTOM || draggingHandle == ResizeHandle.BOTTOM_LEFT || draggingHandle == ResizeHandle.BOTTOM_RIGHT) {
-                    newH = Math.max(10, originalH + (int)dy);
-                }
-                if (draggingHandle == ResizeHandle.TOP || draggingHandle == ResizeHandle.TOP_LEFT || draggingHandle == ResizeHandle.TOP_RIGHT) {
-                     int delta = (int)Math.min(dy, originalH - 10);
-                     newY = originalY + delta;
-                     newH = originalH - delta;
-                }
-                
-                selectedButton.x = newX;
-                selectedButton.y = newY;
-                selectedButton.w = newW;
-                selectedButton.h = newH;
-                
-                applySnapping(selectedButton, draggingHandle);
-            }
-        }
-    }
-
-    private void onMouseRelease(int mouseX, int mouseY) {
-        draggingHandle = ResizeHandle.NONE;
-        draggingLabel = false;
-        snapX = null;
-        snapY = null;
-    }
-
+    
     private void handleMenuAction(int index) {
         if (contextMenuTarget != null) {
             saveUndo();
             switch(index) {
                 case 0: // Set Keybind
                     waitingForKeybind = true;
-                    lastPressedKey = -1;
+                    // lastPressedKey = -1; // Reset?
                     break;
                 case 1: // Edit Label
-                    editingLabel = true;
+                    currentState = InteractionState.TEXT_EDIT_MODE;
+                    selectedButtons.clear();
+                    selectedButtons.add(contextMenuTarget);
                     waitingForKeybind = false;
                     break;
-                case 2: contextMenuTarget.bold = !contextMenuTarget.bold; break;
-                case 3: contextMenuTarget.italic = !contextMenuTarget.italic; break;
-                case 4: contextMenuTarget.underlined = !contextMenuTarget.underlined; break;
+                case 2: // Center Label
+                    contextMenuTarget.labelX = -1;
+                    contextMenuTarget.labelY = -1;
+                    break;
+                case 3: contextMenuTarget.bold = !contextMenuTarget.bold; break;
+                case 4: contextMenuTarget.italic = !contextMenuTarget.italic; break;
+                case 5: contextMenuTarget.underlined = !contextMenuTarget.underlined; break;
                 
-                case 5: // Variable based on isMouse
+                case 6: // Variable based on isMouse
                     if (contextMenuTarget.isMouse) {
                         contextMenuTarget.showCps = !contextMenuTarget.showCps;
                     } else {
                         // Delete
                         config.keystrokesLayout.remove(contextMenuTarget);
-                        selectedButton = null;
+                        selectedButtons.remove(contextMenuTarget);
                         contextMenuTarget = null;
+                        currentState = InteractionState.IDLE;
                     }
                     break;
                     
-                case 6: // Variable
+                case 7: // Variable
                     if (contextMenuTarget.isMouse) {
                         // Delete for Mouse
                         config.keystrokesLayout.remove(contextMenuTarget);
-                        selectedButton = null;
+                        selectedButtons.remove(contextMenuTarget);
                         contextMenuTarget = null;
+                        currentState = InteractionState.IDLE;
                     } else {
                         // Duplicate
                         addNewButton(contextMenuTarget.label, contextMenuTarget.x + 10, contextMenuTarget.y + 10, contextMenuTarget.w, contextMenuTarget.h, contextMenuTarget.keyCode);
@@ -547,58 +737,82 @@ public class KeystrokesDesignerScreen extends Screen {
                     addNewButton("K", 0, 0, 20, 20, GLFW.GLFW_KEY_UNKNOWN); 
                     break;
                 case 1: // Add Space (Wide)
-                    addNewButton("SPACE", 0, 0, 64, 12, GLFW.GLFW_KEY_SPACE);
+                    addNewButton("SPACE", 0, 40, 64, 12, GLFW.GLFW_KEY_SPACE);
                     break;
                 case 2: // Add LMB (Wide Style)
-                    SimpleCPSConfig.KeyButtonData lmb = new SimpleCPSConfig.KeyButtonData("LMB", 0, 0, 31, 12, 0, true);
+                    SimpleCPSConfig.KeyButtonData lmb = new SimpleCPSConfig.KeyButtonData("LMB", 0, 60, 31, 12, 0, true);
                     lmb.showCps = true;
                     config.keystrokesLayout.add(lmb);
-                    selectedButton = lmb;
+                    selectedButtons.clear();
+                    selectedButtons.add(lmb);
+                    currentState = InteractionState.BOX_SELECTED;
                     break;
                 case 3: // Add RMB (Wide Style)
-                    SimpleCPSConfig.KeyButtonData rmb = new SimpleCPSConfig.KeyButtonData("RMB", 0, 0, 31, 12, 1, true);
+                    SimpleCPSConfig.KeyButtonData rmb = new SimpleCPSConfig.KeyButtonData("RMB", 33, 60, 31, 12, 1, true);
                     rmb.showCps = true;
                     config.keystrokesLayout.add(rmb);
-                    selectedButton = rmb;
+                    selectedButtons.clear();
+                    selectedButtons.add(rmb);
+                    currentState = InteractionState.BOX_SELECTED;
                     break;
                 case 4: // Add Modifier
-                    addNewButton("CTRL", 0, 0, 31, 12, GLFW.GLFW_KEY_LEFT_CONTROL);
+                    addNewButton("CTRL", 0, 80, 31, 12, GLFW.GLFW_KEY_LEFT_CONTROL);
                     break;
                 case 5: // Reset
                     config.resetLayout();
-                    selectedButton = null;
+                    selectedButtons.clear();
+                    currentState = InteractionState.IDLE;
                     break;
             }
         }
     }
     
-    // Updated Add Preset Button Logic or Submenu could be implemented here
-    // For now, let's make "Add Button" add a standard key, and maybe SHIFT/CTRL click adds others?
-    // Actually, task said "Add Presets...". Let's assume we can add a submenu logic later or just add random for now.
-    // Better: Quick Presets.
-    
-    private void addNewButton() {
-        // Find empty spot?
-        addNewButton("New", 0, 0, 20, 20, GLFW.GLFW_KEY_UNKNOWN);
-    }
-    
     private void addNewButton(String label, int x, int y, int w, int h, int key) {
+        // Smart Add Logic: Relative to last selected if any
+        if (!selectedButtons.isEmpty()) {
+            SimpleCPSConfig.KeyButtonData last = selectedButtons.get(selectedButtons.size() - 1);
+            x = last.x + 10;
+            y = last.y + 10;
+            // Bound check? Na.
+        }
+        
         SimpleCPSConfig.KeyButtonData newBtn = new SimpleCPSConfig.KeyButtonData(label, x, y, w, h, key);
         config.keystrokesLayout.add(newBtn);
-        selectedButton = newBtn;
+        selectedButtons.clear();
+        selectedButtons.add(newBtn);
+        currentState = InteractionState.BOX_SELECTED;
     }
     
     @Override
-    public void close() {
-        SimpleCPSConfig.save();
-        if (parent != null) {
-            client.setScreen(parent);
-        } else {
-            super.close();
+    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+        // Scroll to Scale
+        double amount = verticalAmount;
+        if (currentState == InteractionState.BOX_SELECTED || currentState == InteractionState.TEXT_EDIT_MODE) {
+             for (SimpleCPSConfig.KeyButtonData btn : selectedButtons) {
+                 // Center Scale
+                 int scaler = (amount > 0) ? 2 : -2;
+                 
+                 // Enforce Min Size
+                 if (btn.w + scaler < 5 || btn.h + scaler < 5) continue;
+                 
+                 btn.x -= scaler / 2;
+                 btn.y -= scaler / 2;
+                 btn.w += scaler;
+                 btn.h += scaler;
+             }
+             return true;
         }
+        return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
     }
 
-    private void applySnapping(SimpleCPSConfig.KeyButtonData target, ResizeHandle handle) {
+
+    
+    // ... applySnapping (modified for boolean moving) logic was in previous file?
+    // Wait, the previous file had `applySnapping(target, ResizeHandle)`.
+    // I called `applySnapping(leader, true)` in mouseDragged.
+    // Need to update signature.
+    
+    private void applySnapping(SimpleCPSConfig.KeyButtonData target, boolean moving) {
         snapX = null;
         snapY = null;
         int threshold = 5;
@@ -612,14 +826,10 @@ public class KeystrokesDesignerScreen extends Screen {
         int tCX = tLeft + target.w / 2;
         int tCY = tTop + target.h / 2;
         
-        boolean moving = (handle == ResizeHandle.MOVE);
-        boolean resizingLeft = (handle == ResizeHandle.LEFT || handle == ResizeHandle.TOP_LEFT || handle == ResizeHandle.BOTTOM_LEFT);
-        boolean resizingRight = (handle == ResizeHandle.RIGHT || handle == ResizeHandle.TOP_RIGHT || handle == ResizeHandle.BOTTOM_RIGHT);
-        boolean resizingTop = (handle == ResizeHandle.TOP || handle == ResizeHandle.TOP_LEFT || handle == ResizeHandle.TOP_RIGHT);
-        boolean resizingBottom = (handle == ResizeHandle.BOTTOM || handle == ResizeHandle.BOTTOM_LEFT || handle == ResizeHandle.BOTTOM_RIGHT);
-        
         for (SimpleCPSConfig.KeyButtonData other : config.keystrokesLayout) {
             if (other == target) continue;
+            // Ignore other selected buttons to prevent self-snapping within group?
+            if (selectedButtons.contains(other)) continue;
             
             int oLeft = centerX + other.x;
             int oRight = oLeft + other.w;
@@ -635,17 +845,7 @@ public class KeystrokesDesignerScreen extends Screen {
                 else if (Math.abs(tLeft - oRight) < threshold) { target.x = other.x + other.w; snapX = oRight; }
                 else if (Math.abs(tRight - oLeft) < threshold) { target.x = other.x - target.w; snapX = oLeft; }
                 else if (Math.abs(tCX - oCX) < threshold) { target.x = other.x + (other.w - target.w)/2; snapX = oCX; }
-            } else {
-                if (resizingLeft) {
-                    if (Math.abs(tLeft - oLeft) < threshold) { int diff = target.x - other.x; target.x = other.x; target.w += diff; snapX = oLeft; }
-                    else if (Math.abs(tLeft - oRight) < threshold) { int diff = target.x - (other.x + other.w); target.x = other.x + other.w; target.w += diff; snapX = oRight; }
-                }
-                if (resizingRight) {
-                    if (Math.abs(tRight - oRight) < threshold) { target.w = (other.x + other.w) - target.x; snapX = oRight; }
-                    else if (Math.abs(tRight - oLeft) < threshold) { target.w = other.x - target.x; snapX = oLeft; }
-                }
-            }
-
+            } 
             // Y Snapping
             if (moving) {
                  if (Math.abs(tTop - oTop) < threshold) { target.y = other.y; snapY = oTop; }
@@ -653,128 +853,8 @@ public class KeystrokesDesignerScreen extends Screen {
                 else if (Math.abs(tTop - oBottom) < threshold) { target.y = other.y + other.h; snapY = oBottom; }
                 else if (Math.abs(tBottom - oTop) < threshold) { target.y = other.y - target.h; snapY = oTop; }
                 else if (Math.abs(tCY - oCY) < threshold) { target.y = other.y + (other.h - target.h)/2; snapY = oCY; }
-            } else {
-                if (resizingTop) {
-                    if (Math.abs(tTop - oTop) < threshold) { int diff = target.y - other.y; target.y = other.y; target.h += diff; snapY = oTop; }
-                    else if (Math.abs(tTop - oBottom) < threshold) { int diff = target.y - (other.y + other.h); target.y = other.y + other.h; target.h += diff; snapY = oBottom; }
-                }
-                if (resizingBottom) {
-                     if (Math.abs(tBottom - oBottom) < threshold) { target.h = (other.y + other.h) - target.y; snapY = oBottom; }
-                     else if (Math.abs(tBottom - oTop) < threshold) { target.h = other.y - target.y; snapY = oTop; }
-                }
-            }
-            }
-        
-        // Equal Distribution Snapping (Midpoint)
-        if (moving) {
-            for (SimpleCPSConfig.KeyButtonData A : config.keystrokesLayout) {
-                if (A == target) continue;
-                for (SimpleCPSConfig.KeyButtonData B : config.keystrokesLayout) {
-                    if (B == target || A == B) continue;
-                    
-                    // Horizontal Gap (Target between A and B)
-                    int aRight = centerX + A.x + A.w;
-                    int bLeft = centerX + B.x;
-                    
-                    if (aRight < bLeft) {
-                        // Check vertical overlap
-                        int aTop = centerY + A.y; int aBot = aTop + A.h;
-                        int bTop = centerY + B.y; int bBot = bTop + B.h;
-                        if (tBottom > aTop && tTop < aBot && tBottom > bTop && tTop < bBot) {
-                            int midX = (aRight + bLeft - target.w) / 2;
-                             if (Math.abs(tLeft - midX) < threshold) {
-                                 target.x = midX - centerX;
-                                 snapX = midX;
-                             }
-                        }
-                    }
-                    
-                    // Vertical Gap (Target between A and B)
-                    int aBot = centerY + A.y + A.h;
-                    int bTop = centerY + B.y;
-                    
-                    if (aBot < bTop) {
-                        // Check horizontal overlap
-                        int aL = centerX + A.x; int aR = aL + A.w;
-                        int bL = centerX + B.x; int bR = bL + B.w;
-                        if (tRight > aL && tLeft < aR && tRight > bL && tLeft < bR) {
-                            int midY = (aBot + bTop - target.h) / 2;
-                            if (Math.abs(tTop - midY) < threshold) {
-                                target.y = midY - centerY;
-                                snapY = midY;
-                            }
-                        }
-                    }
-                }
             }
         }
-    }
-
-    private void drawResizeHandles(DrawContext context, int x, int y, int w, int h) {
-        // Smaller handles visually
-        int handleSize = 4;
-        int hs2 = handleSize / 2;
-        int color = 0xAAFFFFFF;
-        
-        // Corners
-        context.fill(x - hs2, y - hs2, x + hs2, y + hs2, color); // TL
-        context.fill(x + w - hs2, y - hs2, x + w + hs2, y + hs2, color); // TR
-        context.fill(x - hs2, y + h - hs2, x + hs2, y + h + hs2, color); // BL
-        context.fill(x + w - hs2, y + h - hs2, x + w + hs2, y + h + hs2, color); // BR
-        
-        // Sides
-        int mx = x + w / 2;
-        int my = y + h / 2;
-        context.fill(mx - hs2, y - hs2, mx + hs2, y + hs2, color); // Top
-        context.fill(mx - hs2, y + h - hs2, mx + hs2, y + h + hs2, color); // Bottom
-        context.fill(x - hs2, my - hs2, x + hs2, my + hs2, color); // Left
-        context.fill(x + w - hs2, my - hs2, x + w + hs2, my + hs2, color); // Right
-        
-        // Visualize label box if selected
-        if (editingLabel || draggingLabel) {
-            net.minecraft.text.MutableText text = net.minecraft.text.Text.literal(selectedButton.label);
-            net.minecraft.text.Style style = net.minecraft.text.Style.EMPTY;
-            if (selectedButton.bold) style = style.withBold(true);
-            text.setStyle(style);
-            int labelW = textRenderer.getWidth(text);
-            int labelH = textRenderer.fontHeight;
-            int lx = (selectedButton.labelX == -1) ? x + (selectedButton.w - labelW) / 2 : x + selectedButton.labelX;
-            int ly = (selectedButton.labelY == -1) ? y + (selectedButton.h - labelH) / 2 : y + selectedButton.labelY;
-            
-            drawBorder(context, lx - 1, ly - 1, labelW + 2, labelH + 2, 0xFF00FF00); // Green box for label
-        }
-    }
-    
-    private ResizeHandle getHandle(int mx, int my, int x, int y, int w, int h) {
-        // ONLY triggers edges if within small margin, otherwise MOVE
-        int margin = 4; // strictly 3-4px
-        
-        boolean insideX = mx >= x && mx <= x + w;
-        boolean insideY = my >= y && my <= y + h;
-        
-        if (!insideX || !insideY) return ResizeHandle.NONE;
-        
-        int distL = Math.abs(mx - x);
-        int distR = Math.abs(mx - (x + w));
-        int distT = Math.abs(my - y);
-        int distB = Math.abs(my - (y + h));
-        
-        boolean nearLeft = distL <= margin;
-        boolean nearRight = distR <= margin;
-        boolean nearTop = distT <= margin;
-        boolean nearBottom = distB <= margin;
-        
-        if (nearTop && nearLeft) return ResizeHandle.TOP_LEFT;
-        if (nearTop && nearRight) return ResizeHandle.TOP_RIGHT;
-        if (nearBottom && nearLeft) return ResizeHandle.BOTTOM_LEFT;
-        if (nearBottom && nearRight) return ResizeHandle.BOTTOM_RIGHT;
-        
-        if (nearTop) return ResizeHandle.TOP;
-        if (nearBottom) return ResizeHandle.BOTTOM;
-        if (nearLeft) return ResizeHandle.LEFT;
-        if (nearRight) return ResizeHandle.RIGHT;
-        
-        return ResizeHandle.MOVE; // Center
     }
     private void saveUndo() {
         String json = gson.toJson(config.keystrokesLayout);
@@ -791,7 +871,10 @@ public class KeystrokesDesignerScreen extends Screen {
             List<SimpleCPSConfig.KeyButtonData> list = gson.fromJson(json, new TypeToken<List<SimpleCPSConfig.KeyButtonData>>(){}.getType());
             config.keystrokesLayout.clear();
             config.keystrokesLayout.addAll(list);
-            selectedButton = null;
+            
+            // Clear selection to avoid ghost references
+            selectedButtons.clear();
+            currentState = InteractionState.IDLE;
         }
     }
     
@@ -804,9 +887,18 @@ public class KeystrokesDesignerScreen extends Screen {
             List<SimpleCPSConfig.KeyButtonData> list = gson.fromJson(json, new TypeToken<List<SimpleCPSConfig.KeyButtonData>>(){}.getType());
             config.keystrokesLayout.clear();
             config.keystrokesLayout.addAll(list);
-            selectedButton = null;
+            
+            selectedButtons.clear();
+            currentState = InteractionState.IDLE;
         }
     }
+            
+
+    private boolean isCtrlDown() {
+        long window = client.getWindow().getHandle();
+        return GLFW.glfwGetKey(window, GLFW.GLFW_KEY_LEFT_CONTROL) == GLFW.GLFW_PRESS || GLFW.glfwGetKey(window, GLFW.GLFW_KEY_RIGHT_CONTROL) == GLFW.GLFW_PRESS;
+    }
+
     private String getKeyName(int keyCode) {
         String name = GLFW.glfwGetKeyName(keyCode, 0);
         if (name != null) return name.toUpperCase();
