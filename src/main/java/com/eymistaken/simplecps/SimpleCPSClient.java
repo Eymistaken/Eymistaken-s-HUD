@@ -56,8 +56,12 @@ public class SimpleCPSClient implements ClientModInitializer {
         if (client.player == null || client.getNetworkHandler() == null) {
             cachedPing = -1;
             cachedEntry = null;
+            ComboTracker.reset(); // Safety reset
             return;
         }
+        
+        // Advanced Combat Logic Update
+        ComboTracker.onTick(client);
         
         // Damage Detection Logic
         if (client.player != null) {
@@ -120,8 +124,13 @@ public class SimpleCPSClient implements ClientModInitializer {
 
         // --- 1. CPS ---
         if (config.enabled || isEditor) {
-            String cpsText = String.valueOf(leftClicks.size());
-            if (config.rightClickCps) cpsText += " | " + rightClicks.size();
+            String leftCps = String.valueOf(leftClicks.size());
+            String rightCps = String.valueOf(rightClicks.size());
+            
+            String cpsText = config.cpsLeftText + leftCps;
+            if (config.rightClickCps) {
+                cpsText += config.cpsSeparator + config.cpsRightText + rightCps;
+            }
 
             int color = config.rainbow ? getRainbowColor() : config.textColor;
             if ((color & 0xFF000000) == 0) color |= 0xFF000000;
@@ -344,14 +353,41 @@ public class SimpleCPSClient implements ClientModInitializer {
         // --- 4. COMBO ---
         boolean shouldRenderCombo = config.showCombo && (ComboTracker.getCombo() > 0 || !config.comboHideWhenInactive);
         if (shouldRenderCombo || isEditor) {
-            String comboStr = (isEditor && ComboTracker.getCombo() == 0 ? "0" : ComboTracker.getCombo()) + " " + config.comboText;
+            int currentCombo = isEditor && ComboTracker.getCombo() == 0 ? 0 : ComboTracker.getCombo();
+            String comboStr = currentCombo + " " + config.comboText;
             
             float scale = config.comboScale / 100f;
             int textHeight = (int)(client.textRenderer.fontHeight * scale);
             int textWidth = (int)(client.textRenderer.getWidth(comboStr) * scale);
             int padding = 2;
 
-            int color = config.comboRainbow ? getRainbowColor() : config.comboColor;
+            int color = config.comboColor; // Default
+            if (config.comboHeatmap) {
+                // Heatmap Logic (Overrides Rainbow)
+                int t1, t2, t3;
+                
+                // Difficulty Thresholds
+                switch (config.comboHeatmapMode) {
+                    case EASY -> { t1 = 3; t2 = 5; t3 = 7; }
+                    case HARD -> { t1 = 10; t2 = 40; t3 = 60; }
+                    default -> { t1 = 5; t2 = 8; t3 = 12; } // MEDIUM
+                }
+                
+                if (currentCombo < t1) {
+                     color = config.comboColor;
+                } else if (currentCombo < t2) {
+                     // Base -> Red
+                     float progress = (float)(currentCombo - t1) / (float)(t2 - t1);
+                     color = interpolateColor(config.comboColor, 0xFFFF0000, progress);
+                } else {
+                     // Red -> Dark Red
+                     float progress = Math.min((float)(currentCombo - t2) / (float)(t3 - t2), 1.0f);
+                     color = interpolateColor(0xFFFF0000, 0xFF550000, progress);
+                }
+            } else if (config.comboRainbow) {
+                color = getRainbowColor();
+            }
+            
             if ((color & 0xFF000000) == 0) color |= 0xFF000000;
 
             int x = 0, y = 0;
@@ -377,7 +413,7 @@ public class SimpleCPSClient implements ClientModInitializer {
                 }
                 case BOTTOM_RIGHT -> { 
                     x = screenWidth - textWidth - stackGap; 
-                     if (!detached) bottomRightStack -= usedHeight;
+                    if (!detached) bottomRightStack -= usedHeight;
                     y = detached ? (screenHeight - usedHeight - stackGap) : bottomRightStack;
                     if (!detached) bottomRightStack -= gap;
                 }
@@ -399,6 +435,24 @@ public class SimpleCPSClient implements ClientModInitializer {
 
             drawContext.getMatrices().pushMatrix();
             drawContext.getMatrices().translate((float)finalX, (float)finalY);
+            
+            // Shake Effect
+            // Shake Effect
+            // Calculate Threshold again for shake check
+            int shakeThreshold = 12; // Default Medium
+            if (config.comboHeatmap) {
+                 switch (config.comboHeatmapMode) {
+                    case EASY -> shakeThreshold = 7;
+                    case HARD -> shakeThreshold = 60;
+                    default -> shakeThreshold = 12;
+                }
+            }
+            
+            if (config.comboHeatmap && currentCombo > shakeThreshold) {
+                 float shake = (float)(Math.random() - 0.5) * 2f; // +/- 1
+                 drawContext.getMatrices().translate(shake, shake);
+            }
+            
             drawContext.getMatrices().scale(scale, scale);
 
             if (config.comboShowBackground) {
@@ -640,6 +694,22 @@ public class SimpleCPSClient implements ClientModInitializer {
         if (hue > 360) hue = 0;
         int rgb = MathHelper.hsvToRgb(hue / 360f, 1.0f, 1.0f);
         return rgb | 0xFF000000;
+    }
+
+    private static int interpolateColor(int c1, int c2, float factor) {
+        int r1 = (c1 >> 16) & 0xFF;
+        int g1 = (c1 >> 8) & 0xFF;
+        int b1 = c1 & 0xFF;
+        
+        int r2 = (c2 >> 16) & 0xFF;
+        int g2 = (c2 >> 8) & 0xFF;
+        int b2 = c2 & 0xFF;
+        
+        int r = (int)(r1 + (r2 - r1) * factor);
+        int g = (int)(g1 + (g2 - g1) * factor);
+        int b = (int)(b1 + (b2 - b1) * factor);
+        
+        return 0xFF000000 | (r << 16) | (g << 8) | b;
     }
 
 

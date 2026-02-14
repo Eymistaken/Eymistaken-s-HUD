@@ -77,6 +77,23 @@ public class ClothConfigFactory {
                 .setSaveConsumer(val -> config.cpsBackgroundOpacity = val)
                 .build());
 
+        // New CPS Text Fields
+        cps.addEntry(entryBuilder.startStrField(Text.of("Left Prefix"), config.cpsLeftText)
+                .setDefaultValue("")
+                .setTooltip(Text.of("Text before left click count"))
+                .setSaveConsumer(val -> config.cpsLeftText = val)
+                .build());
+        cps.addEntry(entryBuilder.startStrField(Text.of("Separator"), config.cpsSeparator)
+                .setDefaultValue(" | ")
+                .setTooltip(Text.of("Separator between left and right count"))
+                .setSaveConsumer(val -> config.cpsSeparator = val)
+                .build());
+        cps.addEntry(entryBuilder.startStrField(Text.of("Right Prefix"), config.cpsRightText)
+                .setDefaultValue("")
+                .setTooltip(Text.of("Text before right click count"))
+                .setSaveConsumer(val -> config.cpsRightText = val)
+                .build());
+
         // --- PING ---
         ConfigCategory ping = builder.getOrCreateCategory(Text.of("Ping"));
         ping.addEntry(entryBuilder.startBooleanToggle(Text.of("Show Ping"), config.showPing)
@@ -187,9 +204,9 @@ public class ClothConfigFactory {
                 .build());
         
         // Open Designer Button
-        keys.addEntry(entryBuilder.startBooleanToggle(Text.of("Make Your Own"), false)
+        keys.addEntry(entryBuilder.startBooleanToggle(Text.of("Designer (Experimental)"), false)
                 .setDefaultValue(false)
-                .setTooltip(Text.of("Do Yes and save and quit"))
+                .setTooltip(Text.of("To open Designer, Enable the toggle and click \"Save & Quit\""))
                 .setSaveConsumer(val -> {
                     if (val) {
                          // Schedule opening the designer
@@ -253,7 +270,7 @@ public class ClothConfigFactory {
                  .build());
         
         // --- COMBO ---
-        ConfigCategory combo = builder.getOrCreateCategory(Text.of("Combo (Beta)"));
+        ConfigCategory combo = builder.getOrCreateCategory(Text.of("Combo")); // Removed (Beta)
         combo.addEntry(entryBuilder.startBooleanToggle(Text.of("Show Combo"), config.showCombo)
                 .setDefaultValue(false)
                 .setTooltip(Text.of("Toggle Combo counter visibility"))
@@ -284,10 +301,15 @@ public class ClothConfigFactory {
                 .setTooltip(Text.of("Size of the Combo display"))
                 .setSaveConsumer(val -> config.comboScale = val)
                 .build());
-        combo.addEntry(entryBuilder.startBooleanToggle(Text.of("Reset on Any Damage"), config.comboResetOnAnyDamage)
-                .setDefaultValue(false)
-                .setTooltip(Text.of("Reset combo when taking any damage"))
+        combo.addEntry(entryBuilder.startBooleanToggle(Text.of("Reset on Any Damage (Experimental)"), config.comboResetOnAnyDamage)
+                .setDefaultValue(true) // Legacy Default
+                .setTooltip(Text.of("ON: Classic Mode (Reset on hit). OFF: Advanced Mode (Decay + Distance Check)"))
                 .setSaveConsumer(val -> config.comboResetOnAnyDamage = val)
+                .build());
+        combo.addEntry(entryBuilder.startBooleanToggle(Text.of("Only Players"), config.comboOnlyPlayers) // New
+                .setDefaultValue(true)
+                .setTooltip(Text.of("If enabled, only hits on players count for combo"))
+                .setSaveConsumer(val -> config.comboOnlyPlayers = val)
                 .build());
         combo.addEntry(entryBuilder.startIntSlider(Text.of("Timeout (s)"), (int)config.comboTimeout, 1, 10)
                 .setDefaultValue(2)
@@ -298,6 +320,26 @@ public class ClothConfigFactory {
                 .setDefaultValue("Combo")
                 .setTooltip(Text.of("Text displayed after combo count"))
                 .setSaveConsumer(val -> config.comboText = val)
+                .build());
+        // Decay & Distance Check are now tied to !comboResetOnAnyDamage internally.
+        // UI Removed per user request.
+        
+        // LOS Check Removed per user request
+        
+        combo.addEntry(entryBuilder.startBooleanToggle(Text.of("Heatmap Mode"), config.comboHeatmap)
+                .setDefaultValue(false)
+                .setTooltip(Text.of("Dynamic Color (Blue->Red->Black) + Shake. Overrides Rainbow."))
+                .setSaveConsumer(val -> config.comboHeatmap = val)
+                .build());
+        combo.addEntry(entryBuilder.startEnumSelector(Text.of("Heatmap Difficulty"), SimpleCPSConfig.HeatmapMode.class, config.comboHeatmapMode) // New
+                .setDefaultValue(SimpleCPSConfig.HeatmapMode.MEDIUM)
+                .setTooltip(Text.of("Difficulty scaling for Heatmap colors and shake effect. Resets combo on change."))
+                .setSaveConsumer(val -> {
+                     if (config.comboHeatmapMode != val) {
+                         ComboTracker.reset(); // Reset combo on mode change
+                     }
+                     config.comboHeatmapMode = val;
+                })
                 .build());
         combo.addEntry(entryBuilder.startColorField(Text.of("Text Color"), config.comboColor)
                 .setDefaultValue(0xFFFFFF)
@@ -417,6 +459,17 @@ public class ClothConfigFactory {
                         MinecraftClient.getInstance().execute(() -> 
                             MinecraftClient.getInstance().setScreen(new HudEditorScreen(parent))
                         );
+                    }
+                })
+                .build());
+
+        // Reset Config Button
+        layout.addEntry(entryBuilder.startBooleanToggle(Text.of("RESET ALL SETTINGS"), false)
+                .setDefaultValue(false)
+                .setTooltip(Text.of("WARNING: Resets all settings to default! (Click Save & Quit to apply)"))
+                .setSaveConsumer(val -> {
+                    if (val) {
+                        SimpleCPSConfig.instance.resetToDefaults();
                     }
                 })
                 .build());

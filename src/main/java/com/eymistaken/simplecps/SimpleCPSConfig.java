@@ -37,10 +37,16 @@ public class SimpleCPSConfig {
             e.printStackTrace();
         }
     }
+    
+    public void resetToDefaults() {
+        instance = new SimpleCPSConfig();
+        save();
+    }
 
     // Enums
     public enum Position { TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT, CENTER }
     public enum RainbowTarget { TEXT, BACKGROUND }
+    public enum HeatmapMode { EASY, MEDIUM, HARD } // New Enum
     public enum CombatMode { CLASSIC, MODERN }
 
     // --- CPS ---
@@ -55,6 +61,10 @@ public class SimpleCPSConfig {
     public boolean cpsShowBackground = false;
     public int cpsBackgroundColor = 0x000000;
     public int cpsBackgroundOpacity = 128;
+    // New Fields
+    public String cpsLeftText = "";
+    public String cpsRightText = "";
+    public String cpsSeparator = " | ";
 
     // --- PING ---
     public boolean showPing = false;
@@ -174,9 +184,15 @@ public class SimpleCPSConfig {
     public int comboBackgroundColor = 0x000000;
     public int comboBackgroundOpacity = 128;
     public double comboTimeout = 3.0;
-    public boolean comboResetOnAnyDamage = true;
+    public boolean comboResetOnAnyDamage = true; // Default: True (Legacy Mode). If False -> Advanced Mode (Decay/Distance)
     public boolean comboContinueOnSwitch = true;
     public boolean comboHideWhenInactive = false;
+    public boolean comboHeatmap = false;
+    public HeatmapMode comboHeatmapMode = HeatmapMode.MEDIUM; // Default: Medium
+    public boolean comboOnlyPlayers = true; // Default: True
+    // public boolean comboDecay = true; // Removed - Tied to !comboResetOnAnyDamage
+    // public boolean comboDistanceCheck = true; // Removed - Tied to !comboResetOnAnyDamage
+    // public boolean comboLOSCheck = true; // Removed
     public CombatMode combatMode = CombatMode.MODERN;
 
     // --- REACH DISPLAY ---
