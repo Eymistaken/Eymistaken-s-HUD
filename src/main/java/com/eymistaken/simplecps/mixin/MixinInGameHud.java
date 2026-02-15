@@ -13,6 +13,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public class MixinInGameHud {
     @Inject(method = "render", at = @At("TAIL"))
     private void renderSimpleCPS(DrawContext context, RenderTickCounter tickCounter, CallbackInfo ci) {
-        SimpleCPSClient.onHudRender(context, tickCounter);
+        SimpleCPSClient.onHudRender(context, tickCounter.getTickProgress(false));
     }
 }

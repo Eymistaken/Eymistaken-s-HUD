@@ -1,0 +1,109 @@
+package com.eymistaken.simplecps.modules;
+
+import com.eymistaken.simplecps.SimpleCPSConfig;
+import com.eymistaken.simplecps.api.HudModule;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.network.PlayerListEntry;
+
+public class PingModule extends HudModule {
+
+    private int cachedPing = -1;
+    private PlayerListEntry cachedEntry = null;
+
+    @Override
+    public boolean isEnabled() {
+        return SimpleCPSConfig.instance.showPing;
+    }
+
+    @Override
+    public SimpleCPSConfig.Position getPositionType() {
+        return SimpleCPSConfig.instance.pingPosition;
+    }
+
+    @Override
+    public int getXOffset() {
+        return SimpleCPSConfig.instance.pingXOffset;
+    }
+
+    @Override
+    public int getYOffset() {
+        return SimpleCPSConfig.instance.pingYOffset;
+    }
+
+    @Override
+    public String getName() {
+        return "Ping";
+    }
+
+    @Override
+    public void tick(MinecraftClient client) {
+        if (client.player == null || client.getNetworkHandler() == null) {
+            cachedPing = -1;
+            cachedEntry = null;
+            return;
+        }
+
+        PlayerListEntry entry = client.getNetworkHandler().getPlayerListEntry(client.player.getUuid());
+
+        if (entry != null) {
+            cachedEntry = entry;
+            cachedPing = entry.getLatency();
+        } else {
+            cachedEntry = null;
+            cachedPing = -1;
+        }
+    }
+
+    @Override
+    public void render(DrawContext context, float tickDelta) {
+        SimpleCPSConfig config = SimpleCPSConfig.instance;
+        int latency = cachedPing;
+        if (cachedEntry != null) latency = cachedEntry.getLatency();
+        String pingText = (latency < 0) ? "? ms" : (latency + " ms");
+        
+        float scale = 1.0f; 
+        int textWidth = (int)(client.textRenderer.getWidth(pingText) * scale);
+        int textHeight = (int)(client.textRenderer.fontHeight * scale);
+        int padding = 2;
+        int pColor = config.pingColor;
+        if ((pColor & 0xFF000000) == 0) pColor |= 0xFF000000;
+
+        context.getMatrices().pushMatrix();
+        context.getMatrices().translate((float)x, (float)y);
+        context.getMatrices().scale(scale, scale);
+        
+        if (config.pingShowBackground) {
+            int bgX = -padding;
+            int bgY = -padding;
+            int bgW_local = (int)(textWidth / scale) + (padding * 2);
+            int bgH_local = (int)(textHeight / scale) + (padding * 2);
+            int bgAlphaColor = (config.pingBackgroundOpacity << 24) | (config.pingBackgroundColor & 0x00FFFFFF);
+            context.fill(bgX, bgY, bgX + bgW_local, bgY + bgH_local, bgAlphaColor);
+        }
+
+        context.drawTextWithShadow(client.textRenderer, pingText, 0, 0, pColor);
+        context.getMatrices().popMatrix();
+    }
+
+    @Override
+    public int getWidth() {
+        SimpleCPSConfig config = SimpleCPSConfig.instance;
+        int latency = cachedPing;
+        if (cachedEntry != null) latency = cachedEntry.getLatency();
+        String pingText = (latency < 0) ? "? ms" : (latency + " ms");
+        float scale = 1.0f;
+        int textWidth = (int)(client.textRenderer.getWidth(pingText) * scale);
+        int padding = 2;
+        return config.pingShowBackground ? (int)(((textWidth / scale) + padding * 2) * scale) : textWidth;
+    }
+
+    @Override
+    public int getHeight() {
+        SimpleCPSConfig config = SimpleCPSConfig.instance;
+        float scale = 1.0f;
+        int textHeight = (int)(client.textRenderer.fontHeight * scale);
+        int padding = 2;
+        return config.pingShowBackground ? (int)(((textHeight / scale) + padding * 2) * scale) : textHeight;
+    }
+}

@@ -355,8 +355,10 @@ public class KeystrokesDesignerScreen extends Screen {
                     }
                 }
                 
+                
                 // Prepare Drag (Left = Box)
                 if (currentState == InteractionState.BOX_SELECTED) {
+                    saveUndo(); // Save state before starting drag
                     currentState = InteractionState.DRAGGING_BOX;
                     dragStartX = mouseX;
                     dragStartY = mouseY;
@@ -618,6 +620,11 @@ public class KeystrokesDesignerScreen extends Screen {
              boolean ctrl = (modifiers & GLFW.GLFW_MOD_CONTROL) != 0;
              int step = shift ? 5 : 1;
              
+             if (keyCode == GLFW.GLFW_KEY_UP || keyCode == GLFW.GLFW_KEY_DOWN || 
+                 keyCode == GLFW.GLFW_KEY_LEFT || keyCode == GLFW.GLFW_KEY_RIGHT) {
+                 saveUndo();
+             }
+
              if (keyCode == GLFW.GLFW_KEY_UP) { for (SimpleCPSConfig.KeyButtonData b : selectedButtons) b.y -= step; return true; }
              if (keyCode == GLFW.GLFW_KEY_DOWN) { for (SimpleCPSConfig.KeyButtonData b : selectedButtons) b.y += step; return true; }
              if (keyCode == GLFW.GLFW_KEY_LEFT) { for (SimpleCPSConfig.KeyButtonData b : selectedButtons) b.x -= step; return true; }
@@ -848,7 +855,8 @@ public class KeystrokesDesignerScreen extends Screen {
     private void applySnapping(SimpleCPSConfig.KeyButtonData target, boolean moving) {
         snapX = null;
         snapY = null;
-        int threshold = 5;
+        int threshold = 2; // Reduced threshold to 2px
+        int monitorGap = 2; // Gap for smart snapping (Matched to default layout)
         int centerX = width / 2;
         int centerY = height / 2;
         
@@ -861,7 +869,7 @@ public class KeystrokesDesignerScreen extends Screen {
         
         for (SimpleCPSConfig.KeyButtonData other : config.keystrokesLayout) {
             if (other == target) continue;
-            // Ignore other selected buttons to prevent self-snapping within group?
+            // Ignore other selected buttons to prevent self-snapping within group
             if (selectedButtons.contains(other)) continue;
             
             int oLeft = centerX + other.x;
@@ -873,19 +881,33 @@ public class KeystrokesDesignerScreen extends Screen {
             
             // X Snapping
             if (moving) {
-                if (Math.abs(tLeft - oLeft) < threshold) { target.x = other.x; snapX = oLeft; }
-                else if (Math.abs(tRight - oRight) < threshold) { target.x = other.x + other.w - target.w; snapX = oRight; }
-                else if (Math.abs(tLeft - oRight) < threshold) { target.x = other.x + other.w; snapX = oRight; }
-                else if (Math.abs(tRight - oLeft) < threshold) { target.x = other.x - target.w; snapX = oLeft; }
-                else if (Math.abs(tCX - oCX) < threshold) { target.x = other.x + (other.w - target.w)/2; snapX = oCX; }
+                // Direct Edges
+                if (Math.abs(tLeft - oLeft) <= threshold) { target.x = other.x; snapX = oLeft; }
+                else if (Math.abs(tRight - oRight) <= threshold) { target.x = other.x + other.w - target.w; snapX = oRight; }
+                else if (Math.abs(tLeft - oRight) <= threshold) { target.x = other.x + other.w; snapX = oRight; }
+                else if (Math.abs(tRight - oLeft) <= threshold) { target.x = other.x - target.w; snapX = oLeft; }
+                else if (Math.abs(tCX - oCX) <= threshold) { target.x = other.x + (other.w - target.w)/2; snapX = oCX; }
+                
+                // Gap Snapping (4px)
+                // Target Left to Other Right + Gap
+                else if (Math.abs(tLeft - (oRight + monitorGap)) <= threshold) { target.x = other.x + other.w + monitorGap; snapX = oRight + monitorGap; }
+                // Target Right to Other Left - Gap
+                else if (Math.abs(tRight - (oLeft - monitorGap)) <= threshold) { target.x = other.x - monitorGap - target.w; snapX = oLeft - monitorGap; }
             } 
             // Y Snapping
             if (moving) {
-                 if (Math.abs(tTop - oTop) < threshold) { target.y = other.y; snapY = oTop; }
-                else if (Math.abs(tBottom - oBottom) < threshold) { target.y = other.y + other.h - target.h; snapY = oBottom; }
-                else if (Math.abs(tTop - oBottom) < threshold) { target.y = other.y + other.h; snapY = oBottom; }
-                else if (Math.abs(tBottom - oTop) < threshold) { target.y = other.y - target.h; snapY = oTop; }
-                else if (Math.abs(tCY - oCY) < threshold) { target.y = other.y + (other.h - target.h)/2; snapY = oCY; }
+                // Direct Edges
+                if (Math.abs(tTop - oTop) <= threshold) { target.y = other.y; snapY = oTop; }
+                else if (Math.abs(tBottom - oBottom) <= threshold) { target.y = other.y + other.h - target.h; snapY = oBottom; }
+                else if (Math.abs(tTop - oBottom) <= threshold) { target.y = other.y + other.h; snapY = oBottom; }
+                else if (Math.abs(tBottom - oTop) <= threshold) { target.y = other.y - target.h; snapY = oTop; }
+                else if (Math.abs(tCY - oCY) <= threshold) { target.y = other.y + (other.h - target.h)/2; snapY = oCY; }
+                
+                // Gap Snapping (4px)
+                // Target Top to Other Bottom + Gap
+                else if (Math.abs(tTop - (oBottom + monitorGap)) <= threshold) { target.y = other.y + other.h + monitorGap; snapY = oBottom + monitorGap; }
+                // Target Bottom to Other Top - Gap
+                else if (Math.abs(tBottom - (oTop - monitorGap)) <= threshold) { target.y = other.y - monitorGap - target.h; snapY = oTop - monitorGap; }
             }
         }
     }

@@ -202,7 +202,7 @@ public class HudEditorScreen extends Screen {
         context.fill(0, centerY, this.width, centerY + 1, lineColor);
 
         // Render Live Preview
-        SimpleCPSClient.onHudRender(context, null);
+        SimpleCPSClient.onHudRender(context, delta);
 
         // Draw Selection Borders
         for (var entry : SimpleCPSClient.MODULE_BOUNDS.entrySet()) {
