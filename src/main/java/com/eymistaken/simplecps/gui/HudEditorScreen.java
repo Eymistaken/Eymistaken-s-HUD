@@ -1,5 +1,6 @@
 package com.eymistaken.simplecps.gui;
 
+import com.eymistaken.simplecps.HudModuleManager;
 import com.eymistaken.simplecps.SimpleCPSClient;
 import com.eymistaken.simplecps.SimpleCPSConfig;
 import net.minecraft.client.gui.DrawContext;
@@ -30,9 +31,9 @@ public class HudEditorScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
-        for (var entry : SimpleCPSClient.MODULE_BOUNDS.entrySet()) {
+        for (var entry : HudModuleManager.getInstance().getModuleBounds().entrySet()) {
             String name = entry.getKey();
-            SimpleCPSClient.ModuleBounds p = entry.getValue();
+            HudModuleManager.ModuleBounds p = entry.getValue();
             
             if (mouseX >= p.x && mouseX <= p.x + p.w &&
                 mouseY >= p.y && mouseY <= p.y + p.h) {
@@ -74,9 +75,9 @@ public class HudEditorScreen extends Screen {
 
         // LEFT CLICK (Start Drag)
         if (isLeftDown && !wasLeftDown) {
-            for (var entry : SimpleCPSClient.MODULE_BOUNDS.entrySet()) {
+            for (var entry : HudModuleManager.getInstance().getModuleBounds().entrySet()) {
                 String name = entry.getKey();
-                SimpleCPSClient.ModuleBounds p = entry.getValue();
+                HudModuleManager.ModuleBounds p = entry.getValue();
                 
                 if (mouseX >= p.x && mouseX <= p.x + p.w &&
                     mouseY >= p.y && mouseY <= p.y + p.h) {
@@ -91,9 +92,9 @@ public class HudEditorScreen extends Screen {
         
         // RIGHT CLICK (Reset to Defaults)
         if (isRightDown && !wasRightDown) {
-             for (var entry : SimpleCPSClient.MODULE_BOUNDS.entrySet()) {
+             for (var entry : HudModuleManager.getInstance().getModuleBounds().entrySet()) {
                 String name = entry.getKey();
-                SimpleCPSClient.ModuleBounds p = entry.getValue();
+                HudModuleManager.ModuleBounds p = entry.getValue();
                 
                 if (mouseX >= p.x && mouseX <= p.x + p.w &&
                     mouseY >= p.y && mouseY <= p.y + p.h) {
@@ -142,7 +143,7 @@ public class HudEditorScreen extends Screen {
             int targetY = mouseY - dragOffsetY;
             
             // 2. Determine Smart Anchor based on Center of module
-            SimpleCPSClient.ModuleBounds p = SimpleCPSClient.MODULE_BOUNDS.get(draggingModule);
+            HudModuleManager.ModuleBounds p = HudModuleManager.getInstance().getModuleBounds().get(draggingModule);
             int w = (p != null) ? p.w : 50;
             int h = (p != null) ? p.h : 20;
             
@@ -205,9 +206,9 @@ public class HudEditorScreen extends Screen {
         SimpleCPSClient.onHudRender(context, delta);
 
         // Draw Selection Borders
-        for (var entry : SimpleCPSClient.MODULE_BOUNDS.entrySet()) {
+        for (var entry : HudModuleManager.getInstance().getModuleBounds().entrySet()) {
             String name = entry.getKey();
-            SimpleCPSClient.ModuleBounds p = entry.getValue();
+            HudModuleManager.ModuleBounds p = entry.getValue();
             
             boolean isHovered = mouseX >= p.x && mouseX <= p.x + p.w && 
                                 mouseY >= p.y && mouseY <= p.y + p.h;
