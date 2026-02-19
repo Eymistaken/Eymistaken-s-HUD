@@ -98,8 +98,7 @@ public class KeystrokesDesignerScreen extends Screen {
     // Editing
     private boolean waitingForKeybind = false;
     // Helper to debounce key presses
-    private int lastPressedKey = -1;
-    private long lastPressTime = 0; // For repeat keys if needed
+    private final long[] keyPressTimes = new long[GLFW.GLFW_KEY_LAST];
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
@@ -256,14 +255,15 @@ public class KeystrokesDesignerScreen extends Screen {
     private void updateKeys(long windowHandle) {
         if (waitingForKeybind || currentState == InteractionState.TEXT_EDIT_MODE || !selectedButtons.isEmpty()) {
              for (int k = 32; k < GLFW.GLFW_KEY_LAST; k++) {
-                  if (GLFW.glfwGetKey(windowHandle, k) == GLFW.GLFW_PRESS) {
+                  int action = GLFW.glfwGetKey(windowHandle, k);
+                  if (action == GLFW.GLFW_PRESS) {
                       // Skip modifiers from repeat logic unless binding a key
                       boolean isModifier = (k >= 340 && k <= 348);
                       if (isModifier && !waitingForKeybind) continue;
                       
-                      if (lastPressedKey != k || (System.currentTimeMillis() - lastPressTime > 200)) { 
-                          lastPressTime = System.currentTimeMillis();
-                          lastPressedKey = k;
+                      long now = System.currentTimeMillis();
+                      if (now - keyPressTimes[k] > 200) { 
+                          keyPressTimes[k] = now;
                           
                           int modifiers = 0;
                           if (GLFW.glfwGetKey(windowHandle, GLFW.GLFW_KEY_LEFT_CONTROL) == GLFW.GLFW_PRESS || GLFW.glfwGetKey(windowHandle, GLFW.GLFW_KEY_RIGHT_CONTROL) == GLFW.GLFW_PRESS) modifiers |= GLFW.GLFW_MOD_CONTROL;
@@ -271,10 +271,9 @@ public class KeystrokesDesignerScreen extends Screen {
                           
                           onKeyPressed(k, 0, modifiers);
                       }
+                  } else if (action == GLFW.GLFW_RELEASE) {
+                      keyPressTimes[k] = 0;
                   }
-             }
-             if (lastPressedKey != -1 && GLFW.glfwGetKey(windowHandle, lastPressedKey) == GLFW.GLFW_RELEASE) {
-                  lastPressedKey = -1;
              }
         }
     }
