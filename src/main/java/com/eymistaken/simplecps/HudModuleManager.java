@@ -33,7 +33,7 @@ public class HudModuleManager {
         registerModule(new PingModule());
         registerModule(new ComboModule());
         registerModule(new KeystrokesModule());
-        registerModule(new ReachModule());
+        registerModule(new ArmorModule());
     }
 
     public static HudModuleManager getInstance() {

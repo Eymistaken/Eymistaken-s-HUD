@@ -210,4 +210,16 @@ public class SimpleCPSConfig {
     public boolean reachOnlyPlayers = true;
     public boolean reachAlwaysShow = false;
     public String reachNoHitText = "No Hit";
+
+    // --- ARMOR HUD ---
+    public boolean showArmor = false;
+    public Position armorPosition = Position.BOTTOM_LEFT;
+    public int armorXOffset = 0;
+    public int armorYOffset = 0;
+    public boolean armorVertical = true; // Orientation
+    public boolean armorShowBackgroundSlots = false; // Render Style
+    public boolean armorShowMainHand = true; // Main Hand toggle
+    public boolean armorShowOffHand = true; // Off Hand toggle
+    public boolean armorDurabilityText = true; // Durability Text
+    public boolean armorDamageFlash = true; // Damage Flash
 }

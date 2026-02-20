@@ -20,3 +20,11 @@ crash-reports/
 # --- OS Junk (İşletim Sistemi Çöpleri) ---
 .DS_Store
 Thumbs.db
+
+# --- Reverse Engineering & Dev Tools (Geliştirme Araçları) ---
+decomp/
+cfr.jar
+make_slot.py
+reflect.txt
+HandledScreen.java
+DrawContext.java

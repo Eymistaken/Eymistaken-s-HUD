@@ -445,6 +445,59 @@ public class ClothConfigFactory {
                 .setSaveConsumer(val -> config.reachNoHitText = val)
                 .build());
 
+        // --- ARMOR HUD ---
+        ConfigCategory armor = builder.getOrCreateCategory(Text.of("Armor HUD"));
+        armor.addEntry(entryBuilder.startBooleanToggle(Text.of("Show Armor"), config.showArmor)
+                .setDefaultValue(false)
+                .setTooltip(Text.of("Toggle Armor HUD visibility"))
+                .setSaveConsumer(val -> config.showArmor = val)
+                .build());
+        armor.addEntry(entryBuilder.startEnumSelector(Text.of("Position"), SimpleCPSConfig.Position.class, config.armorPosition)
+                .setDefaultValue(SimpleCPSConfig.Position.BOTTOM_LEFT)
+                .setTooltip(Text.of("Anchor position for Armor HUD"))
+                .setSaveConsumer(val -> config.armorPosition = val)
+                .build());
+        armor.addEntry(entryBuilder.startIntField(Text.of("X Offset"), config.armorXOffset)
+                .setDefaultValue(0)
+                .setTooltip(Text.of("Horizontal offset from anchor"))
+                .setSaveConsumer(val -> config.armorXOffset = val)
+                .build());
+        armor.addEntry(entryBuilder.startIntField(Text.of("Y Offset"), config.armorYOffset)
+                .setDefaultValue(0)
+                .setTooltip(Text.of("Vertical offset from anchor"))
+                .setSaveConsumer(val -> config.armorYOffset = val)
+                .build());
+        armor.addEntry(entryBuilder.startBooleanToggle(Text.of("Vertical Orientation"), config.armorVertical)
+                .setDefaultValue(true)
+                .setTooltip(Text.of("Stack items vertically instead of horizontally"))
+                .setSaveConsumer(val -> config.armorVertical = val)
+                .build());
+        armor.addEntry(entryBuilder.startBooleanToggle(Text.of("Show Background Slots"), config.armorShowBackgroundSlots)
+                .setDefaultValue(false)
+                .setTooltip(Text.of("Show semi-transparent background slot for each item"))
+                .setSaveConsumer(val -> config.armorShowBackgroundSlots = val)
+                .build());
+        armor.addEntry(entryBuilder.startBooleanToggle(Text.of("Show Main Hand"), config.armorShowMainHand)
+                .setDefaultValue(true)
+                .setTooltip(Text.of("Display the item in your main hand"))
+                .setSaveConsumer(val -> config.armorShowMainHand = val)
+                .build());
+        armor.addEntry(entryBuilder.startBooleanToggle(Text.of("Show Off Hand"), config.armorShowOffHand)
+                .setDefaultValue(true)
+                .setTooltip(Text.of("Display the item in your off hand"))
+                .setSaveConsumer(val -> config.armorShowOffHand = val)
+                .build());
+        armor.addEntry(entryBuilder.startBooleanToggle(Text.of("Durability Text"), config.armorDurabilityText)
+                .setDefaultValue(true)
+                .setTooltip(Text.of("Display precise durability numbers alongside items"))
+                .setSaveConsumer(val -> config.armorDurabilityText = val)
+                .build());
+        armor.addEntry(entryBuilder.startBooleanToggle(Text.of("Damage Flash"), config.armorDamageFlash)
+                .setDefaultValue(true)
+                .setTooltip(Text.of("Flash items red momentarily when durability is lost"))
+                .setSaveConsumer(val -> config.armorDamageFlash = val)
+                .build());
+
         // --- NEW LAYOUT TAB ---
         ConfigCategory layout = builder.getOrCreateCategory(Text.of("Layout"));
         layout.addEntry(entryBuilder.startTextDescription(Text.of("To open the Drag & Drop Editor: Enable the toggle below and click 'Save & Quit'."))

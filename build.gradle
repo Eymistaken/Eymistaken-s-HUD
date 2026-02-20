@@ -47,3 +47,8 @@ java {
     sourceCompatibility = JavaVersion.VERSION_21
     targetCompatibility = JavaVersion.VERSION_21
 }
+
+task runReflect(type: JavaExec) {
+    mainClass = "com.eymistaken.simplecps.ReflectTool"
+    classpath = sourceSets.main.runtimeClasspath
+}

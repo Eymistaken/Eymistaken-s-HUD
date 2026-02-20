@@ -125,6 +125,10 @@ public class HudEditorScreen extends Screen {
                              config.reachPosition = SimpleCPSConfig.Position.TOP_LEFT; 
                              config.reachXOffset = 0; config.reachYOffset = 0; 
                         }
+                        case "ArmorHud" -> {
+                             config.armorPosition = SimpleCPSConfig.Position.BOTTOM_LEFT;
+                             config.armorXOffset = 0; config.armorYOffset = 0;
+                        }
                     }
                     break;
                 }
@@ -186,6 +190,10 @@ public class HudEditorScreen extends Screen {
                 case "Reach" -> { 
                     config.reachPosition = newAnchor; 
                     config.reachXOffset = newOffsetX; config.reachYOffset = newOffsetY; 
+                }
+                case "ArmorHud" -> {
+                    config.armorPosition = newAnchor;
+                    config.armorXOffset = newOffsetX; config.armorYOffset = newOffsetY;
                 }
             }
         }
