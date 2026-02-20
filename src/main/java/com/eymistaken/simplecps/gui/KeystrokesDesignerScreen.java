@@ -111,6 +111,8 @@ public class KeystrokesDesignerScreen extends Screen {
         // Draw Canvas (Centered Safe Area)
         int centerX = width / 2;
         int centerY = height / 2;
+        int originX = centerX - 33;
+        int originY = centerY - 48;
         int cw = CANVAS_W / 2;
         int ch = CANVAS_H / 2;
         
@@ -119,19 +121,14 @@ public class KeystrokesDesignerScreen extends Screen {
         // Canvas Border
         drawBorder(context, centerX - cw, centerY - ch, CANVAS_W, CANVAS_H, 0x44FFFFFF);
 
-        // Origin Crosshair
-        context.fill(centerX - 1, centerY - 5, centerX + 1, centerY + 5, 0x88FFFFFF);
-        context.fill(centerX - 5, centerY - 1, centerX + 5, centerY + 1, 0x88FFFFFF);
-        context.drawText(textRenderer, "Module Center", centerX + 5, centerY + 5, 0xAAAAAA, false);
-
         // Snap Lines
         if (snapX != null) context.fill(snapX, 0, snapX + 1, height, 0xFFFF00FF);
         if (snapY != null) context.fill(0, snapY, width, snapY + 1, 0xFFFF00FF);
 
         // Draw Buttons
         for (SimpleCPSConfig.KeyButtonData btn : config.keystrokesLayout) {
-            int x = centerX + btn.x;
-            int y = centerY + btn.y;
+            int x = originX + btn.x;
+            int y = originY + btn.y;
             boolean isSelected = selectedButtons.contains(btn);
             
             int bgColor = 0xAA000000;
@@ -203,16 +200,16 @@ public class KeystrokesDesignerScreen extends Screen {
 
         // Visual Aid for Centering (Red Lines)
         if (currentState == InteractionState.TEXT_DRAGGING && rightClickTarget != null) {
-            int cx = centerX + rightClickTarget.x + rightClickTarget.w / 2;
-            int cy = centerY + rightClickTarget.y + rightClickTarget.h / 2;
+            int cx = originX + rightClickTarget.x + rightClickTarget.w / 2;
+            int cy = originY + rightClickTarget.y + rightClickTarget.h / 2;
             
             // If label is centered horizontally
             if (rightClickTarget.labelX == -1) {
-                context.fill(cx, centerY + rightClickTarget.y, cx + 1, centerY + rightClickTarget.y + rightClickTarget.h, 0xFFFF0000);
+                context.fill(cx, originY + rightClickTarget.y, cx + 1, originY + rightClickTarget.y + rightClickTarget.h, 0xFFFF0000);
             }
             // If label is centered vertically
             if (rightClickTarget.labelY == -1) {
-                context.fill(centerX + rightClickTarget.x, cy, centerX + rightClickTarget.x + rightClickTarget.w, cy + 1, 0xFFFF0000);
+                context.fill(originX + rightClickTarget.x, cy, originX + rightClickTarget.x + rightClickTarget.w, cy + 1, 0xFFFF0000);
             }
         }
 
@@ -296,8 +293,8 @@ public class KeystrokesDesignerScreen extends Screen {
              return true; 
         }
 
-        int centerX = width / 2;
-        int centerY = height / 2;
+        int originX = width / 2 - 33;
+        int originY = height / 2 - 48;
         int mX = (int)mouseX;
         int mY = (int)mouseY;
         
@@ -306,8 +303,8 @@ public class KeystrokesDesignerScreen extends Screen {
         List<SimpleCPSConfig.KeyButtonData> layout = config.keystrokesLayout;
         for (int i = layout.size() - 1; i >= 0; i--) {
             SimpleCPSConfig.KeyButtonData btn = layout.get(i);
-            if (mX >= centerX + btn.x && mX <= centerX + btn.x + btn.w && 
-                mY >= centerY + btn.y && mY <= centerY + btn.y + btn.h) {
+            if (mX >= originX + btn.x && mX <= originX + btn.x + btn.w && 
+                mY >= originY + btn.y && mY <= originY + btn.y + btn.h) {
                 hitBtn = btn;
                 break;
             }
@@ -444,10 +441,10 @@ public class KeystrokesDesignerScreen extends Screen {
                 if (isRightClickDrag) {
                     // Text Movement Logic
                     // Calculate relative mouse position within button
-                    int centerX = width / 2;
-                    int centerY = height / 2;
-                    int btnX = centerX + rightClickTarget.x;
-                    int btnY = centerY + rightClickTarget.y;
+                    int originX = width / 2 - 33;
+                    int originY = height / 2 - 48;
+                    int btnX = originX + rightClickTarget.x;
+                    int btnY = originY + rightClickTarget.y;
                     
                     // We want the text center to follow the mouse? Or just offset?
                     // Let's make it follow offset.
@@ -856,12 +853,12 @@ public class KeystrokesDesignerScreen extends Screen {
         snapY = null;
         int threshold = 2; // Reduced threshold to 2px
         int monitorGap = 2; // Gap for smart snapping (Matched to default layout)
-        int centerX = width / 2;
-        int centerY = height / 2;
+        int originX = width / 2 - 33;
+        int originY = height / 2 - 48;
         
-        int tLeft = centerX + target.x;
+        int tLeft = originX + target.x;
         int tRight = tLeft + target.w;
-        int tTop = centerY + target.y;
+        int tTop = originY + target.y;
         int tBottom = tTop + target.h;
         int tCX = tLeft + target.w / 2;
         int tCY = tTop + target.h / 2;
@@ -871,9 +868,9 @@ public class KeystrokesDesignerScreen extends Screen {
             // Ignore other selected buttons to prevent self-snapping within group
             if (selectedButtons.contains(other)) continue;
             
-            int oLeft = centerX + other.x;
+            int oLeft = originX + other.x;
             int oRight = oLeft + other.w;
-            int oTop = centerY + other.y;
+            int oTop = originY + other.y;
             int oBottom = oTop + other.h;
             int oCX = oLeft + other.w / 2;
             int oCY = oTop + other.h / 2;
