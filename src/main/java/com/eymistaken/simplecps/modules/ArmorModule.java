@@ -210,4 +210,14 @@ public class ArmorModule extends HudModule {
     public String getName() {
         return "ArmorHud";
     }
+
+    @Override public void setPositionType(SimpleCPSConfig.Position pos) { SimpleCPSConfig.instance.armorPosition = pos; }
+    @Override public void setXOffset(int x) { SimpleCPSConfig.instance.armorXOffset = x; }
+    @Override public void setYOffset(int y) { SimpleCPSConfig.instance.armorYOffset = y; }
+    // Armor has no scale config
+    @Override public void resetToDefaults() {
+        SimpleCPSConfig.instance.armorPosition = SimpleCPSConfig.Position.BOTTOM_LEFT;
+        SimpleCPSConfig.instance.armorXOffset = 0;
+        SimpleCPSConfig.instance.armorYOffset = 0;
+    }
 }

@@ -36,6 +36,16 @@ public class PingModule extends HudModule {
         return "Ping";
     }
 
+    @Override public void setPositionType(SimpleCPSConfig.Position pos) { SimpleCPSConfig.instance.pingPosition = pos; }
+    @Override public void setXOffset(int x) { SimpleCPSConfig.instance.pingXOffset = x; }
+    @Override public void setYOffset(int y) { SimpleCPSConfig.instance.pingYOffset = y; }
+    // Ping has no scale config, so keep default.
+    @Override public void resetToDefaults() {
+        SimpleCPSConfig.instance.pingPosition = SimpleCPSConfig.Position.TOP_LEFT;
+        SimpleCPSConfig.instance.pingXOffset = 0;
+        SimpleCPSConfig.instance.pingYOffset = 0;
+    }
+
     @Override
     public void tick(MinecraftClient client) {
         if (client.player == null || client.getNetworkHandler() == null) {

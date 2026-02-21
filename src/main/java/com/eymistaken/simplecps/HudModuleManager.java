@@ -52,6 +52,15 @@ public class HudModuleManager {
         return modules;
     }
     
+    public HudModule getModuleByName(String name) {
+        for (HudModule module : modules) {
+            if (module.getName().equals(name)) {
+                return module;
+            }
+        }
+        return null;
+    }
+    
     public Map<String, ModuleBounds> getModuleBounds() {
         return moduleBounds;
     }

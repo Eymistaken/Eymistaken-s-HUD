@@ -32,6 +32,17 @@ public class ReachModule extends HudModule {
         return "Reach";
     }
 
+    @Override public void setPositionType(SimpleCPSConfig.Position pos) { SimpleCPSConfig.instance.reachPosition = pos; }
+    @Override public void setXOffset(int x) { SimpleCPSConfig.instance.reachXOffset = x; }
+    @Override public void setYOffset(int y) { SimpleCPSConfig.instance.reachYOffset = y; }
+    @Override public void setScale(int scale) { SimpleCPSConfig.instance.reachScale = scale; }
+    @Override public int getScale() { return SimpleCPSConfig.instance.reachScale; }
+    @Override public void resetToDefaults() {
+        SimpleCPSConfig.instance.reachPosition = SimpleCPSConfig.Position.TOP_LEFT;
+        SimpleCPSConfig.instance.reachXOffset = 0;
+        SimpleCPSConfig.instance.reachYOffset = 0;
+    }
+
     private String getDisplayText() {
         SimpleCPSConfig config = SimpleCPSConfig.instance;
         String text = ReachTracker.getReachDisplay();

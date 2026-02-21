@@ -40,15 +40,9 @@ public class HudEditorScreen extends Screen {
                 
                 // Scroll to scale (range 50-300)
                 int scaleChange = (verticalAmount > 0) ? 5 : -5;
-                SimpleCPSConfig config = SimpleCPSConfig.instance;
-                
-                switch (name) {
-                    case "CPS" -> config.scale = clamp(config.scale + scaleChange);
-                    // Ping has no scale
-                    case "FPS" -> config.fpsScale = clamp(config.fpsScale + scaleChange);
-                    case "Combo" -> config.comboScale = clamp(config.comboScale + scaleChange);
-                    case "Keystrokes" -> config.keystrokesScale = clamp(config.keystrokesScale + scaleChange);
-                    case "Reach" -> config.reachScale = clamp(config.reachScale + scaleChange);
+                com.eymistaken.simplecps.api.HudModule module = HudModuleManager.getInstance().getModuleByName(name);
+                if (module != null) {
+                    module.setScale(clamp(module.getScale() + scaleChange));
                 }
                 return true;
             }
@@ -99,36 +93,9 @@ public class HudEditorScreen extends Screen {
                 if (mouseX >= p.x && mouseX <= p.x + p.w &&
                     mouseY >= p.y && mouseY <= p.y + p.h) {
                     
-                    SimpleCPSConfig config = SimpleCPSConfig.instance;
-                    switch (name) {
-                        case "CPS" -> { 
-                             config.position = SimpleCPSConfig.Position.TOP_LEFT; 
-                             config.xOffset = 0; config.yOffset = 0; 
-                        }
-                        case "Ping" -> { 
-                             config.pingPosition = SimpleCPSConfig.Position.TOP_LEFT; 
-                             config.pingXOffset = 0; config.pingYOffset = 0; 
-                        }
-                        case "FPS" -> { 
-                             config.fpsPosition = SimpleCPSConfig.Position.TOP_LEFT; 
-                             config.fpsXOffset = 0; config.fpsYOffset = 0; 
-                        }
-                        case "Combo" -> { 
-                             config.comboPosition = SimpleCPSConfig.Position.TOP_LEFT; 
-                             config.comboXOffset = 0; config.comboYOffset = 0; 
-                        }
-                        case "Keystrokes" -> { 
-                             config.keystrokesPosition = SimpleCPSConfig.Position.TOP_LEFT; 
-                             config.keystrokesXOffset = 0; config.keystrokesYOffset = 0; 
-                        }
-                        case "Reach" -> { 
-                             config.reachPosition = SimpleCPSConfig.Position.TOP_LEFT; 
-                             config.reachXOffset = 0; config.reachYOffset = 0; 
-                        }
-                        case "ArmorHud" -> {
-                             config.armorPosition = SimpleCPSConfig.Position.BOTTOM_LEFT;
-                             config.armorXOffset = 0; config.armorYOffset = 0;
-                        }
+                    com.eymistaken.simplecps.api.HudModule module = HudModuleManager.getInstance().getModuleByName(name);
+                    if (module != null) {
+                        module.resetToDefaults();
                     }
                     break;
                 }
@@ -164,37 +131,11 @@ public class HudEditorScreen extends Screen {
             int newOffsetY = targetY - base.y;
             
             // 5. Apply to Config
-            SimpleCPSConfig config = SimpleCPSConfig.instance;
-            
-            switch (draggingModule) {
-                case "CPS" -> { 
-                    config.position = newAnchor; 
-                    config.xOffset = newOffsetX; config.yOffset = newOffsetY; 
-                }
-                case "Ping" -> { 
-                    config.pingPosition = newAnchor; 
-                    config.pingXOffset = newOffsetX; config.pingYOffset = newOffsetY; 
-                }
-                case "FPS" -> { 
-                    config.fpsPosition = newAnchor; 
-                    config.fpsXOffset = newOffsetX; config.fpsYOffset = newOffsetY; 
-                }
-                case "Combo" -> { 
-                    config.comboPosition = newAnchor; 
-                    config.comboXOffset = newOffsetX; config.comboYOffset = newOffsetY; 
-                }
-                case "Keystrokes" -> { 
-                    config.keystrokesPosition = newAnchor; 
-                    config.keystrokesXOffset = newOffsetX; config.keystrokesYOffset = newOffsetY; 
-                }
-                case "Reach" -> { 
-                    config.reachPosition = newAnchor; 
-                    config.reachXOffset = newOffsetX; config.reachYOffset = newOffsetY; 
-                }
-                case "ArmorHud" -> {
-                    config.armorPosition = newAnchor;
-                    config.armorXOffset = newOffsetX; config.armorYOffset = newOffsetY;
-                }
+            com.eymistaken.simplecps.api.HudModule module = HudModuleManager.getInstance().getModuleByName(draggingModule);
+            if (module != null) {
+                module.setPositionType(newAnchor);
+                module.setXOffset(newOffsetX);
+                module.setYOffset(newOffsetY);
             }
         }
         

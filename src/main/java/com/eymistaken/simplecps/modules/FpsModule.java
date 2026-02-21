@@ -31,6 +31,17 @@ public class FpsModule extends HudModule {
         return "FPS";
     }
 
+    @Override public void setPositionType(SimpleCPSConfig.Position pos) { SimpleCPSConfig.instance.fpsPosition = pos; }
+    @Override public void setXOffset(int x) { SimpleCPSConfig.instance.fpsXOffset = x; }
+    @Override public void setYOffset(int y) { SimpleCPSConfig.instance.fpsYOffset = y; }
+    @Override public void setScale(int scale) { SimpleCPSConfig.instance.fpsScale = scale; }
+    @Override public int getScale() { return SimpleCPSConfig.instance.fpsScale; }
+    @Override public void resetToDefaults() {
+        SimpleCPSConfig.instance.fpsPosition = SimpleCPSConfig.Position.TOP_LEFT;
+        SimpleCPSConfig.instance.fpsXOffset = 0;
+        SimpleCPSConfig.instance.fpsYOffset = 0;
+    }
+
     @Override
     public void render(DrawContext context, float tickDelta) {
         SimpleCPSConfig config = SimpleCPSConfig.instance;

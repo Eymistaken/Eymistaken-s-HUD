@@ -59,6 +59,17 @@ public class ComboModule extends HudModule {
         return "Combo";
     }
 
+    @Override public void setPositionType(SimpleCPSConfig.Position pos) { SimpleCPSConfig.instance.comboPosition = pos; }
+    @Override public void setXOffset(int x) { SimpleCPSConfig.instance.comboXOffset = x; }
+    @Override public void setYOffset(int y) { SimpleCPSConfig.instance.comboYOffset = y; }
+    @Override public void setScale(int scale) { SimpleCPSConfig.instance.comboScale = scale; }
+    @Override public int getScale() { return SimpleCPSConfig.instance.comboScale; }
+    @Override public void resetToDefaults() {
+        SimpleCPSConfig.instance.comboPosition = SimpleCPSConfig.Position.TOP_LEFT;
+        SimpleCPSConfig.instance.comboXOffset = 0;
+        SimpleCPSConfig.instance.comboYOffset = 0;
+    }
+
     @Override
     public void tick(MinecraftClient client) {
         if (client.player == null) {

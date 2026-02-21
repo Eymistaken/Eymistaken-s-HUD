@@ -29,6 +29,14 @@ public abstract class HudModule {
     public abstract int getXOffset();
     public abstract int getYOffset();
 
+    // Editable properties
+    public void setPositionType(com.eymistaken.simplecps.SimpleCPSConfig.Position pos) {}
+    public void setXOffset(int x) {}
+    public void setYOffset(int y) {}
+    public void setScale(int scale) {}
+    public int getScale() { return 100; } // Default 100
+    public void resetToDefaults() {}
+
     /**
      * @return true if the module should be rendered
      */

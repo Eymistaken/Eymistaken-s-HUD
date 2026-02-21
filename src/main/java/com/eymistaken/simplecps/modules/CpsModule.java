@@ -38,6 +38,17 @@ public class CpsModule extends HudModule {
         return "CPS";
     }
 
+    @Override public void setPositionType(SimpleCPSConfig.Position pos) { SimpleCPSConfig.instance.position = pos; }
+    @Override public void setXOffset(int x) { SimpleCPSConfig.instance.xOffset = x; }
+    @Override public void setYOffset(int y) { SimpleCPSConfig.instance.yOffset = y; }
+    @Override public void setScale(int scale) { SimpleCPSConfig.instance.scale = scale; }
+    @Override public int getScale() { return SimpleCPSConfig.instance.scale; }
+    @Override public void resetToDefaults() {
+        SimpleCPSConfig.instance.position = SimpleCPSConfig.Position.TOP_LEFT;
+        SimpleCPSConfig.instance.xOffset = 0;
+        SimpleCPSConfig.instance.yOffset = 0;
+    }
+
     @Override
     public void render(DrawContext context, float tickDelta) {
         SimpleCPSConfig config = SimpleCPSConfig.instance;

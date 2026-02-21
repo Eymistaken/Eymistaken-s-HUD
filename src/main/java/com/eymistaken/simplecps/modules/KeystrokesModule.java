@@ -37,6 +37,17 @@ public class KeystrokesModule extends HudModule {
         return "Keystrokes";
     }
 
+    @Override public void setPositionType(SimpleCPSConfig.Position pos) { SimpleCPSConfig.instance.keystrokesPosition = pos; }
+    @Override public void setXOffset(int x) { SimpleCPSConfig.instance.keystrokesXOffset = x; }
+    @Override public void setYOffset(int y) { SimpleCPSConfig.instance.keystrokesYOffset = y; }
+    @Override public void setScale(int scale) { SimpleCPSConfig.instance.keystrokesScale = scale; }
+    @Override public int getScale() { return SimpleCPSConfig.instance.keystrokesScale; }
+    @Override public void resetToDefaults() {
+        SimpleCPSConfig.instance.keystrokesPosition = SimpleCPSConfig.Position.TOP_LEFT;
+        SimpleCPSConfig.instance.keystrokesXOffset = 0;
+        SimpleCPSConfig.instance.keystrokesYOffset = 0;
+    }
+
     @Override
     public void render(DrawContext context, float tickDelta) {
         SimpleCPSConfig config = SimpleCPSConfig.instance;
