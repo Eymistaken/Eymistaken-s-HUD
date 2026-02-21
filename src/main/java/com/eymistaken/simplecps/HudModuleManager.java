@@ -34,6 +34,7 @@ public class HudModuleManager {
         registerModule(new ComboModule());
         registerModule(new KeystrokesModule());
         registerModule(new ArmorModule());
+        registerModule(new ReachModule());
     }
 
     public static HudModuleManager getInstance() {

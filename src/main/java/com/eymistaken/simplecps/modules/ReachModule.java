@@ -9,21 +9,8 @@ public class ReachModule extends HudModule {
 
     @Override
     public boolean isEnabled() {
-        return SimpleCPSConfig.instance.showReach && (ReachTracker.getReachDisplay() != null || SimpleCPSConfig.instance.reachAlwaysShow); // Logic check
-        // Note: SimpleCPSClient check was:
-        // boolean shouldRenderReach = config.showReach && (ReachTracker.getReachDisplay() != null || isEditor);
-        // I'll stick to config enabled here. Internal logic can decide to render empty if not active, or I return false/0 size.
-        // Actually, if I return enabled=true but it's empty, it might take up padding space if I'm not careful.
-        // Let's use getWidth/Height to return 0 if not showing.
+        return SimpleCPSConfig.instance.showReach;
     }
-    
-    private boolean shouldShow() {
-        SimpleCPSConfig config = SimpleCPSConfig.instance;
-        return config.showReach && (ReachTracker.getReachDisplay() != null || config.reachAlwaysShow /* || isEditor? */);
-    }
-    
-    // I will let isEnabled() assume true if config says so, effectively.
-    // But Render/Size will rely on content.
 
     @Override
     public SimpleCPSConfig.Position getPositionType() {
@@ -45,16 +32,30 @@ public class ReachModule extends HudModule {
         return "Reach";
     }
 
+    private String getDisplayText() {
+        SimpleCPSConfig config = SimpleCPSConfig.instance;
+        String text = ReachTracker.getReachDisplay();
+        
+        boolean isEditor = client.currentScreen instanceof com.eymistaken.simplecps.gui.HudEditorScreen;
+        
+        if (text == null) {
+            if (isEditor) {
+                return "3.00 blocks"; // Dummy text for HUD Editor
+            } else if (config.reachAlwaysShow) {
+                return config.reachNoHitText;
+            } else {
+                return null;
+            }
+        }
+        return text;
+    }
+
     @Override
     public void render(DrawContext context, float tickDelta) {
-        SimpleCPSConfig config = SimpleCPSConfig.instance;
-        // Re-check visibility logic just in case
-        String reachText = ReachTracker.getReachDisplay();
-        if (reachText == null) reachText = config.reachNoHitText; // Or "No Hit"
-        
-        // If valid or always show
-        if (reachText == null && !config.reachAlwaysShow) return;
+        String reachText = getDisplayText();
+        if (reachText == null) return;
 
+        SimpleCPSConfig config = SimpleCPSConfig.instance;
         float scale = config.reachScale / 100f;
         int textWidth = (int)(client.textRenderer.getWidth(reachText) * scale);
         int textHeight = (int)(client.textRenderer.fontHeight * scale);
@@ -82,12 +83,10 @@ public class ReachModule extends HudModule {
 
     @Override
     public int getWidth() {
-        if (!shouldShow()) return 0;
+        String reachText = getDisplayText();
+        if (reachText == null) return 0;
         
         SimpleCPSConfig config = SimpleCPSConfig.instance;
-        String reachText = ReachTracker.getReachDisplay();
-        if (reachText == null) reachText = config.reachNoHitText;
-        
         float scale = config.reachScale / 100f;
         int textWidth = (int)(client.textRenderer.getWidth(reachText) * scale);
         int padding = 2;
@@ -96,7 +95,8 @@ public class ReachModule extends HudModule {
 
     @Override
     public int getHeight() {
-        if (!shouldShow()) return 0;
+        String reachText = getDisplayText();
+        if (reachText == null) return 0;
 
         SimpleCPSConfig config = SimpleCPSConfig.instance;
         float scale = config.reachScale / 100f;
