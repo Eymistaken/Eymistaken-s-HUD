@@ -3,6 +3,8 @@ name: Otomatik Release Sistemi
 on:
   push:
     branches: [ "main" ] # Kodu main'e attığın an çalışır
+    paths-ignore:
+      - 'docs/**' # Sadece bu iki satırı ekledik. docs klasöründeki değişiklikler build'i tetiklemez.
 
 permissions:
   contents: write
