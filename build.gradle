@@ -52,3 +52,11 @@ task runReflect(type: JavaExec) {
     mainClass = "com.eymistaken.simplecps.ReflectTool"
     classpath = sourceSets.main.runtimeClasspath
 }
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+        }
+    }
+}
