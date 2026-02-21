@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Guide - Eymistaken's HUD</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <header class="glass">
+        <h1>Eymistaken's HUD</h1>
+        <nav>
+            <ul>
+                <li><a href="index.html">Home</a></li>
+                <li><a href="user-guide.html" class="active">User Guide</a></li>
+                <li><a href="api-guide.html">API Guide</a></li>
+                <li><a href="downloads.html">Downloads</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <h2>User Guide</h2>
+        <p>Welcome to the Eymistaken's HUD documentation for players. This guide will walk you through setting up,
+            configuring, and utilizing all the features of the mod for version 1.21.11.</p>
+
+        <section id="opening-editor">
+            <h3>Accessing the HUD Editor</h3>
+            <div class="callout">
+                <p><strong>Hot Tip:</strong> Pressing <code>Right Shift (RShift)</code> seamlessly opens the HUD Editor
+                    from anywhere in-game.</p>
+            </div>
+            <p>From the HUD Editor, you can visualize all your active modules. You can click and drag elements to
+                precisely place them anywhere on your screen using our smart snapping and stacking algorithm. Modules
+                can be snapped to Corners, Edges, or the Center.</p>
+        </section>
+
+        <section id="modules">
+            <h3>Included Modules</h3>
+            <p>Click on any module below to see a live demonstration of how it looks and works in-game.</p>
+
+            <div class="module-grid card-grid">
+                <div class="card glass glass-interactive module-card" data-module="cps">
+                    <h3>CPS</h3>
+                    <p>Real-time left and right click speed.</p>
+                </div>
+                <div class="card glass glass-interactive module-card" data-module="fps">
+                    <h3>FPS</h3>
+                    <p>Monitor your game's performance.</p>
+                </div>
+                <div class="card glass glass-interactive module-card" data-module="ping">
+                    <h3>Ping</h3>
+                    <p>Display your network latency.</p>
+                </div>
+                <div class="card glass glass-interactive module-card" data-module="combo">
+                    <h3>Combo</h3>
+                    <p>Keep count of consecutive hits.</p>
+                </div>
+                <div class="card glass glass-interactive module-card" data-module="armor">
+                    <h3>Armor</h3>
+                    <p>Visual tracker for equipped armor.</p>
+                </div>
+                <div class="card glass glass-interactive module-card" data-module="reach">
+                    <h3>Reach</h3>
+                    <p>Measure exact melee distance.</p>
+                </div>
+                <div class="card glass glass-interactive module-card highlight" data-module="keystrokes">
+                    <h3>Keystrokes</h3>
+                    <p>A visual representation of active keys.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Dynamic Modal for Modules -->
+        <div id="module-modal" class="modal-overlay">
+            <div class="modal-content glass">
+                <button class="modal-close">&times;</button>
+                <div class="modal-body">
+                    <h3 id="modal-title">Module Title</h3>
+                    <div class="media-container" id="modal-media-container">
+                        <!-- Video or Image will be injected here via JS -->
+                    </div>
+                    <p id="modal-description">Module description will appear here.</p>
+                </div>
+            </div>
+        </div>
+
+        <section id="keystrokes-designer" style="margin-top: 4rem;">
+            <div class="glass" style="padding: 2rem;">
+                <h3>The Keystrokes Designer</h3>
+                <p>The crown jewel of Eymistaken's HUD is the <strong>Keystrokes Designer</strong>. This tool lets you
+                    completely reimagine how your keystrokes look and feel.</p>
+
+                <div class="designer-media-wrapper"
+                    style="margin: 2rem 0; text-align: center; border-radius: 12px; overflow: hidden; border: 1px solid var(--glass-border);">
+                    <video autoplay loop muted playsinline
+                        style="max-width: 100%; border-radius: 12px; display: block;">
+                        <source src="assets/designer-demo.mp4" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                </div>
+
+                <h4>How to use the Designer</h4>
+                <ol style="margin-top: 1rem;">
+                    <li>Open the configuration menu and navigate to the Keystrokes Module settings.</li>
+                    <li>Click on the <strong>Keystrokes Designer</strong> button.</li>
+                    <li><strong>Drag and Drop:</strong> Left-click and drag any key panel to move it around. They will
+                        intelligently <strong>snap</strong> to alignment grids for ultimate precision.</li>
+                    <li><strong>Context Menu:</strong> Right-click anywhere in the designer to open a powerful context
+                        menu. Here you can add brand new keys manually to the display.</li>
+                    <li><strong>Edit Labels:</strong> Select the "Edit Label" option to completely rename a key. Once
+                        active, you can use your keyboard's <strong>arrow keys</strong> to nudge the text pixel-by-pixel
+                        for perfect centering.</li>
+                    <li><strong>Undo/Redo History:</strong> Made a mistake? Press <code>CTRL + Z</code> to undo or
+                        <code>CTRL + Y</code> to redo any movement or change. The system saves snapshots automatically.
+                    </li>
+                </ol>
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="glass">
+        <p>&copy; 2026 <a href="https://linktr.ee/Eymistaken" target="_blank"
+                style="color: var(--accent); text-decoration: none; font-weight: 600; text-shadow: none;">Eymistaken</a>.
+            Documentation for Version 1.21.11.</p>
+    </footer>
+
+    <script src="js/scripts.js"></script>
+</body>
+
+</html>

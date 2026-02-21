@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eymistaken's HUD | Next-Gen Minecraft HUD v1.21.11</title>
+    <link rel="stylesheet" href="css/style.css">
+    <!-- Optional: Add hero-bg as a fixed full-screen background if it exists, but the CSS handles the default dark radial background nicely -->
+</head>
+
+<body>
+    <header class="glass">
+        <h1>Eymistaken's HUD</h1>
+        <nav>
+            <ul>
+                <li><a href="index.html" class="active">Home</a></li>
+                <li><a href="user-guide.html">User Guide</a></li>
+                <li><a href="api-guide.html">API Guide</a></li>
+                <li><a href="downloads.html">Downloads</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <section class="hero glass">
+            <img src="assets/icon.png" alt="Maxsize Logo"
+                onerror="this.onerror=null; this.src='https://via.placeholder.com/200x200?text=Logo+Missing';">
+            <h2>Eymistaken's HUD</h2>
+            <p>Eymistaken's HUD is a highly customizable, modern, and modular HUD mod built for Minecraft 1.21.11. Take
+                control of your interface with unparalleled design freedom and an intuitive editor.</p>
+
+            <div id="downloads-badge" class="downloads-badge">
+                <div id="downloads-summary" class="downloads-summary">
+                    <span id="total-downloads">Calculating...</span> Total Downloads
+                </div>
+                <div id="downloads-details" class="downloads-details">
+                    <div class="platform-stat">
+                        <span style="color: #1bd96a;">Modrinth:</span>
+                        <span id="modrinth-count">0</span>
+                    </div>
+                    <div class="platform-divider">|</div>
+                    <div class="platform-stat">
+                        <span style="color: #f16436;">CurseForge:</span>
+                        <span id="curseforge-count">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <a href="user-guide.html" class="btn">Get Started</a>
+        </section>
+
+        <section class="features">
+            <h2>Core Features</h2>
+            <div class="card-grid">
+                <div class="card glass glass-interactive">
+                    <h3>7 Default Modules</h3>
+                    <p>Track everything that matters. Includes CPS, FPS, Ping, Combo, Keystrokes, Armor, and Reach
+                        trackers out of the box.</p>
+                </div>
+                <div class="card glass glass-interactive">
+                    <h3>Keystrokes Designer</h3>
+                    <p>A completely interactive, precision designer for your Keystrokes. Snapping, context menus,
+                        drag-and-drop, and limitless configuration.</p>
+                </div>
+                <div class="card glass glass-interactive">
+                    <h3>Modular API</h3>
+                    <p>Built for developers. Easily create and inject your own custom plugins and UI elements into the
+                        HUD rendering loop via the Eymistaken Hud Plugin framework.</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="glass">
+        <p>&copy; 2026 <a href="https://linktr.ee/Eymistaken" target="_blank"
+                style="color: var(--accent); text-decoration: none; font-weight: 600; text-shadow: none;">Eymistaken</a>.
+            Documentation for Version 1.21.11.</p>
+    </footer>
+
+    <script src="js/scripts.js"></script>
+</body>
+
+</html>

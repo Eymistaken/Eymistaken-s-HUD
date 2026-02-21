@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Guide - Eymistaken's HUD</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <header class="glass">
+        <h1>Eymistaken's HUD</h1>
+        <nav>
+            <ul>
+                <li><a href="index.html">Home</a></li>
+                <li><a href="user-guide.html">User Guide</a></li>
+                <li><a href="api-guide.html" class="active">API Guide</a></li>
+                <li><a href="downloads.html">Downloads</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <h2>Developer API Guide</h2>
+        <p>Eymistaken's HUD 1.21.11 was engineered with extensive modularity in mind. Through the
+            <code>EymistakenHudPlugin</code> API, developers can inject their own custom modules seamlessly into the HUD
+            rendering and ticking engines without modifying the core mod directly.
+        </p>
+
+        <section id="architecture" class="glass" style="padding: 2rem; margin-top: 2rem;">
+            <h3>Modular Architecture</h3>
+            <p>The entire HUD system is orchestrated by the <code>HudModuleManager</code>. When the game launches, it
+                registers the core modules. Thanks to Fabric Entrypoints, you can register secondary plugins loaded from
+                dependent mods.</p>
+        </section>
+
+        <section id="implementing-module" class="glass" style="padding: 2rem; margin-top: 2rem;">
+            <h3>Creating a Custom Module</h3>
+            <p>Every element displayed on the screen is required to inherit from the base <code>HudModule</code> class
+                overriding its methods. Here is everything you need to implement:</p>
+
+            <pre><code>import com.eymistaken.simplecps.api.HudModule;
+import com.eymistaken.simplecps.SimpleCPSConfig;
+import net.minecraft.client.gui.DrawContext;
+
+public class MyCustomModule extends HudModule {
+
+    @Override
+    public String getName() {
+        return "My Custom Tracker";
+    }
+
+    @Override
+    public SimpleCPSConfig.Position getPositionType() {
+        return SimpleCPSConfig.Position.TOP_LEFT; // Default corner alignment
+    }
+
+    @Override
+    public int getXOffset() {
+        return 0; // Relative pixel offset (X)
+    }
+
+    @Override
+    public int getYOffset() {
+        return 0; // Relative pixel offset (Y)
+    }
+
+    @Override
+    public boolean isEnabled() {
+        // Tie this to your config integration
+        return true; 
+    }
+
+    @Override
+    public int getWidth() {
+        return 100; // Provide dimensions securely for the staking layout
+    }
+
+    @Override
+    public int getHeight() {
+        return 20; 
+    }
+
+    @Override
+    public void render(DrawContext context, float tickDelta) {
+        // The context is automatically correctly positioned (using this.x and this.y variables set via the manager).
+        context.drawTextWithShadow(this.client.textRenderer, "Hello World", this.x, this.y, 0xFFFFFF);
+    }
+    
+    @Override
+    public void tick(MinecraftClient client) {
+        // Optional logic executed every client tick (e.g. calculation timers).
+        super.tick(client);
+    }
+}</code></pre>
+
+            <div class="callout warning">
+                <p><strong>Note:</strong> Ensure you accurately report <code>getWidth()</code> and
+                    <code>getHeight()</code>. Returning 0 bypasses layout integration calculations, hiding your module.
+                </p>
+            </div>
+        </section>
+
+        <section id="registering-plugin" class="glass" style="padding: 2rem; margin-top: 2rem;">
+            <h3>Registering the Plugin</h3>
+            <p>To register your modules, you must expose an entrypoint implementing the <code>EymistakenHudPlugin</code>
+                interface inside your fabric.mod.json configuration.</p>
+
+            <p>Implementation class:</p>
+            <pre><code>import com.eymistaken.simplecps.api.EymistakenHudPlugin;
+import com.eymistaken.simplecps.HudModuleManager;
+
+public class MyPluginInit implements EymistakenHudPlugin {
+    @Override
+    public void registerHudModules(HudModuleManager manager) {
+        manager.registerModule(new MyCustomModule());
+    }
+}</code></pre>
+
+            <p><code>fabric.mod.json</code> setup:</p>
+            <pre><code>"entrypoints": {
+  "eymistaken_hud": [
+    "com.myname.myaddon.MyPluginInit"
+  ]
+}</code></pre>
+            <p>By using the `eymistaken_hud` entrypoint key, your modules will safely initialize alongside the core
+                system inside <code>SimpleCPSClient</code> automatically.</p>
+        </section>
+
+    </main>
+
+    <footer class="glass">
+        <p>&copy; 2026 <a href="https://linktr.ee/Eymistaken" target="_blank"
+                style="color: var(--accent); text-decoration: none; font-weight: 600; text-shadow: none;">Eymistaken</a>.
+            Documentation for Version 1.21.11.</p>
+    </footer>
+
+    <script src="js/scripts.js"></script>
+</body>
+
+</html>
