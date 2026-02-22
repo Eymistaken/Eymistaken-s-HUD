@@ -1,10 +1,10 @@
-name: Otomatik Release Sistemi
+name: Automatic Release System
 
 on:
   push:
-    branches: [ "main" ] # Kodu main'e attığın an çalışır
+    branches: [ "main" ] # Runs when you push to main
     paths-ignore:
-      - 'docs/**' # Sadece bu iki satırı ekledik. docs klasöründeki değişiklikler build'i tetiklemez.
+      - 'docs/**' # Changes in the docs folder will not trigger the build.
 
 permissions:
   contents: write
@@ -14,38 +14,38 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      - name: Kodları Çek
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Java 21 Kurulumu
+      - name: Setup Java 21
         uses: actions/setup-java@v4
         with:
           java-version: '21'
           distribution: 'temurin'
 
-      - name: Gradle İzni Ver
+      - name: Grant Gradle Permissions
         run: chmod +x gradlew
 
-      # --- 1. ADIM: Versiyonu Dosyadan Çal ---
-      - name: Versiyonu Oku
+      # --- STEP 1: Extract Version from File ---
+      - name: Read Version
         id: get_version
         run: |
-          # gradle.properties dosyasından mod_version satırını bulur
-          # 'mod_version=1.0.5' -> '1.0.5' kısmını alır
+          # Finds the mod_version line from gradle.properties
+          # Extracts '1.0.5' from 'mod_version=1.0.5'
           VERSION=$(grep "mod_version" gradle.properties | cut -d'=' -f2 | tr -d '[:space:]')
-          echo "Bulunan Versiyon: $VERSION"
+          echo "Found Version: $VERSION"
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
-      # --- 2. ADIM: Derle ---
-      - name: Modu Derle
+      # --- STEP 2: Build ---
+      - name: Build Mod
         run: ./gradlew build
 
-      # --- 3. ADIM: Release Patlat (Etiketle Uğraşmadan) ---
-      - name: Release Oluştur
+      # --- STEP 3: Create Release (Without dealing with tags manually) ---
+      - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: v${{ env.VERSION }} # Otomatik 'v1.0.5' etiketi basar
-          name: Version v${{ env.VERSION }} # Başlık 'Sürüm v1.0.5' olur
+          tag_name: v${{ env.VERSION }} # Automatically adds 'v1.0.5' tag
+          name: Version v${{ env.VERSION }} # Title becomes 'Version v1.0.5'
           files: build/libs/*.jar
           generate_release_notes: true
         env:
