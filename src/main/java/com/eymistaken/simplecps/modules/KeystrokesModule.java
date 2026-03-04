@@ -7,9 +7,12 @@ import net.minecraft.client.gui.DrawContext;
 import org.lwjgl.glfw.GLFW;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 
 public class KeystrokesModule extends HudModule {
 
+    public static final Set<Integer> pressedKeys = new HashSet<>();
     private final Map<Integer, Float> keyScales = new HashMap<>();
 
     @Override
@@ -120,12 +123,9 @@ public class KeystrokesModule extends HudModule {
              boolean isPressed = false;
              
              if (btn.isMouse) {
-                 // Mouse Buttons
-                 // 0 = Left, 1 = Right, 2 = Middle
-                 isPressed = GLFW.glfwGetMouseButton(handle, btn.keyCode) == GLFW.GLFW_PRESS;
+                 isPressed = pressedKeys.contains(btn.keyCode + 1000);
              } else {
-                 // Keyboard Keys
-                 isPressed = GLFW.glfwGetKey(handle, btn.keyCode) == GLFW.GLFW_PRESS;
+                 isPressed = pressedKeys.contains(btn.keyCode);
              }
              
              // Animation

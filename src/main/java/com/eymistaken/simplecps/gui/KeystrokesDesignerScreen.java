@@ -13,6 +13,11 @@ import java.util.List;
 import java.util.Stack;
 import java.util.ArrayList;
 
+import net.minecraft.client.gui.Click;
+import net.minecraft.client.input.KeyInput;
+import net.minecraft.client.input.CharInput;
+
+
 public class KeystrokesDesignerScreen extends Screen {
 
     private final SimpleCPSConfig config;
@@ -39,10 +44,7 @@ public class KeystrokesDesignerScreen extends Screen {
     private boolean isRightClickDrag = false;
     private SimpleCPSConfig.KeyButtonData rightClickTarget = null;
 
-    // Polling State restoration
-    private boolean wasLeftDown = false;
-    private boolean wasRightDown = false;
-    private double lastMouseX = 0, lastMouseY = 0;
+    // Polling State restoration removed
 
     // Drag offsets & State
     private double dragStartX, dragStartY;
@@ -97,16 +99,14 @@ public class KeystrokesDesignerScreen extends Screen {
     
     // Editing
     private boolean waitingForKeybind = false;
-    // Helper to debounce key presses
-    private final long[] keyPressTimes = new long[GLFW.GLFW_KEY_LAST];
+    // Helper to debounce key presses removed
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         // Gradient Background (matching HudEditorScreen)
         context.fillGradient(0, 0, this.width, this.height, 0xC0000000, 0xD0000000); 
         
-        // Polling Input
-        updateInput(mouseX, mouseY);
+        // Polling Input removed
 
         // Draw Canvas (Centered Safe Area)
         int centerX = width / 2;
@@ -218,64 +218,12 @@ public class KeystrokesDesignerScreen extends Screen {
         }
     }
 
-    private void updateInput(int mouseX, int mouseY) {
-         long windowHandle = client.getWindow().getHandle();
-         boolean isLeftDown = GLFW.glfwGetMouseButton(windowHandle, 0) == GLFW.GLFW_PRESS;
-         boolean isRightDown = GLFW.glfwGetMouseButton(windowHandle, 1) == GLFW.GLFW_PRESS;
-         
-         // Click / Release
-         if (isLeftDown && !wasLeftDown) onMouseClicked(mouseX, mouseY, 0);
-         else if (!isLeftDown && wasLeftDown) onMouseReleased(mouseX, mouseY, 0);
-         
-         if (isRightDown && !wasRightDown) onMouseClicked(mouseX, mouseY, 1);
-         else if (!isRightDown && wasRightDown) onMouseReleased(mouseX, mouseY, 1);
-         
-         // Drag
-         if (isLeftDown || isRightDown) {
-             double deltaX = mouseX - lastMouseX;
-             double deltaY = mouseY - lastMouseY;
-             if (deltaX != 0 || deltaY != 0) {
-                 int btn = isLeftDown ? 0 : 1;
-                 onMouseDragged(mouseX, mouseY, btn, deltaX, deltaY);
-             }
-         }
-         
-         lastMouseX = mouseX;
-         lastMouseY = mouseY;
-         wasLeftDown = isLeftDown;
-         wasRightDown = isRightDown;
-         
-         // Keys
-         updateKeys(windowHandle);
-    }
-    
-    private void updateKeys(long windowHandle) {
-        if (waitingForKeybind || currentState == InteractionState.TEXT_EDIT_MODE || !selectedButtons.isEmpty()) {
-             for (int k = 32; k < GLFW.GLFW_KEY_LAST; k++) {
-                  int action = GLFW.glfwGetKey(windowHandle, k);
-                  if (action == GLFW.GLFW_PRESS) {
-                      // Skip modifiers from repeat logic unless binding a key
-                      boolean isModifier = (k >= 340 && k <= 348);
-                      if (isModifier && !waitingForKeybind) continue;
-                      
-                      long now = System.currentTimeMillis();
-                      if (now - keyPressTimes[k] > 200) { 
-                          keyPressTimes[k] = now;
-                          
-                          int modifiers = 0;
-                          if (GLFW.glfwGetKey(windowHandle, GLFW.GLFW_KEY_LEFT_CONTROL) == GLFW.GLFW_PRESS || GLFW.glfwGetKey(windowHandle, GLFW.GLFW_KEY_RIGHT_CONTROL) == GLFW.GLFW_PRESS) modifiers |= GLFW.GLFW_MOD_CONTROL;
-                          if (GLFW.glfwGetKey(windowHandle, GLFW.GLFW_KEY_LEFT_SHIFT) == GLFW.GLFW_PRESS || GLFW.glfwGetKey(windowHandle, GLFW.GLFW_KEY_RIGHT_SHIFT) == GLFW.GLFW_PRESS) modifiers |= GLFW.GLFW_MOD_SHIFT;
-                          
-                          onKeyPressed(k, 0, modifiers);
-                      }
-                  } else if (action == GLFW.GLFW_RELEASE) {
-                      keyPressTimes[k] = 0;
-                  }
-             }
-        }
-    }
-
-    public boolean onMouseClicked(double mouseX, double mouseY, int button) {
+    @Override
+    public boolean mouseClicked(Click click, boolean bl) {
+        double mouseX = click.comp_4798();
+        double mouseY = click.comp_4799();
+        int button = click.button();
+        
         if (contextMenuOpen) {
              // Handle Menu Clicks
              int w = 140; 
@@ -396,7 +344,12 @@ public class KeystrokesDesignerScreen extends Screen {
         return false; // Handled manually
     }
     
-    public boolean onMouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
+    @Override
+    public boolean mouseDragged(Click click, double deltaX, double deltaY) {
+        double mouseX = click.comp_4798();
+        double mouseY = click.comp_4799();
+        int button = click.button();
+        
         if (button == 0 && currentState == InteractionState.DRAGGING_BOX) { // Left Drag
             double rawDx = mouseX - dragStartX;
             double rawDy = mouseY - dragStartY;
@@ -488,7 +441,12 @@ public class KeystrokesDesignerScreen extends Screen {
         return false;
     }
     
-    public boolean onMouseReleased(double mouseX, double mouseY, int button) {
+    @Override
+    public boolean mouseReleased(Click click) {
+        double mouseX = click.comp_4798();
+        double mouseY = click.comp_4799();
+        int button = click.button();
+        
         if (button == 0) {
             if (currentState == InteractionState.DRAGGING_BOX) {
                 currentState = InteractionState.BOX_SELECTED;
@@ -545,7 +503,12 @@ public class KeystrokesDesignerScreen extends Screen {
         return false;
     }
 
-    public boolean onKeyPressed(int keyCode, int scanCode, int modifiers) {
+    @Override
+    public boolean keyPressed(KeyInput keyInput) {
+        int keyCode = keyInput.getKeycode();
+        int scanCode = keyInput.comp_4796();
+        int modifiers = keyInput.comp_4797();
+        
         if (waitingForKeybind) {
             if (keyCode != GLFW.GLFW_KEY_ESCAPE) {
                  if (contextMenuTarget != null) {
@@ -580,34 +543,6 @@ public class KeystrokesDesignerScreen extends Screen {
             else if (keyCode == GLFW.GLFW_KEY_SPACE) {
                  target.label += " ";
             }
-            else {
-                 // Manual Text Input Logic
-                 String keyName = GLFW.glfwGetKeyName(keyCode, scanCode);
-                 if (keyName != null && !keyName.isEmpty()) {
-                     // Check if valid char (not F1, etc which return null usually but just in case)
-                     // Actually glfwGetKeyName returns "f1" sometimes? No, usually null for non-printable.
-                     // But for letters it returns "a", "b".
-                     
-                     // Filter out non-printable if needed, or valid chars.
-                     // Length 1 usually means char.
-                     if (keyName.length() == 1) {
-                         char c = keyName.charAt(0);
-                         // shift already defined in scope? Let's check. 
-                         // Actually, look at line 534 in view file.
-                         // "boolean shift = (modifiers & GLFW.GLFW_MOD_SHIFT) != 0;"
-                         // Yes. So remove declaration here.
-                         
-                         // Re-use shift
-                         boolean caps = false; 
-                         
-                         if (shift) {
-                             c = Character.toUpperCase(c);
-                         }
-                         
-                         target.label += c;
-                     }
-                 }
-            }
             return true;
         }
         
@@ -638,18 +573,23 @@ public class KeystrokesDesignerScreen extends Screen {
                  currentState = InteractionState.IDLE;
                  return true;
              }
-             // Undo/Redo
-             if (keyCode == GLFW.GLFW_KEY_Z && ctrl) { if (shift) redo(); else undo(); return true; }
-             if (keyCode == GLFW.GLFW_KEY_Y && ctrl) { redo(); return true; }
         }
-        
-        return false;
+        return super.keyPressed(keyInput);
     }
 
+    @Override
+    public boolean charTyped(CharInput charInput) {
+        char chr = (char) charInput.comp_4793();
+        int modifiers = charInput.comp_4794();
+        
+        if (currentState == InteractionState.TEXT_EDIT_MODE && !selectedButtons.isEmpty()) {
+            SimpleCPSConfig.KeyButtonData target = selectedButtons.get(0);
+            target.label += chr;
+            return true;
+        }
+        return super.charTyped(charInput);
+    }
 
-
-
-    
     private void renderContextMenu(DrawContext context, int mouseX, int mouseY) {
         int w = 140; // Slightly wider for new options
         int h = 0;

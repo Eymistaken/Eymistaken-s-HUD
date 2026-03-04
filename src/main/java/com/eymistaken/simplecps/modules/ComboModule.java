@@ -9,7 +9,7 @@ import net.minecraft.entity.Entity;
 
 public class ComboModule extends HudModule {
 
-    private int lastHurtTime = 0;
+    // No state needed here
 
     @Override
     public boolean isEnabled() {
@@ -78,12 +78,6 @@ public class ComboModule extends HudModule {
         }
 
         ComboTracker.onTick(client);
-
-        if (client.player.hurtTime > lastHurtTime && client.player.hurtTime > 0) {
-            Entity attacker = client.player.getAttacker();
-            ComboTracker.onDamage(attacker);
-        }
-        lastHurtTime = client.player.hurtTime;
     }
 
     @Override

@@ -31,8 +31,17 @@ public class SimpleCPSConfig {
     }
 
     public static void save() {
-        try (FileWriter writer = new FileWriter(CONFIG_FILE)) {
+        File tempFile = new File(CONFIG_FILE.getParentFile(), CONFIG_FILE.getName() + ".tmp");
+        try (FileWriter writer = new FileWriter(tempFile)) {
             GSON.toJson(instance, writer);
+            writer.flush();
+        } catch (IOException e) {
+            e.printStackTrace();
+            return;
+        }
+        
+        try {
+            java.nio.file.Files.move(tempFile.toPath(), CONFIG_FILE.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING, java.nio.file.StandardCopyOption.ATOMIC_MOVE);
         } catch (IOException e) {
             e.printStackTrace();
         }

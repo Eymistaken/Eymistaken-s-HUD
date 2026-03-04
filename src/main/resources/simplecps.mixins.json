@@ -6,7 +6,10 @@
     "mixins": [
         "MixinInGameHud",
         "MixinMinecraftClient",
-        "MixinClientPlayerInteractionManager"
+        "MixinClientPlayerInteractionManager",
+        "MixinLivingEntity",
+        "MixinMouse",
+        "MixinKeyboard"
     ],
     "injectors": {
         "defaultRequire": 1

@@ -49,22 +49,25 @@ public class CpsModule extends HudModule {
         SimpleCPSConfig.instance.yOffset = 0;
     }
 
+    public static void addLeftClick() {
+        leftClicks.add(System.currentTimeMillis());
+    }
+
+    public static void addRightClick() {
+        rightClicks.add(System.currentTimeMillis());
+    }
+
     @Override
-    public void render(DrawContext context, float tickDelta) {
-        SimpleCPSConfig config = SimpleCPSConfig.instance;
-
-        // Input Handling (Done in render to match original logic)
-        boolean isLeftPressed = client.options.attackKey.isPressed();
-        if (isLeftPressed && !wasLeftPressed) leftClicks.add(System.currentTimeMillis());
-        wasLeftPressed = isLeftPressed;
-
-        boolean isRightPressed = client.options.useKey.isPressed();
-        if (isRightPressed && !wasRightPressed) rightClicks.add(System.currentTimeMillis());
-        wasRightPressed = isRightPressed;
-
+    public void tick(net.minecraft.client.MinecraftClient client) {
+        if (!isEnabled()) return;
         long now = System.currentTimeMillis();
         leftClicks.removeIf(time -> now - time > 1000);
         rightClicks.removeIf(time -> now - time > 1000);
+    }
+
+    @Override
+    public void render(DrawContext context, float tickDelta) {
+        SimpleCPSConfig config = SimpleCPSConfig.instance;
 
         // Rendering
         String leftCps = String.valueOf(leftClicks.size());

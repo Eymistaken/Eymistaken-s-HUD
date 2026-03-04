@@ -10,6 +10,7 @@ import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
 
 import java.awt.Point;
+import net.minecraft.client.gui.Click;
 
 public class HudEditorScreen extends Screen {
 
@@ -19,10 +20,6 @@ public class HudEditorScreen extends Screen {
     // Local click offset within the module (0,0 is top-left of module)
     private int dragOffsetX = 0;
     private int dragOffsetY = 0;
-
-    // Polling State
-    private boolean wasLeftDown = false;
-    private boolean wasRightDown = false;
 
     public HudEditorScreen(Screen parent) {
         super(Text.of("HUD Editor"));
@@ -59,91 +56,6 @@ public class HudEditorScreen extends Screen {
         // Gradient Background
         context.fillGradient(0, 0, this.width, this.height, 0xC0000000, 0xD0000000); 
 
-        // ============================================
-        // Input Handling (GLFW Polling)
-        // ============================================
-        long windowHandle = net.minecraft.client.MinecraftClient.getInstance().getWindow().getHandle();
-        
-        boolean isLeftDown = GLFW.glfwGetMouseButton(windowHandle, 0) == GLFW.GLFW_PRESS;
-        boolean isRightDown = GLFW.glfwGetMouseButton(windowHandle, 1) == GLFW.GLFW_PRESS;
-
-        // LEFT CLICK (Start Drag)
-        if (isLeftDown && !wasLeftDown) {
-            for (var entry : HudModuleManager.getInstance().getModuleBounds().entrySet()) {
-                String name = entry.getKey();
-                HudModuleManager.ModuleBounds p = entry.getValue();
-                
-                if (mouseX >= p.x && mouseX <= p.x + p.w &&
-                    mouseY >= p.y && mouseY <= p.y + p.h) {
-                    
-                    draggingModule = name;
-                    dragOffsetX = mouseX - p.x;
-                    dragOffsetY = mouseY - p.y;
-                    break; 
-                }
-            }
-        } 
-        
-        // RIGHT CLICK (Reset to Defaults)
-        if (isRightDown && !wasRightDown) {
-             for (var entry : HudModuleManager.getInstance().getModuleBounds().entrySet()) {
-                String name = entry.getKey();
-                HudModuleManager.ModuleBounds p = entry.getValue();
-                
-                if (mouseX >= p.x && mouseX <= p.x + p.w &&
-                    mouseY >= p.y && mouseY <= p.y + p.h) {
-                    
-                    com.eymistaken.simplecps.api.HudModule module = HudModuleManager.getInstance().getModuleByName(name);
-                    if (module != null) {
-                        module.resetToDefaults();
-                    }
-                    break;
-                }
-             }
-        }
-
-        // LEFT RELEASE (Stop Drag)
-        if (!isLeftDown && wasLeftDown) {
-            draggingModule = null;
-        } 
-        
-        // DRAGGING (Update Position)
-        if (isLeftDown && draggingModule != null) {
-            // 1. Calculate TARGET Screen Position
-            int targetX = mouseX - dragOffsetX;
-            int targetY = mouseY - dragOffsetY;
-            
-            // 2. Determine Smart Anchor based on Center of module
-            HudModuleManager.ModuleBounds p = HudModuleManager.getInstance().getModuleBounds().get(draggingModule);
-            int w = (p != null) ? p.w : 50;
-            int h = (p != null) ? p.h : 20;
-            
-            int centerX = targetX + w / 2;
-            int centerY = targetY + h / 2;
-            
-            SimpleCPSConfig.Position newAnchor = determineAnchor(centerX, centerY);
-            
-            // 3. Estimate Base Position for that Anchor (to calc pure offset)
-            Point base = getEstimatedBasePos(newAnchor, w, h);
-            
-            // 4. Calculate Relative Offset
-            int newOffsetX = targetX - base.x;
-            int newOffsetY = targetY - base.y;
-            
-            // 5. Apply to Config
-            com.eymistaken.simplecps.api.HudModule module = HudModuleManager.getInstance().getModuleByName(draggingModule);
-            if (module != null) {
-                module.setPositionType(newAnchor);
-                module.setXOffset(newOffsetX);
-                module.setYOffset(newOffsetY);
-            }
-        }
-        
-        // Update State
-        wasLeftDown = isLeftDown;
-        wasRightDown = isRightDown;
-        // ============================================
-
         // Center Lines
         int centerX = this.width / 2;
         int centerY = this.height / 2;
@@ -177,6 +89,95 @@ public class HudEditorScreen extends Screen {
         context.drawCenteredTextWithShadow(this.textRenderer, Text.of("Right Click to Reset"), this.width / 2, 22, 0xFFAAAAAA);
     }
     
+    @Override
+    public boolean mouseClicked(Click click, boolean bl) {
+        double mouseX = click.comp_4798();
+        double mouseY = click.comp_4799();
+        int button = click.button();
+        
+        if (button == 0) { // Left click
+            for (var entry : HudModuleManager.getInstance().getModuleBounds().entrySet()) {
+                String name = entry.getKey();
+                HudModuleManager.ModuleBounds p = entry.getValue();
+                
+                if (mouseX >= p.x && mouseX <= p.x + p.w &&
+                    mouseY >= p.y && mouseY <= p.y + p.h) {
+                    
+                    draggingModule = name;
+                    dragOffsetX = (int)mouseX - p.x;
+                    dragOffsetY = (int)mouseY - p.y;
+                    return true;
+                }
+            }
+        } else if (button == 1) { // Right click
+             for (var entry : HudModuleManager.getInstance().getModuleBounds().entrySet()) {
+                String name = entry.getKey();
+                HudModuleManager.ModuleBounds p = entry.getValue();
+                
+                if (mouseX >= p.x && mouseX <= p.x + p.w &&
+                    mouseY >= p.y && mouseY <= p.y + p.h) {
+                    
+                    com.eymistaken.simplecps.api.HudModule module = HudModuleManager.getInstance().getModuleByName(name);
+                    if (module != null) {
+                        module.resetToDefaults();
+                    }
+                    return true;
+                }
+             }
+        }
+        return super.mouseClicked(click, bl);
+    }
+
+    @Override
+    public boolean mouseReleased(Click click) {
+        int button = click.button();
+        if (button == 0 && draggingModule != null) {
+            draggingModule = null;
+            return true;
+        }
+        return super.mouseReleased(click);
+    }
+
+    @Override
+    public boolean mouseDragged(Click click, double deltaX, double deltaY) {
+        double mouseX = click.comp_4798();
+        double mouseY = click.comp_4799();
+        int button = click.button();
+        
+        if (button == 0 && draggingModule != null) {
+            // 1. Calculate TARGET Screen Position
+            int targetX = (int)mouseX - dragOffsetX;
+            int targetY = (int)mouseY - dragOffsetY;
+            
+            // 2. Determine Smart Anchor based on Center of module
+            HudModuleManager.ModuleBounds p = HudModuleManager.getInstance().getModuleBounds().get(draggingModule);
+            int w = (p != null) ? p.w : 50;
+            int h = (p != null) ? p.h : 20;
+            
+            int centerX = targetX + w / 2;
+            int centerY = targetY + h / 2;
+            
+            SimpleCPSConfig.Position newAnchor = determineAnchor(centerX, centerY);
+            
+            // 3. Estimate Base Position for that Anchor (to calc pure offset)
+            Point base = getEstimatedBasePos(newAnchor, w, h);
+            
+            // 4. Calculate Relative Offset
+            int newOffsetX = targetX - base.x;
+            int newOffsetY = targetY - base.y;
+            
+            // 5. Apply to Config
+            com.eymistaken.simplecps.api.HudModule module = HudModuleManager.getInstance().getModuleByName(draggingModule);
+            if (module != null) {
+                module.setPositionType(newAnchor);
+                module.setXOffset(newOffsetX);
+                module.setYOffset(newOffsetY);
+            }
+            return true;
+        }
+        return super.mouseDragged(click, deltaX, deltaY);
+    }
+
     private SimpleCPSConfig.Position determineAnchor(int cx, int cy) {
         int w = this.width;
         int h = this.height;

@@ -21,12 +21,21 @@ public class ReachTracker {
         // Calculate reach using crosshair target if available for precision
         double reach = -1;
         
-        if (client.crosshairTarget != null && client.crosshairTarget.getType() != HitResult.Type.MISS) {
-            Vec3d cameraPos = attacker.getCameraPosVec(1.0F);
-            reach = client.crosshairTarget.getPos().distanceTo(cameraPos);
-        } else {
-             // Fallback to simple distance if crosshair miss (should rarely happen on successful attack)
-             reach = attacker.distanceTo(target);
+        Vec3d cameraPos = attacker.getCameraPosVec(1.0F);
+        
+        if (client.crosshairTarget != null && client.crosshairTarget.getType() == HitResult.Type.ENTITY) {
+            net.minecraft.util.hit.EntityHitResult entityHit = (net.minecraft.util.hit.EntityHitResult) client.crosshairTarget;
+            if (entityHit.getEntity() == target) {
+                reach = entityHit.getPos().distanceTo(cameraPos);
+            }
+        }
+        
+        if (reach == -1) {
+            net.minecraft.util.math.Box box = target.getBoundingBox();
+            double dx = Math.max(0.0, Math.max(box.minX - cameraPos.x, cameraPos.x - box.maxX));
+            double dy = Math.max(0.0, Math.max(box.minY - cameraPos.y, cameraPos.y - box.maxY));
+            double dz = Math.max(0.0, Math.max(box.minZ - cameraPos.z, cameraPos.z - box.maxZ));
+            reach = Math.sqrt(dx * dx + dy * dy + dz * dz);
         }
 
         lastReach = reach;

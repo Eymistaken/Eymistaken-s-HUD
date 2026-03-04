@@ -7,8 +7,8 @@ import java.util.UUID;
 public class ComboTracker {
     private static int combo = 0;
     private static long lastHitTime = 0;
+    private static int currentTargetId = -1;
     private static UUID currentTargetUuid = null;
-    private static Entity currentTarget = null; // Direct reference for checks
     private static long lastDecayTime = 0;
 
     public static void registerHit(Entity target, PlayerEntity attacker) {
@@ -42,7 +42,7 @@ public class ComboTracker {
         }
 
         currentTargetUuid = targetId;
-        currentTarget = target; // Update reference
+        currentTargetId = target.getId();
         lastHitTime = now;
         lastDecayTime = now + timeoutMs; // Reset decay timer
         combo++;
@@ -68,15 +68,21 @@ public class ComboTracker {
         }
 
         // 2. Target Validation (Anti-Run)
-        if (combo > 0 && currentTarget != null) {
+        if (combo > 0 && currentTargetId != -1) {
             boolean lost = false;
             
+            Entity currentTarget = null;
+            if (client.world != null) {
+                currentTarget = client.world.getEntityById(currentTargetId);
+                if (currentTarget == null || !currentTarget.getUuid().equals(currentTargetUuid)) {
+                    currentTarget = null;
+                }
+            }
+            
             // Distance Check (>20 blocks) (Only in Advanced Mode)
-            if (!config.comboResetOnAnyDamage && client.player != null) {
+            if (!config.comboResetOnAnyDamage && client.player != null && currentTarget != null) {
                 if (client.player.distanceTo(currentTarget) > 20) lost = true;
             }
-
-            // Note: LOS Check removed per user request (prevents reset on wall placement)
             
             if (lost) {
                 reset(); // Target Lost -> Reset Combo
@@ -110,7 +116,7 @@ public class ComboTracker {
     public static void reset() {
         combo = 0;
         currentTargetUuid = null;
-        currentTarget = null;
+        currentTargetId = -1;
     }
 
     public static int getCombo() {
