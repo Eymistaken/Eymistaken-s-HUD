@@ -3,12 +3,12 @@
     "id": "simplecps",
     "version": "${version}",
     "name": "Eymistaken's HUD",
-    "description": "A customizable HUD mod with CPS, FPS, Ping, Keystrokes, and Combo Counter.",
+    "description": "A highly customizable HUD mod featuring multiple PvP modules and support for external plugins.",
     "authors": [
         "Eymistaken"
     ],
     "contact": {
-        "homepage": "https://github.com/Eymistaken/SimpleCPS",
+        "homepage": "https://eymistaken.github.io/Eymistaken-s-HUD-Website/",
         "sources": "https://github.com/Eymistaken/SimpleCPS",
         "issues": "https://github.com/Eymistaken/SimpleCPS/issues"
     },
@@ -17,7 +17,7 @@
     "mixins": [
         "simplecps.mixins.json"
     ],
-    "environment": "*",
+    "environment": "client",
     "entrypoints": {
         "main": [
             "com.eymistaken.simplecps.SimpleCPS"
