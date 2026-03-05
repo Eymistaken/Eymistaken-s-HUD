@@ -29,3 +29,6 @@ reflect.txt
 HandledScreen.java
 DrawContext.java
 LICENSE
+# --- Agent Skills ---
+.agent/
+.agent/skills/

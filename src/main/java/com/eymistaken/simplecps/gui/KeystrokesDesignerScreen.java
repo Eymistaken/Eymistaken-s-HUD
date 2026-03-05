@@ -520,6 +520,16 @@ public class KeystrokesDesignerScreen extends Screen {
             return true;
         }
 
+        if ((modifiers & GLFW.GLFW_MOD_CONTROL) != 0) {
+            if (keyCode == GLFW.GLFW_KEY_Z) {
+                undo();
+                return true;
+            } else if (keyCode == GLFW.GLFW_KEY_Y) {
+                redo();
+                return true;
+            }
+        }
+
         if (currentState == InteractionState.TEXT_EDIT_MODE && !selectedButtons.isEmpty()) {
             SimpleCPSConfig.KeyButtonData target = selectedButtons.get(0);
             boolean shift = (modifiers & GLFW.GLFW_MOD_SHIFT) != 0;

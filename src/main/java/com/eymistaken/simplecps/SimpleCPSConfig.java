@@ -25,7 +25,11 @@ public class SimpleCPSConfig {
             } catch (IOException e) {
                 e.printStackTrace();
             }
+            if (instance.keystrokesLayout == null || instance.keystrokesLayout.isEmpty()) {
+                instance.resetLayout();
+            }
         } else {
+            instance.resetLayout();
             save(); // Create default
         }
     }
@@ -41,7 +45,11 @@ public class SimpleCPSConfig {
         }
         
         try {
-            java.nio.file.Files.move(tempFile.toPath(), CONFIG_FILE.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING, java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+            try {
+                java.nio.file.Files.move(tempFile.toPath(), CONFIG_FILE.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING, java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+            } catch (java.nio.file.AtomicMoveNotSupportedException e) {
+                java.nio.file.Files.move(tempFile.toPath(), CONFIG_FILE.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -147,7 +155,6 @@ public class SimpleCPSConfig {
 
     public SimpleCPSConfig() {
         // Default Layout: WASD + Space + Mouse + Modifiers
-        resetLayout();
     }
     
     public void resetLayout() {
