@@ -59,7 +59,6 @@ public class CpsModule extends HudModule {
 
     @Override
     public void tick(net.minecraft.client.MinecraftClient client) {
-        if (!isEnabled()) return;
         long now = System.currentTimeMillis();
         leftClicks.removeIf(time -> now - time > 1000);
         rightClicks.removeIf(time -> now - time > 1000);

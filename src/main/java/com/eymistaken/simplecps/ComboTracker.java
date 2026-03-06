@@ -11,6 +11,8 @@ public class ComboTracker {
     private static UUID currentTargetUuid = null;
     private static long lastDecayTime = 0;
 
+    private static int lastHurtTime = 0;
+
     public static void registerHit(Entity target, PlayerEntity attacker) {
         SimpleCPSConfig config = SimpleCPSConfig.instance;
         if (config.comboOnlyPlayers && !(target instanceof PlayerEntity)) return;
@@ -49,6 +51,14 @@ public class ComboTracker {
     }
 
     public static void onTick(net.minecraft.client.MinecraftClient client) {
+        if (client.player != null) {
+            int currentHurtTime = client.player.hurtTime;
+            if (lastHurtTime == 0 && currentHurtTime > 0) {
+                onDamage(null);
+            }
+            lastHurtTime = currentHurtTime;
+        }
+
         SimpleCPSConfig config = SimpleCPSConfig.instance;
         long now = System.currentTimeMillis();
         long timeoutMs = (long)(config.comboTimeout * 1000);
