@@ -220,4 +220,31 @@ public class ArmorModule extends HudModule {
         SimpleCPSConfig.instance.armorXOffset = 0;
         SimpleCPSConfig.instance.armorYOffset = 0;
     }
+
+    @Override
+    public void resetVisualDefaults() {
+        SimpleCPSConfig config = SimpleCPSConfig.instance;
+        config.armorVertical = true;
+        config.armorShowBackgroundSlots = false;
+        config.armorShowMainHand = true;
+        config.armorShowOffHand = true;
+        config.armorDurabilityText = true;
+        config.armorDamageFlash = true;
+    }
+
+    @Override
+    public java.util.List<com.eymistaken.simplecps.api.HudModuleSetting> getContextMenuSettings() {
+        SimpleCPSConfig config = SimpleCPSConfig.instance;
+        java.util.List<com.eymistaken.simplecps.api.HudModuleSetting> settings = new java.util.ArrayList<>(super.getContextMenuSettings());
+        settings.addAll(java.util.List.of(
+            new com.eymistaken.simplecps.api.BooleanSetting("Enable Armor", () -> config.showArmor, v -> config.showArmor = v),
+            new com.eymistaken.simplecps.api.BooleanSetting("Vertical", () -> config.armorVertical, v -> config.armorVertical = v),
+            new com.eymistaken.simplecps.api.BooleanSetting("Show Background", () -> config.armorShowBackgroundSlots, v -> config.armorShowBackgroundSlots = v),
+            new com.eymistaken.simplecps.api.BooleanSetting("Durability Text", () -> config.armorDurabilityText, v -> config.armorDurabilityText = v),
+            new com.eymistaken.simplecps.api.BooleanSetting("Damage Flash", () -> config.armorDamageFlash, v -> config.armorDamageFlash = v),
+            new com.eymistaken.simplecps.api.BooleanSetting("Show Main Hand", () -> config.armorShowMainHand, v -> config.armorShowMainHand = v),
+            new com.eymistaken.simplecps.api.BooleanSetting("Show Off Hand", () -> config.armorShowOffHand, v -> config.armorShowOffHand = v)
+        ));
+        return settings;
+    }
 }

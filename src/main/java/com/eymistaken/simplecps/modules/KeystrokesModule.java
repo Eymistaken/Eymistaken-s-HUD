@@ -49,6 +49,19 @@ public class KeystrokesModule extends HudModule {
         SimpleCPSConfig.instance.keystrokesPosition = SimpleCPSConfig.Position.TOP_LEFT;
         SimpleCPSConfig.instance.keystrokesXOffset = 0;
         SimpleCPSConfig.instance.keystrokesYOffset = 0;
+        SimpleCPSConfig.instance.keystrokesScale = 80;
+    }
+
+    @Override
+    public void resetVisualDefaults() {
+        SimpleCPSConfig config = SimpleCPSConfig.instance;
+        config.keystrokesScale = 80;
+        config.keystrokesRainbow = false;
+        config.keystrokesRainbowTarget = SimpleCPSConfig.RainbowTarget.TEXT;
+        config.keystrokesColor = 0xFFFFFF;
+        config.keystrokesPressedColor = 0x00FF00;
+        config.keystrokesBackgroundColor = 0x000000;
+        config.keystrokesBackgroundOpacity = 128;
     }
 
     @Override
@@ -225,5 +238,18 @@ public class KeystrokesModule extends HudModule {
         }
         
         context.getMatrices().popMatrix();
+    }
+    @Override
+    public java.util.List<com.eymistaken.simplecps.api.HudModuleSetting> getContextMenuSettings() {
+        SimpleCPSConfig config = SimpleCPSConfig.instance;
+        java.util.List<com.eymistaken.simplecps.api.HudModuleSetting> settings = new java.util.ArrayList<>();
+        settings.addAll(java.util.List.of(
+            new com.eymistaken.simplecps.api.BooleanSetting("Enable Keystrokes", () -> config.showKeystrokes, v -> config.showKeystrokes = v),
+            new com.eymistaken.simplecps.api.ActionSetting("Open Designer", () -> {
+                net.minecraft.client.MinecraftClient client = net.minecraft.client.MinecraftClient.getInstance();
+                client.execute(() -> client.setScreen(new com.eymistaken.simplecps.gui.KeystrokesDesignerScreen(client.currentScreen)));
+            })
+        ));
+        return settings;
     }
 }

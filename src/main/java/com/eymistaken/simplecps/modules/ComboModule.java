@@ -68,6 +68,40 @@ public class ComboModule extends HudModule {
         SimpleCPSConfig.instance.comboPosition = SimpleCPSConfig.Position.TOP_LEFT;
         SimpleCPSConfig.instance.comboXOffset = 0;
         SimpleCPSConfig.instance.comboYOffset = 0;
+        SimpleCPSConfig.instance.comboScale = 100;
+    }
+    
+    @Override
+    public void resetVisualDefaults() {
+        SimpleCPSConfig config = SimpleCPSConfig.instance;
+        config.comboScale = 100;
+        config.comboColor = 0xFFFFFF;
+        config.comboRainbow = false;
+        config.comboText = "Combo";
+        config.comboShowBackground = false;
+        config.comboBackgroundColor = 0x000000;
+        config.comboBackgroundOpacity = 128;
+        config.comboTimeout = 3.0;
+        config.comboResetOnAnyDamage = true;
+        config.comboContinueOnSwitch = true;
+        config.comboHideWhenInactive = false;
+        config.comboHeatmap = false;
+        config.comboHeatmapMode = SimpleCPSConfig.HeatmapMode.MEDIUM;
+        config.comboOnlyPlayers = true;
+        config.combatMode = SimpleCPSConfig.CombatMode.MODERN;
+    }
+
+    @Override
+    public java.util.List<com.eymistaken.simplecps.api.HudModuleSetting> getContextMenuSettings() {
+        SimpleCPSConfig config = SimpleCPSConfig.instance;
+        java.util.List<com.eymistaken.simplecps.api.HudModuleSetting> settings = new java.util.ArrayList<>(super.getContextMenuSettings());
+        settings.addAll(java.util.List.of(
+            new com.eymistaken.simplecps.api.BooleanSetting("Enable Combo", () -> config.showCombo, v -> config.showCombo = v),
+            new com.eymistaken.simplecps.api.BooleanSetting("Always Show", () -> !config.comboHideWhenInactive, v -> config.comboHideWhenInactive = !v),
+            new com.eymistaken.simplecps.api.ColorSetting("Text Color", () -> config.comboColor, v -> config.comboColor = v),
+            new com.eymistaken.simplecps.api.TextSetting("Suffix Text", () -> config.comboText, v -> config.comboText = v)
+        ));
+        return settings;
     }
 
     @Override

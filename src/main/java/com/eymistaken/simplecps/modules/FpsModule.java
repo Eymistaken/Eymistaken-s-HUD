@@ -40,6 +40,30 @@ public class FpsModule extends HudModule {
         SimpleCPSConfig.instance.fpsPosition = SimpleCPSConfig.Position.TOP_LEFT;
         SimpleCPSConfig.instance.fpsXOffset = 0;
         SimpleCPSConfig.instance.fpsYOffset = 0;
+        SimpleCPSConfig.instance.fpsScale = 100;
+    }
+
+    @Override
+    public void resetVisualDefaults() {
+        SimpleCPSConfig config = SimpleCPSConfig.instance;
+        config.fpsScale = 100;
+        config.fpsColor = 0xFFFFFF;
+        config.fpsRainbow = false;
+        config.fpsText = "FPS";
+        config.fpsShowBackground = false;
+        config.fpsBackgroundColor = 0x000000;
+        config.fpsBackgroundOpacity = 128;
+    }
+
+    @Override
+    public java.util.List<com.eymistaken.simplecps.api.HudModuleSetting> getContextMenuSettings() {
+        SimpleCPSConfig config = SimpleCPSConfig.instance;
+        java.util.List<com.eymistaken.simplecps.api.HudModuleSetting> settings = new java.util.ArrayList<>(super.getContextMenuSettings());
+        settings.addAll(java.util.List.of(
+            new com.eymistaken.simplecps.api.BooleanSetting("Enable FPS", () -> config.showFps, v -> config.showFps = v),
+            new com.eymistaken.simplecps.api.ColorSetting("Text Color", () -> config.fpsColor, v -> config.fpsColor = v)
+        ));
+        return settings;
     }
 
     @Override

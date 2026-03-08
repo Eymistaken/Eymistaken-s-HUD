@@ -41,6 +41,35 @@ public class ReachModule extends HudModule {
         SimpleCPSConfig.instance.reachPosition = SimpleCPSConfig.Position.TOP_LEFT;
         SimpleCPSConfig.instance.reachXOffset = 0;
         SimpleCPSConfig.instance.reachYOffset = 0;
+        SimpleCPSConfig.instance.reachScale = 100;
+    }
+
+    @Override
+    public void resetVisualDefaults() {
+        SimpleCPSConfig config = SimpleCPSConfig.instance;
+        config.reachScale = 100;
+        config.reachColor = 0xFFFFFF;
+        config.reachRainbow = false;
+        config.reachTimeout = 3.0;
+        config.reachShowBackground = false;
+        config.reachBackgroundColor = 0x000000;
+        config.reachBackgroundOpacity = 128;
+        config.reachOnlyPlayers = true;
+        config.reachAlwaysShow = false;
+        config.reachNoHitText = "No Hit";
+    }
+
+    @Override
+    public java.util.List<com.eymistaken.simplecps.api.HudModuleSetting> getContextMenuSettings() {
+        SimpleCPSConfig config = SimpleCPSConfig.instance;
+        java.util.List<com.eymistaken.simplecps.api.HudModuleSetting> settings = new java.util.ArrayList<>(super.getContextMenuSettings());
+        settings.addAll(java.util.List.of(
+            new com.eymistaken.simplecps.api.BooleanSetting("Enable Reach", () -> config.showReach, v -> config.showReach = v),
+            new com.eymistaken.simplecps.api.BooleanSetting("Always Show", () -> config.reachAlwaysShow, v -> config.reachAlwaysShow = v),
+            new com.eymistaken.simplecps.api.ColorSetting("Text Color", () -> config.reachColor, v -> config.reachColor = v),
+            new com.eymistaken.simplecps.api.TextSetting("No Hit Text", () -> config.reachNoHitText, v -> config.reachNoHitText = v)
+        ));
+        return settings;
     }
 
     private String getDisplayText() {

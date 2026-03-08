@@ -35,7 +35,32 @@ public abstract class HudModule {
     public void setYOffset(int y) {}
     public void setScale(int scale) {}
     public int getScale() { return 100; } // Default 100
+    
+    /**
+     * Resets ONLY the layout-related properties of this module.
+     * This includes Position, X Offset, Y Offset, and Scale.
+     * Visual and behavioral settings are outside the scope of this method.
+     */
     public void resetToDefaults() {}
+
+    /**
+     * Resets ALL visual and behavioral properties of this module
+     * back to their default values as defined in SimpleCPSConfig.
+     * This method strictly ignores layout properties (Position, Offsets, Scale).
+     */
+    public void resetVisualDefaults() {}
+
+    /**
+     * @return the context menu settings for this module
+     */
+    public java.util.List<HudModuleSetting> getContextMenuSettings() {
+        return java.util.List.of(
+            new com.eymistaken.simplecps.api.ActionSetting("Reset Settings", () -> {
+                this.resetVisualDefaults();
+                com.eymistaken.simplecps.SimpleCPSConfig.save();
+            })
+        );
+    }
 
     /**
      * @return true if the module should be rendered

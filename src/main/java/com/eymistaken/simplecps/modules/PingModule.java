@@ -45,6 +45,26 @@ public class PingModule extends HudModule {
         SimpleCPSConfig.instance.pingXOffset = 0;
         SimpleCPSConfig.instance.pingYOffset = 0;
     }
+    
+    @Override
+    public void resetVisualDefaults() {
+        SimpleCPSConfig config = SimpleCPSConfig.instance;
+        config.pingColor = 0xFFFFFF;
+        config.pingShowBackground = false;
+        config.pingBackgroundColor = 0x000000;
+        config.pingBackgroundOpacity = 128;
+    }
+
+    @Override
+    public java.util.List<com.eymistaken.simplecps.api.HudModuleSetting> getContextMenuSettings() {
+        SimpleCPSConfig config = SimpleCPSConfig.instance;
+        java.util.List<com.eymistaken.simplecps.api.HudModuleSetting> settings = new java.util.ArrayList<>(super.getContextMenuSettings());
+        settings.addAll(java.util.List.of(
+            new com.eymistaken.simplecps.api.BooleanSetting("Enable Ping", () -> config.showPing, v -> config.showPing = v),
+            new com.eymistaken.simplecps.api.ColorSetting("Text Color", () -> config.pingColor, v -> config.pingColor = v)
+        ));
+        return settings;
+    }
 
     @Override
     public void tick(MinecraftClient client) {

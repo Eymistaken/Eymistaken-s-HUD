@@ -49,12 +49,38 @@ public class CpsModule extends HudModule {
         SimpleCPSConfig.instance.yOffset = 0;
     }
 
+    @Override
+    public java.util.List<com.eymistaken.simplecps.api.HudModuleSetting> getContextMenuSettings() {
+        SimpleCPSConfig config = SimpleCPSConfig.instance;
+        java.util.List<com.eymistaken.simplecps.api.HudModuleSetting> settings = new java.util.ArrayList<>(super.getContextMenuSettings());
+        settings.addAll(java.util.List.of(
+            new com.eymistaken.simplecps.api.BooleanSetting("Enable CPS", () -> config.enabled, v -> config.enabled = v),
+            new com.eymistaken.simplecps.api.ColorSetting("Text Color", () -> config.textColor, v -> config.textColor = v)
+        ));
+        return settings;
+    }
+
     public static void addLeftClick() {
         leftClicks.add(System.currentTimeMillis());
     }
 
     public static void addRightClick() {
         rightClicks.add(System.currentTimeMillis());
+    }
+    
+    @Override
+    public void resetVisualDefaults() {
+        SimpleCPSConfig config = SimpleCPSConfig.instance;
+        config.scale = 100;
+        config.textColor = 0xFFFFFF;
+        config.rightClickCps = true;
+        config.rainbow = false;
+        config.cpsShowBackground = false;
+        config.cpsBackgroundColor = 0x000000;
+        config.cpsBackgroundOpacity = 128;
+        config.cpsLeftText = "";
+        config.cpsRightText = "";
+        config.cpsSeparator = " | ";
     }
 
     @Override
