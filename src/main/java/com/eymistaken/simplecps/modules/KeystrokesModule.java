@@ -148,6 +148,9 @@ public class KeystrokesModule extends HudModule {
     }
 
     private void drawAnimatedKey(DrawContext context, MinecraftClient client, SimpleCPSConfig.KeyButtonData btn, int textColor, int bgColor, float animScale) {
+        if (btn.btnColor != -1 && btn.btnColor != 0) {
+            textColor = btn.btnColor;
+        }
         context.getMatrices().pushMatrix();
         
         float centerX = btn.x + (btn.w / 2.0f);

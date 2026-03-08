@@ -32,3 +32,6 @@ LICENSE
 # --- Agent Skills ---
 .agent/
 .agent/skills/
+# --- Every Debugging Log Files---
+*.log
+*.txt

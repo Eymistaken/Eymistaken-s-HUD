@@ -12,6 +12,7 @@ public class ComboTracker {
     private static long lastDecayTime = 0;
 
     private static int lastHurtTime = 0;
+    private static UUID lastAttackerUuid = null;
 
     public static void registerHit(Entity target, PlayerEntity attacker) {
         SimpleCPSConfig config = SimpleCPSConfig.instance;
@@ -45,6 +46,7 @@ public class ComboTracker {
 
         currentTargetUuid = targetId;
         currentTargetId = target.getId();
+        lastAttackerUuid = currentTargetUuid; // Update the attacker UUID
         lastHitTime = now;
         lastDecayTime = now + timeoutMs; // Reset decay timer
         combo++;
@@ -54,7 +56,12 @@ public class ComboTracker {
         if (client.player != null) {
             int currentHurtTime = client.player.hurtTime;
             if (lastHurtTime == 0 && currentHurtTime > 0) {
-                onDamage(null);
+                SimpleCPSConfig config = SimpleCPSConfig.instance;
+                if (config.comboResetOnAnyDamage) {
+                    reset();
+                } else if (lastAttackerUuid != null && currentTargetUuid != null && lastAttackerUuid.equals(currentTargetUuid)) {
+                    reset();
+                }
             }
             lastHurtTime = currentHurtTime;
         }

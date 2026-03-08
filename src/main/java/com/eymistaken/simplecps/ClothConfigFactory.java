@@ -10,12 +10,22 @@ import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.text.Text;
 
 public class ClothConfigFactory {
+    // Color Picker Flags
+    private static boolean openColorPicker = false;
+    private static Runnable openColorPickerRunnable = null;
+
     public static Screen create(Screen parent) {
         SimpleCPSConfig config = SimpleCPSConfig.instance;
         ConfigBuilder builder = ConfigBuilder.create()
                 .setParentScreen(parent)
                 .setTitle(Text.of("Eymistaken's HUD Settings"))
-                .setSavingRunnable(SimpleCPSConfig::save);
+                .setSavingRunnable(() -> {
+                    SimpleCPSConfig.save();
+                    if (openColorPicker && openColorPickerRunnable != null) {
+                        openColorPicker = false;
+                        MinecraftClient.getInstance().execute(openColorPickerRunnable);
+                    }
+                });
 
         ConfigEntryBuilder entryBuilder = builder.entryBuilder();
 
@@ -61,6 +71,17 @@ public class ClothConfigFactory {
                 .setTooltip(Text.of("Color of the text"))
                 .setSaveConsumer(val -> config.textColor = val)
                 .build());
+
+        cps.addEntry(entryBuilder.startBooleanToggle(Text.of("Edit Color"), false)
+                .setDefaultValue(false)
+                .setTooltip(Text.of("Save & Quit to open precise color picker"))
+                .setSaveConsumer(val -> {
+                    if (val) {
+                        openColorPicker = true;
+                        openColorPickerRunnable = () -> MinecraftClient.getInstance().setScreen(new com.eymistaken.simplecps.gui.ColorPickerScreen(config.textColor, c -> config.textColor = c, parent));
+                    }
+                })
+                .build());
         cps.addEntry(entryBuilder.startBooleanToggle(Text.of("Show Background"), config.cpsShowBackground)
                 .setDefaultValue(true)
                 .setTooltip(Text.of("Show background box"))
@@ -70,6 +91,17 @@ public class ClothConfigFactory {
                 .setDefaultValue(0x000000)
                 .setTooltip(Text.of("Color of the background"))
                 .setSaveConsumer(val -> config.cpsBackgroundColor = val)
+                .build());
+
+        cps.addEntry(entryBuilder.startBooleanToggle(Text.of("Edit Color"), false)
+                .setDefaultValue(false)
+                .setTooltip(Text.of("Save & Quit to open precise color picker"))
+                .setSaveConsumer(val -> {
+                    if (val) {
+                        openColorPicker = true;
+                        openColorPickerRunnable = () -> MinecraftClient.getInstance().setScreen(new com.eymistaken.simplecps.gui.ColorPickerScreen(config.cpsBackgroundColor, c -> config.cpsBackgroundColor = c, parent));
+                    }
+                })
                 .build());
         cps.addEntry(entryBuilder.startIntSlider(Text.of("Background Opacity"), config.cpsBackgroundOpacity, 0, 255)
                 .setDefaultValue(64)
@@ -121,6 +153,17 @@ public class ClothConfigFactory {
                 .setTooltip(Text.of("Color of the text"))
                 .setSaveConsumer(val -> config.pingColor = val)
                 .build());
+
+        ping.addEntry(entryBuilder.startBooleanToggle(Text.of("Edit Color"), false)
+                .setDefaultValue(false)
+                .setTooltip(Text.of("Save & Quit to open precise color picker"))
+                .setSaveConsumer(val -> {
+                    if (val) {
+                        openColorPicker = true;
+                        openColorPickerRunnable = () -> MinecraftClient.getInstance().setScreen(new com.eymistaken.simplecps.gui.ColorPickerScreen(config.pingColor, c -> config.pingColor = c, parent));
+                    }
+                })
+                .build());
         ping.addEntry(entryBuilder.startBooleanToggle(Text.of("Show Background"), config.pingShowBackground)
                 .setDefaultValue(true)
                 .setTooltip(Text.of("Show background box"))
@@ -130,6 +173,17 @@ public class ClothConfigFactory {
                 .setDefaultValue(0x000000)
                 .setTooltip(Text.of("Color of the background"))
                 .setSaveConsumer(val -> config.pingBackgroundColor = val)
+                .build());
+
+        ping.addEntry(entryBuilder.startBooleanToggle(Text.of("Edit Color"), false)
+                .setDefaultValue(false)
+                .setTooltip(Text.of("Save & Quit to open precise color picker"))
+                .setSaveConsumer(val -> {
+                    if (val) {
+                        openColorPicker = true;
+                        openColorPickerRunnable = () -> MinecraftClient.getInstance().setScreen(new com.eymistaken.simplecps.gui.ColorPickerScreen(config.pingBackgroundColor, c -> config.pingBackgroundColor = c, parent));
+                    }
+                })
                 .build());
         ping.addEntry(entryBuilder.startIntSlider(Text.of("Background Opacity"), config.pingBackgroundOpacity, 0, 255)
                 .setDefaultValue(64)
@@ -174,6 +228,17 @@ public class ClothConfigFactory {
                 .setTooltip(Text.of("Color of the text"))
                 .setSaveConsumer(val -> config.fpsColor = val)
                 .build());
+
+        fps.addEntry(entryBuilder.startBooleanToggle(Text.of("Edit Color"), false)
+                .setDefaultValue(false)
+                .setTooltip(Text.of("Save & Quit to open precise color picker"))
+                .setSaveConsumer(val -> {
+                    if (val) {
+                        openColorPicker = true;
+                        openColorPickerRunnable = () -> MinecraftClient.getInstance().setScreen(new com.eymistaken.simplecps.gui.ColorPickerScreen(config.fpsColor, c -> config.fpsColor = c, parent));
+                    }
+                })
+                .build());
         fps.addEntry(entryBuilder.startBooleanToggle(Text.of("Rainbow"), config.fpsRainbow)
                 .setDefaultValue(false)
                 .setTooltip(Text.of("Enable rainbow text effect"))
@@ -189,6 +254,17 @@ public class ClothConfigFactory {
                 .setTooltip(Text.of("Color of the background"))
                 .setSaveConsumer(val -> config.fpsBackgroundColor = val)
                 .build());
+
+         fps.addEntry(entryBuilder.startBooleanToggle(Text.of("Edit Color"), false)
+                 .setDefaultValue(false)
+                 .setTooltip(Text.of("Save & Quit to open precise color picker"))
+                 .setSaveConsumer(val -> {
+                     if (val) {
+                         openColorPicker = true;
+                         openColorPickerRunnable = () -> MinecraftClient.getInstance().setScreen(new com.eymistaken.simplecps.gui.ColorPickerScreen(config.fpsBackgroundColor, c -> config.fpsBackgroundColor = c, parent));
+                     }
+                 })
+                 .build());
         fps.addEntry(entryBuilder.startIntSlider(Text.of("Background Opacity"), config.fpsBackgroundOpacity, 0, 255)
                 .setDefaultValue(64)
                 .setTooltip(Text.of("Transparency of the background"))
@@ -243,11 +319,33 @@ public class ClothConfigFactory {
                  .setTooltip(Text.of("Color of the key text"))
                  .setSaveConsumer(val -> config.keystrokesColor = val)
                  .build());
+
+        keys.addEntry(entryBuilder.startBooleanToggle(Text.of("Edit Color"), false)
+                .setDefaultValue(false)
+                .setTooltip(Text.of("Save & Quit to open precise color picker"))
+                .setSaveConsumer(val -> {
+                    if (val) {
+                        openColorPicker = true;
+                        openColorPickerRunnable = () -> MinecraftClient.getInstance().setScreen(new com.eymistaken.simplecps.gui.ColorPickerScreen(config.keystrokesColor, c -> config.keystrokesColor = c, parent));
+                    }
+                })
+                .build());
         keys.addEntry(entryBuilder.startColorField(Text.of("Pressed Color"), config.keystrokesPressedColor)
                  .setDefaultValue(0x00FF00)
                  .setTooltip(Text.of("Color when key is pressed"))
                  .setSaveConsumer(val -> config.keystrokesPressedColor = val)
                  .build());
+
+        keys.addEntry(entryBuilder.startBooleanToggle(Text.of("Edit Color"), false)
+                .setDefaultValue(false)
+                .setTooltip(Text.of("Save & Quit to open precise color picker"))
+                .setSaveConsumer(val -> {
+                    if (val) {
+                        openColorPicker = true;
+                        openColorPickerRunnable = () -> MinecraftClient.getInstance().setScreen(new com.eymistaken.simplecps.gui.ColorPickerScreen(config.keystrokesPressedColor, c -> config.keystrokesPressedColor = c, parent));
+                    }
+                })
+                .build());
         keys.addEntry(entryBuilder.startBooleanToggle(Text.of("Rainbow"), config.keystrokesRainbow)
                 .setDefaultValue(false)
                 .setTooltip(Text.of("Enable rainbow effect"))
@@ -263,6 +361,17 @@ public class ClothConfigFactory {
                  .setTooltip(Text.of("Color of key backgrounds"))
                  .setSaveConsumer(val -> config.keystrokesBackgroundColor = val)
                  .build());
+
+        keys.addEntry(entryBuilder.startBooleanToggle(Text.of("Edit Color"), false)
+                .setDefaultValue(false)
+                .setTooltip(Text.of("Save & Quit to open precise color picker"))
+                .setSaveConsumer(val -> {
+                    if (val) {
+                        openColorPicker = true;
+                        openColorPickerRunnable = () -> MinecraftClient.getInstance().setScreen(new com.eymistaken.simplecps.gui.ColorPickerScreen(config.keystrokesBackgroundColor, c -> config.keystrokesBackgroundColor = c, parent));
+                    }
+                })
+                .build());
         keys.addEntry(entryBuilder.startIntSlider(Text.of("Background Opacity"), config.keystrokesBackgroundOpacity, 0, 255)
                  .setDefaultValue(128)
                  .setTooltip(Text.of("Transparency of key backgrounds"))
@@ -346,6 +455,17 @@ public class ClothConfigFactory {
                 .setTooltip(Text.of("Color of the text"))
                 .setSaveConsumer(val -> config.comboColor = val)
                 .build());
+
+        combo.addEntry(entryBuilder.startBooleanToggle(Text.of("Edit Color"), false)
+                .setDefaultValue(false)
+                .setTooltip(Text.of("Save & Quit to open precise color picker"))
+                .setSaveConsumer(val -> {
+                    if (val) {
+                        openColorPicker = true;
+                        openColorPickerRunnable = () -> MinecraftClient.getInstance().setScreen(new com.eymistaken.simplecps.gui.ColorPickerScreen(config.comboColor, c -> config.comboColor = c, parent));
+                    }
+                })
+                .build());
         combo.addEntry(entryBuilder.startBooleanToggle(Text.of("Rainbow"), config.comboRainbow)
                 .setDefaultValue(false)
                 .setTooltip(Text.of("Enable rainbow text effect"))
@@ -361,6 +481,17 @@ public class ClothConfigFactory {
                 .setTooltip(Text.of("Color of the background"))
                 .setSaveConsumer(val -> config.comboBackgroundColor = val)
                 .build());
+
+         combo.addEntry(entryBuilder.startBooleanToggle(Text.of("Edit Color"), false)
+                 .setDefaultValue(false)
+                 .setTooltip(Text.of("Save & Quit to open precise color picker"))
+                 .setSaveConsumer(val -> {
+                     if (val) {
+                         openColorPicker = true;
+                         openColorPickerRunnable = () -> MinecraftClient.getInstance().setScreen(new com.eymistaken.simplecps.gui.ColorPickerScreen(config.comboBackgroundColor, c -> config.comboBackgroundColor = c, parent));
+                     }
+                 })
+                 .build());
         combo.addEntry(entryBuilder.startIntSlider(Text.of("Background Opacity"), config.comboBackgroundOpacity, 0, 255)
                 .setDefaultValue(128)
                 .setTooltip(Text.of("Transparency of the background"))
@@ -399,6 +530,17 @@ public class ClothConfigFactory {
                 .setTooltip(Text.of("Color of the text"))
                 .setSaveConsumer(val -> config.reachColor = val)
                 .build());
+
+        reach.addEntry(entryBuilder.startBooleanToggle(Text.of("Edit Color"), false)
+                .setDefaultValue(false)
+                .setTooltip(Text.of("Save & Quit to open precise color picker"))
+                .setSaveConsumer(val -> {
+                    if (val) {
+                        openColorPicker = true;
+                        openColorPickerRunnable = () -> MinecraftClient.getInstance().setScreen(new com.eymistaken.simplecps.gui.ColorPickerScreen(config.reachColor, c -> config.reachColor = c, parent));
+                    }
+                })
+                .build());
         reach.addEntry(entryBuilder.startBooleanToggle(Text.of("Rainbow"), config.reachRainbow)
                 .setDefaultValue(false)
                 .setTooltip(Text.of("Enable rainbow text effect"))
@@ -423,6 +565,17 @@ public class ClothConfigFactory {
                 .setDefaultValue(0x000000)
                 .setTooltip(Text.of("Color of the background"))
                 .setSaveConsumer(val -> config.reachBackgroundColor = val)
+                .build());
+
+        reach.addEntry(entryBuilder.startBooleanToggle(Text.of("Edit Color"), false)
+                .setDefaultValue(false)
+                .setTooltip(Text.of("Save & Quit to open precise color picker"))
+                .setSaveConsumer(val -> {
+                    if (val) {
+                        openColorPicker = true;
+                        openColorPickerRunnable = () -> MinecraftClient.getInstance().setScreen(new com.eymistaken.simplecps.gui.ColorPickerScreen(config.reachBackgroundColor, c -> config.reachBackgroundColor = c, parent));
+                    }
+                })
                 .build());
         reach.addEntry(entryBuilder.startIntSlider(Text.of("Background Opacity"), config.reachBackgroundOpacity, 0, 255)
                 .setDefaultValue(128)

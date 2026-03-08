@@ -92,6 +92,15 @@ public class KeystrokesDesignerScreen extends Screen {
     private static final int CANVAS_W = 400;
     private static final int CANVAS_H = 300;
 
+    // Inline Color Picker State
+    private boolean colorPickerOpen = false;
+    private SimpleCPSConfig.KeyButtonData colorPickerTarget = null;
+    private float cpHue = 0.0f;
+    private float cpSat = 1.0f;
+    private float cpVal = 1.0f;
+    private enum CpDrag { NONE, SV, HUE }
+    private CpDrag cpDragTarget = CpDrag.NONE;
+
     // Context Menu
     private boolean contextMenuOpen = false;
     private int contextMenuX, contextMenuY;
@@ -216,6 +225,10 @@ public class KeystrokesDesignerScreen extends Screen {
          if (contextMenuOpen) {
             renderContextMenu(context, mouseX, mouseY);
         }
+        
+        if (colorPickerOpen && colorPickerTarget != null) {
+            renderColorPicker(context, mouseX, mouseY);
+        }
     }
 
     @Override
@@ -223,6 +236,39 @@ public class KeystrokesDesignerScreen extends Screen {
         double mouseX = click.comp_4798();
         double mouseY = click.comp_4799();
         int button = click.button();
+        
+        if (colorPickerOpen && colorPickerTarget != null) {
+            int[] bnds = getPickerBounds();
+            if (mouseX >= bnds[0] && mouseX <= bnds[0] + 160 && mouseY >= bnds[1] && mouseY <= bnds[1] + 150) {
+                if (button == 0) {
+                    int cx = bnds[0] + 10;
+                    if (mouseX >= cx && mouseX <= cx + 140 && mouseY >= bnds[1] + 10 && mouseY <= bnds[1] + 90) {
+                        cpDragTarget = CpDrag.SV;
+                        cpSat = (float)((mouseX - cx) / 140.0);
+                        cpVal = 1.0f - (float)((mouseY - (bnds[1] + 10)) / 80.0);
+                        cpSat = Math.max(0, Math.min(1, cpSat));
+                        cpVal = Math.max(0, Math.min(1, cpVal));
+                    } else if (mouseX >= cx && mouseX <= cx + 140 && mouseY >= bnds[1] + 95 && mouseY <= bnds[1] + 105) {
+                        cpDragTarget = CpDrag.HUE;
+                        cpHue = (float)((mouseX - cx) / 140.0);
+                        cpHue = Math.max(0, Math.min(1, cpHue));
+                    } else if (mouseX >= cx + 50 && mouseX <= cx + 93 && mouseY >= bnds[1] + 115 && mouseY <= bnds[1] + 140) {
+                    // Apply Clicked
+                    colorPickerTarget.btnColor = getCurrentPickerColor();
+                    SimpleCPSConfig.save();
+                    colorPickerOpen = false;
+                } else if (mouseX >= cx + 97 && mouseX <= cx + 140 && mouseY >= bnds[1] + 115 && mouseY <= bnds[1] + 140) {
+                    // Reset Clicked
+                    colorPickerTarget.btnColor = -1;
+                    SimpleCPSConfig.save();
+                    colorPickerOpen = false;
+                }    }
+                return true;
+            } else {
+                colorPickerOpen = false;
+                return true;
+            }
+        }
         
         if (contextMenuOpen) {
              // Handle Menu Clicks
@@ -349,6 +395,24 @@ public class KeystrokesDesignerScreen extends Screen {
         double mouseX = click.comp_4798();
         double mouseY = click.comp_4799();
         int button = click.button();
+        
+        if (colorPickerOpen) {
+            if (cpDragTarget != CpDrag.NONE) {
+                int[] bnds = getPickerBounds();
+                int cx = bnds[0] + 10;
+                if (cpDragTarget == CpDrag.SV) {
+                    cpSat = (float)((mouseX - cx) / 140.0);
+                    cpVal = 1.0f - (float)((mouseY - (bnds[1] + 10)) / 80.0);
+                    cpSat = Math.max(0, Math.min(1, cpSat));
+                    cpVal = Math.max(0, Math.min(1, cpVal));
+                } else if (cpDragTarget == CpDrag.HUE) {
+                    cpHue = (float)((mouseX - cx) / 140.0);
+                    cpHue = Math.max(0, Math.min(1, cpHue));
+                }
+                return true;
+            }
+            return true;
+        }
         
         if (button == 0 && currentState == InteractionState.DRAGGING_BOX) { // Left Drag
             double rawDx = mouseX - dragStartX;
@@ -600,13 +664,93 @@ public class KeystrokesDesignerScreen extends Screen {
         return super.charTyped(charInput);
     }
 
+
+    private int getCurrentPickerColor() {
+        return 0xFF000000 | (java.awt.Color.HSBtoRGB(cpHue, cpSat, cpVal) & 0xFFFFFF);
+    }
+
+    private int[] getPickerBounds() {
+        int centerX = width / 2;
+        int centerY = height / 2;
+        int originX = centerX - 33;
+        int originY = centerY - 48;
+        
+        int bx = originX + colorPickerTarget.x;
+        int by = originY + colorPickerTarget.y;
+        
+        int px = bx + colorPickerTarget.w + 5;
+        if (px + 160 > this.width) {
+            px = bx - 160 - 5;
+        }
+        
+        int py = by;
+        if (py + 150 > this.height) {
+            py = this.height - 150 - 5;
+        }
+        if (py < 5) py = 5;
+        
+        return new int[]{px, py, 160, 150};
+    }
+
+    private void renderColorPicker(DrawContext context, int mouseX, int mouseY) {
+        int[] bnds = getPickerBounds();
+        int px = bnds[0];
+        int py = bnds[1];
+        
+        context.fill(px, py, px + 160, py + 150, 0xFF222222);
+        drawBorder(context, px, py, 160, 150, 0xFFFFFFFF);
+        
+        int cx = px + 10;
+        int cy = py + 10;
+        
+        // SV Box (140 x 80)
+        for (int i = 0; i < 140; i++) {
+            float s = i / 140f;
+            int c = java.awt.Color.HSBtoRGB(cpHue, s, 1.0f);
+            context.fill(cx + i, cy, cx + i + 1, cy + 80, c | 0xFF000000);
+        }
+        context.fillGradient(cx, cy, cx + 140, cy + 80, 0x00000000, 0xFF000000);
+        
+        int svCurX = cx + (int)(cpSat * 140);
+        int svCurY = cy + (int)((1.0f - cpVal) * 80);
+        context.fill(svCurX - 2, svCurY - 2, svCurX + 2, svCurY + 2, 0xFFFFFFFF);
+        context.fill(svCurX - 1, svCurY - 1, svCurX + 1, svCurY + 1, 0xFF000000);
+        
+        // Hue Slider (140 x 10) at py + 95
+        cy = py + 95;
+        for (int i = 0; i < 140; i++) {
+            float h = i / 140f;
+            int c = java.awt.Color.HSBtoRGB(h, 1.0f, 1.0f);
+            context.fill(cx + i, cy, cx + i + 1, cy + 10, c | 0xFF000000);
+        }
+        int hCurX = cx + (int)(cpHue * 140);
+        context.fill(hCurX - 2, cy - 1, hCurX + 2, cy + 11, 0xFFFFFFFF);
+        context.fill(hCurX - 1, cy, hCurX + 1, cy + 10, 0xFF000000);
+        
+        // Preview + Apply (Y=115, H=25)
+        cy = py + 115;
+        int curColor = getCurrentPickerColor();
+        context.fill(cx, cy, cx + 40, cy + 25, curColor);
+        drawBorder(context, cx, cy, 40, 25, 0xFFFFFFFF);
+        
+        boolean applyHover = mouseX >= cx + 50 && mouseX <= cx + 93 && mouseY >= cy && mouseY <= cy + 25;
+    context.fill(cx + 50, cy, cx + 93, cy + 25, applyHover ? 0xFF444444 : 0xFF333333);
+    drawBorder(context, cx + 50, cy, 43, 25, 0xFFFFFFFF);
+    context.drawText(this.textRenderer, "Apply", cx + 59, cy + 8, 0xFFFFFFFF, true);
+
+    boolean resetHover = mouseX >= cx + 97 && mouseX <= cx + 140 && mouseY >= cy && mouseY <= cy + 25;
+    context.fill(cx + 97, cy, cx + 140, cy + 25, resetHover ? 0xFF444444 : 0xFF333333);
+    drawBorder(context, cx + 97, cy, 43, 25, 0xFFFFFFFF);
+    context.drawText(this.textRenderer, "Reset", cx + 105, cy + 8, 0xFFFFFFFF, true);
+    }
+
     private void renderContextMenu(DrawContext context, int mouseX, int mouseY) {
         int w = 140; // Slightly wider for new options
         int h = 0;
         
         // Calculate height based on items
         if (contextMenuTarget != null) {
-            h = 160; // 8 items * 20
+            h = 200; // 10 items * 20
         } else {
             h = 140; // 7 items (Add x5 + Reset + Close?)
         }
@@ -632,10 +776,11 @@ public class KeystrokesDesignerScreen extends Screen {
             if (contextMenuTarget.isMouse) {
                  drawContextMenuItem(context, "Toggle CPS", x, y, mouseX, mouseY, 6);
                  drawContextMenuItem(context, "Delete", x, y, mouseX, mouseY, 7);
-                 // 8 items
+                 drawContextMenuItem(context, "Change Color", x, y, mouseX, mouseY, 8);
             } else {
                  drawContextMenuItem(context, "Delete", x, y, mouseX, mouseY, 6);
                  drawContextMenuItem(context, "Duplicate", x, y, mouseX, mouseY, 7);
+                 drawContextMenuItem(context, "Change Color", x, y, mouseX, mouseY, 8);
             }
         } else {
             drawContextMenuItem(context, "Add Key (1x1)", x, y, mouseX, mouseY, 0);
@@ -666,7 +811,7 @@ public class KeystrokesDesignerScreen extends Screen {
     }
     
     private int getMenuHeight(boolean hasTarget) {
-        return hasTarget ? 160 : 140;
+        return hasTarget ? 200 : 140;
     }
     
     private void handleMenuAction(int index) {
@@ -704,19 +849,28 @@ public class KeystrokesDesignerScreen extends Screen {
                     break;
                     
                 case 7: // Variable
-                    if (contextMenuTarget.isMouse) {
-                        // Delete for Mouse
-                        config.keystrokesLayout.remove(contextMenuTarget);
-                        selectedButtons.remove(contextMenuTarget);
-                        contextMenuTarget = null;
-                        currentState = InteractionState.IDLE;
-                    } else {
-                        // Duplicate
-                        addNewButton(contextMenuTarget.label, contextMenuTarget.x + 10, contextMenuTarget.y + 10, contextMenuTarget.w, contextMenuTarget.h, contextMenuTarget.keyCode);
-                    }
-                    break;
-            }
-        } else {
+                if (contextMenuTarget.isMouse) {
+                    // Delete for Mouse
+                    config.keystrokesLayout.remove(contextMenuTarget);
+                    selectedButtons.remove(contextMenuTarget);
+                    contextMenuTarget = null;
+                    currentState = InteractionState.IDLE;
+                } else {
+                    // Duplicate
+                    addNewButton(contextMenuTarget.label, contextMenuTarget.x + 10, contextMenuTarget.y + 10, contextMenuTarget.w, contextMenuTarget.h, contextMenuTarget.keyCode);
+                }
+                break;
+            case 8: // Change Color
+                colorPickerTarget = contextMenuTarget;
+                int initColor = colorPickerTarget.btnColor;
+                if (initColor == -1) initColor = config.keystrokesColor;
+                float[] hsb = java.awt.Color.RGBtoHSB((initColor >> 16) & 0xFF, (initColor >> 8) & 0xFF, initColor & 0xFF, null);
+                cpHue = hsb[0]; cpSat = hsb[1]; cpVal = hsb[2];
+                contextMenuOpen = false;
+                colorPickerOpen = true;
+                break;
+        }
+    } else {
             saveUndo();
             switch(index) {
                 case 0: // Add 1x1 Key
