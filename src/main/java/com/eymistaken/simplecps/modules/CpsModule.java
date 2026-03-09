@@ -55,7 +55,8 @@ public class CpsModule extends HudModule {
         java.util.List<com.eymistaken.simplecps.api.HudModuleSetting> settings = new java.util.ArrayList<>(super.getContextMenuSettings());
         settings.addAll(java.util.List.of(
             new com.eymistaken.simplecps.api.BooleanSetting("Enable CPS", () -> config.enabled, v -> config.enabled = v),
-            new com.eymistaken.simplecps.api.ColorSetting("Text Color", () -> config.textColor, v -> config.textColor = v)
+            new com.eymistaken.simplecps.api.ColorSetting("Text Color", () -> config.textColor, v -> config.textColor = v),
+            new com.eymistaken.simplecps.api.SliderSetting("Scale %", 50, 300, 100, () -> config.scale, v -> config.scale = v)
         ));
         return settings;
     }

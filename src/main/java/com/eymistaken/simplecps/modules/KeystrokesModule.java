@@ -146,7 +146,7 @@ public class KeystrokesModule extends HudModule {
              float newAnim = updateAnimation(currentAnim, isPressed);
              keyScales.put(btn.keyCode + (btn.isMouse ? 1000 : 0), newAnim);
              
-             drawAnimatedKey(drawContext, client, btn, isPressed ? pressedColor : normalColor, baseBgColor, newAnim);
+             drawAnimatedKey(drawContext, client, btn, isPressed ? pressedColor : normalColor, baseBgColor, newAnim, isPressed);
         }
 
         drawContext.getMatrices().popMatrix();
@@ -160,9 +160,15 @@ public class KeystrokesModule extends HudModule {
         return currentScale + (diff * speed);
     }
 
-    private void drawAnimatedKey(DrawContext context, MinecraftClient client, SimpleCPSConfig.KeyButtonData btn, int textColor, int bgColor, float animScale) {
-        if (btn.btnColor != -1 && btn.btnColor != 0) {
-            textColor = btn.btnColor;
+    private void drawAnimatedKey(DrawContext context, MinecraftClient client, SimpleCPSConfig.KeyButtonData btn, int textColor, int bgColor, float animScale, boolean isPressed) {
+        if (isPressed) {
+            if (btn.btnPressedColor != -1 && btn.btnPressedColor != 0) {
+                textColor = btn.btnPressedColor;
+            }
+        } else {
+            if (btn.btnColor != -1 && btn.btnColor != 0) {
+                textColor = btn.btnColor;
+            }
         }
         context.getMatrices().pushMatrix();
         

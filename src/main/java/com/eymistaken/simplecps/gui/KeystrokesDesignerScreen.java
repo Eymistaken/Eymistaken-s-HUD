@@ -94,6 +94,7 @@ public class KeystrokesDesignerScreen extends Screen {
 
     // Inline Color Picker State
     private boolean colorPickerOpen = false;
+    private boolean colorPickerTargetPressed = false;
     private SimpleCPSConfig.KeyButtonData colorPickerTarget = null;
     private float cpHue = 0.0f;
     private float cpSat = 1.0f;
@@ -179,7 +180,8 @@ public class KeystrokesDesignerScreen extends Screen {
                 ly -= 4; // Shift up 4px to make room
             }
             
-            context.drawText(textRenderer, text, lx, ly, 0xFFFFFFFF, btn.shadow);
+            int lblColor = (btn.btnColor != -1 && btn.btnColor != 0) ? (btn.btnColor | 0xFF000000) : 0xFFFFFFFF;
+            context.drawText(textRenderer, text, lx, ly, lblColor, btn.shadow);
             
             // Render CPS Preview
             if (btn.isMouse && btn.showCps) {
@@ -254,12 +256,20 @@ public class KeystrokesDesignerScreen extends Screen {
                         cpHue = Math.max(0, Math.min(1, cpHue));
                     } else if (mouseX >= cx + 50 && mouseX <= cx + 93 && mouseY >= bnds[1] + 115 && mouseY <= bnds[1] + 140) {
                     // Apply Clicked
-                    colorPickerTarget.btnColor = getCurrentPickerColor();
+                    if (colorPickerTargetPressed) {
+                        colorPickerTarget.btnPressedColor = getCurrentPickerColor();
+                    } else {
+                        colorPickerTarget.btnColor = getCurrentPickerColor();
+                    }
                     SimpleCPSConfig.save();
                     colorPickerOpen = false;
                 } else if (mouseX >= cx + 97 && mouseX <= cx + 140 && mouseY >= bnds[1] + 115 && mouseY <= bnds[1] + 140) {
                     // Reset Clicked
-                    colorPickerTarget.btnColor = -1;
+                    if (colorPickerTargetPressed) {
+                        colorPickerTarget.btnPressedColor = -1;
+                    } else {
+                        colorPickerTarget.btnColor = -1;
+                    }
                     SimpleCPSConfig.save();
                     colorPickerOpen = false;
                 }    }
@@ -750,7 +760,7 @@ public class KeystrokesDesignerScreen extends Screen {
         
         // Calculate height based on items
         if (contextMenuTarget != null) {
-            h = 200; // 10 items * 20
+            h = 220; // 11 items * 20
         } else {
             h = 140; // 7 items (Add x5 + Reset + Close?)
         }
@@ -777,10 +787,12 @@ public class KeystrokesDesignerScreen extends Screen {
                  drawContextMenuItem(context, "Toggle CPS", x, y, mouseX, mouseY, 6);
                  drawContextMenuItem(context, "Delete", x, y, mouseX, mouseY, 7);
                  drawContextMenuItem(context, "Change Color", x, y, mouseX, mouseY, 8);
+                 drawContextMenuItem(context, "Change Pressed Color", x, y, mouseX, mouseY, 9);
             } else {
                  drawContextMenuItem(context, "Delete", x, y, mouseX, mouseY, 6);
                  drawContextMenuItem(context, "Duplicate", x, y, mouseX, mouseY, 7);
                  drawContextMenuItem(context, "Change Color", x, y, mouseX, mouseY, 8);
+                 drawContextMenuItem(context, "Change Pressed Color", x, y, mouseX, mouseY, 9);
             }
         } else {
             drawContextMenuItem(context, "Add Key (1x1)", x, y, mouseX, mouseY, 0);
@@ -811,7 +823,7 @@ public class KeystrokesDesignerScreen extends Screen {
     }
     
     private int getMenuHeight(boolean hasTarget) {
-        return hasTarget ? 200 : 140;
+        return hasTarget ? 220 : 140;
     }
     
     private void handleMenuAction(int index) {
@@ -861,11 +873,22 @@ public class KeystrokesDesignerScreen extends Screen {
                 }
                 break;
             case 8: // Change Color
+                colorPickerTargetPressed = false;
                 colorPickerTarget = contextMenuTarget;
                 int initColor = colorPickerTarget.btnColor;
-                if (initColor == -1) initColor = config.keystrokesColor;
+                if (initColor <= 0) initColor = config.keystrokesColor;
                 float[] hsb = java.awt.Color.RGBtoHSB((initColor >> 16) & 0xFF, (initColor >> 8) & 0xFF, initColor & 0xFF, null);
                 cpHue = hsb[0]; cpSat = hsb[1]; cpVal = hsb[2];
+                contextMenuOpen = false;
+                colorPickerOpen = true;
+                break;
+            case 9: // Change Pressed Color
+                colorPickerTargetPressed = true;
+                colorPickerTarget = contextMenuTarget;
+                int initPColor = colorPickerTarget.btnPressedColor;
+                if (initPColor <= 0) initPColor = config.keystrokesPressedColor;
+                float[] phsb = java.awt.Color.RGBtoHSB((initPColor >> 16) & 0xFF, (initPColor >> 8) & 0xFF, initPColor & 0xFF, null);
+                cpHue = phsb[0]; cpSat = phsb[1]; cpVal = phsb[2];
                 contextMenuOpen = false;
                 colorPickerOpen = true;
                 break;

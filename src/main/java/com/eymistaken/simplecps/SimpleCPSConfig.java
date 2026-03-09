@@ -137,6 +137,8 @@ public class SimpleCPSConfig {
         public int labelX = -1, labelY = -1; // -1 means center
         @com.google.gson.annotations.SerializedName("btnColor")
         public int btnColor = -1; // -1 means global color
+        @com.google.gson.annotations.SerializedName("btnPressedColor")
+        public int btnPressedColor = -1; // -1 means global pressed color
 
         public KeyButtonData(String label, int x, int y, int w, int h, int keyCode) {
             this(label, x, y, w, h, keyCode, false);

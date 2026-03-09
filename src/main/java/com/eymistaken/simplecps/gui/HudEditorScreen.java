@@ -30,6 +30,9 @@ public class HudEditorScreen extends Screen {
     // For text editing (Stage 4 prep)
     private com.eymistaken.simplecps.api.TextSetting textEditTarget = null;
     private String textEditBuffer = "";
+    
+    // For slider dragging
+    private com.eymistaken.simplecps.api.SliderSetting draggingSlider = null;
 
     public HudEditorScreen(Screen parent) {
         super(Text.of("HUD Editor"));
@@ -122,12 +125,28 @@ public class HudEditorScreen extends Screen {
         int button = click.button();
         
         if (contextMenuOpen && contextMenuTarget != null) {
-            int menuW = 160;
+            int menuW = 220;
             int menuH = getMenuHeight(contextMenuTarget);
             if (mouseX >= contextMenuX && mouseX <= contextMenuX + menuW &&
                 mouseY >= contextMenuY && mouseY <= contextMenuY + menuH) {
-                int index = (int)((mouseY - contextMenuY) / 20);
-                handleMenuClick(index);
+                
+                int currentY = contextMenuY + 20; // Skip context menu title (Reset Position)
+                java.util.List<com.eymistaken.simplecps.api.HudModuleSetting> settings = contextMenuTarget.getContextMenuSettings();
+                
+                if (mouseY < currentY) {
+                    handleMenuClick(-1, mouseX, mouseY); // Reset Position
+                    return true;
+                }
+                
+                for (int i = 0; i < settings.size(); i++) {
+                    com.eymistaken.simplecps.api.HudModuleSetting setting = settings.get(i);
+                    int itemHeight = (setting instanceof com.eymistaken.simplecps.api.SliderSetting) ? 24 : 20;
+                    if (mouseY >= currentY && mouseY < currentY + itemHeight) {
+                        handleMenuClick(i, mouseX, mouseY);
+                        return true;
+                    }
+                    currentY += itemHeight;
+                }
                 return true;
             } else {
                 contextMenuOpen = false;
@@ -181,9 +200,16 @@ public class HudEditorScreen extends Screen {
     @Override
     public boolean mouseReleased(Click click) {
         int button = click.button();
-        if (button == 0 && draggingModule != null) {
-            draggingModule = null;
-            return true;
+        if (button == 0) {
+            if (draggingModule != null) {
+                draggingModule = null;
+                return true;
+            }
+            if (draggingSlider != null) {
+                draggingSlider = null;
+                SimpleCPSConfig.save();
+                return true;
+            }
         }
         return super.mouseReleased(click);
     }
@@ -193,6 +219,19 @@ public class HudEditorScreen extends Screen {
         double mouseX = click.comp_4798();
         double mouseY = click.comp_4799();
         int button = click.button();
+        
+        if (button == 0 && draggingSlider != null) {
+            int barX = contextMenuX + 78;
+            int barW = 94;
+            int relX = (int)mouseX - barX;
+            float ratio = (float)relX / barW;
+            ratio = Math.max(0, Math.min(1, ratio));
+            
+            int range = draggingSlider.max - draggingSlider.min;
+            int newVal = draggingSlider.min + (int)(ratio * range);
+            draggingSlider.setter.accept(newVal);
+            return true;
+        }
         
         if (button == 0 && draggingModule != null) {
             // 1. Calculate TARGET Screen Position
@@ -269,11 +308,16 @@ public class HudEditorScreen extends Screen {
     }
 
     private int getMenuHeight(com.eymistaken.simplecps.api.HudModule module) {
-        return 20 + module.getContextMenuSettings().size() * 20;
+        int height = 20;
+        for (com.eymistaken.simplecps.api.HudModuleSetting setting : module.getContextMenuSettings()) {
+            if (setting instanceof com.eymistaken.simplecps.api.SliderSetting) height += 24;
+            else height += 20;
+        }
+        return height;
     }
 
-    private void handleMenuClick(int index) {
-        if (index == 0) {
+    private void handleMenuClick(int index, double mouseX, double mouseY) {
+        if (index == -1) {
             contextMenuTarget.resetToDefaults();
             SimpleCPSConfig.save();
             contextMenuOpen = false;
@@ -281,8 +325,8 @@ public class HudEditorScreen extends Screen {
         }
         
         java.util.List<com.eymistaken.simplecps.api.HudModuleSetting> settings = contextMenuTarget.getContextMenuSettings();
-        if (index - 1 < settings.size()) {
-            com.eymistaken.simplecps.api.HudModuleSetting setting = settings.get(index - 1);
+        if (index < settings.size()) {
+            com.eymistaken.simplecps.api.HudModuleSetting setting = settings.get(index);
             if (setting instanceof com.eymistaken.simplecps.api.ActionSetting actionSetting) {
                 actionSetting.action.run();
                 SimpleCPSConfig.save();
@@ -309,12 +353,24 @@ public class HudEditorScreen extends Screen {
                 textEditTarget = textSetting;
                 textEditBuffer = textSetting.getter.get();
                 contextMenuOpen = false;
+            } else if (setting instanceof com.eymistaken.simplecps.api.SliderSetting slider) {
+                int relX = (int)mouseX - contextMenuX;
+                if (relX >= 176 && relX <= 176 + 40) { // Reset button
+                    slider.setter.accept(slider.defaultValue);
+                    SimpleCPSConfig.save();
+                } else if (relX >= 78 && relX <= 78 + 94) { // Bar
+                    float ratio = (float)(relX - 78) / 94f;
+                    ratio = Math.max(0, Math.min(1, ratio));
+                    int range = slider.max - slider.min;
+                    slider.setter.accept(slider.min + (int)(ratio * range));
+                    draggingSlider = slider;
+                }
             }
         }
     }
 
     private void renderContextMenu(DrawContext context, int mouseX, int mouseY) {
-        int w = 160;
+        int w = 220;
         int h = getMenuHeight(contextMenuTarget);
         int x = contextMenuX;
         int y = contextMenuY;
@@ -325,42 +381,72 @@ public class HudEditorScreen extends Screen {
         context.fill(x - 1, y, x, y + h, 0xFFFFFFFF); // Left
         context.fill(x + w, y, x + w + 1, y + h, 0xFFFFFFFF); // Right
         
+        // As defined in Phase 4 earlier requests, we don't have Reset Position here natively
+        // Actually, this line is preserved for retro-compatibility / the HudEditor specific entry.
+        // Wait, the user said "Reset Position zaten HudEditorScreen tarafindan menuye ayrica ekleniyor."
+        // We preserved the 'y + 20' skip in hit testing, so the 0th item is the Reset Position.
         boolean hoverReset = mouseX >= x && mouseX <= x + w && mouseY >= y && mouseY < y + 20;
         if (hoverReset) context.fill(x, y, x + w, y + 20, 0xFF444444);
         context.drawText(this.textRenderer, "Reset Position", x + 5, y + 6, 0xFFFFFFFF, true);
         
         java.util.List<com.eymistaken.simplecps.api.HudModuleSetting> settings = contextMenuTarget.getContextMenuSettings();
+        int currentY = y + 20;
+        
         for (int i = 0; i < settings.size(); i++) {
-            int itemY = y + 20 + i * 20;
-            boolean hovered = mouseX >= x && mouseX <= x + w && mouseY >= itemY && mouseY < itemY + 20;
-            if (hovered) context.fill(x, itemY, x + w, itemY + 20, 0xFF444444);
-            
             com.eymistaken.simplecps.api.HudModuleSetting setting = settings.get(i);
-            context.drawText(this.textRenderer, setting.label, x + 5, itemY + 6, 0xFFFFFFFF, true);
+            int itemHeight = (setting instanceof com.eymistaken.simplecps.api.SliderSetting) ? 24 : 20;
+            
+            boolean hovered = mouseX >= x && mouseX <= x + w && mouseY >= currentY && mouseY < currentY + itemHeight;
+            if (hovered) context.fill(x, currentY, x + w, currentY + itemHeight, 0xFF444444);
+            
+            context.drawText(this.textRenderer, setting.label, x + 5, currentY + (itemHeight / 2) - 4, 0xFFFFFFFF, true);
             
             if (setting instanceof com.eymistaken.simplecps.api.BooleanSetting boolSetting) {
                 String val = boolSetting.getter.get() ? "[ON]" : "[OFF]";
                 int valW = this.textRenderer.getWidth(val);
                 int color = boolSetting.getter.get() ? 0xFF55FF55 : 0xFFFF5555;
-                context.drawText(this.textRenderer, val, x + w - valW - 5, itemY + 6, color, true);
+                context.drawText(this.textRenderer, val, x + w - valW - 5, currentY + 6, color, true);
             } else if (setting instanceof com.eymistaken.simplecps.api.CycleSetting cycleSetting) {
                 String val = cycleSetting.options.get(cycleSetting.getter.get());
                 int valW = this.textRenderer.getWidth(val);
-                context.drawText(this.textRenderer, val, x + w - valW - 5, itemY + 6, 0xFFFFAA00, true);
+                context.drawText(this.textRenderer, val, x + w - valW - 5, currentY + 6, 0xFFFFAA00, true);
             } else if (setting instanceof com.eymistaken.simplecps.api.ColorSetting colorSetting) {
                 int c = colorSetting.getter.get() | 0xFF000000;
-                context.fill(x + w - 15, itemY + 5, x + w - 5, itemY + 15, c);
+                context.fill(x + w - 15, currentY + 5, x + w - 5, currentY + 15, c);
                 // border
-                context.fill(x + w - 16, itemY + 4, x + w - 15, itemY + 16, 0xFFFFFFFF);
-                context.fill(x + w - 4, itemY + 4, x + w - 5, itemY + 16, 0xFFFFFFFF);
-                context.fill(x + w - 15, itemY + 4, x + w - 5, itemY + 5, 0xFFFFFFFF);
-                context.fill(x + w - 15, itemY + 15, x + w - 5, itemY + 16, 0xFFFFFFFF);
+                context.fill(x + w - 16, currentY + 4, x + w - 15, currentY + 16, 0xFFFFFFFF);
+                context.fill(x + w - 4, currentY + 4, x + w - 5, currentY + 16, 0xFFFFFFFF);
+                context.fill(x + w - 15, currentY + 4, x + w - 5, currentY + 5, 0xFFFFFFFF);
+                context.fill(x + w - 15, currentY + 15, x + w - 5, currentY + 16, 0xFFFFFFFF);
             } else if (setting instanceof com.eymistaken.simplecps.api.TextSetting textSetting) {
                 String val = textSetting.getter.get();
                 if (val.length() > 5) val = val.substring(0, 5) + "...";
                 int valW = this.textRenderer.getWidth(val);
-                context.drawText(this.textRenderer, val, x + w - valW - 5, itemY + 6, 0xFFAAAAAA, true);
+                context.drawText(this.textRenderer, val, x + w - valW - 5, currentY + 6, 0xFFAAAAAA, true);
+            } else if (setting instanceof com.eymistaken.simplecps.api.SliderSetting slider) {
+                int val = slider.getter.get();
+                float ratio = (float)(val - slider.min) / (slider.max - slider.min);
+                int fillWidth = (int)(94 * ratio);
+                
+                // Draw Bar Background
+                context.fill(x + 78, currentY + 6, x + 78 + 94, currentY + 18, 0xFF000000);
+                // Draw Bar Fill
+                context.fill(x + 78, currentY + 6, x + 78 + fillWidth, currentY + 18, 0xFF36454F);
+                // Draw Thumb
+                context.fill(x + 78 + fillWidth - 2, currentY + 4, x + 78 + fillWidth + 2, currentY + 20, 0xFFAAAAAA);
+                // Draw Value text centered in Bar
+                String valStr = val + "%";
+                int valW = this.textRenderer.getWidth(valStr);
+                context.drawText(this.textRenderer, valStr, x + 78 + (94 - valW) / 2, currentY + 8, 0xFFFFFFFF, true);
+                
+                // Draw Reset Button (width 40px starting at x+176)
+                boolean hoverRButton = mouseX >= x + 176 && mouseX <= x + 176 + 40 && mouseY >= currentY && mouseY < currentY + itemHeight;
+                int rColor = hoverRButton ? 0xFF990000 : 0xFF550000;
+                context.fill(x + 176, currentY + 4, x + 176 + 40, currentY + 20, rColor);
+                context.drawCenteredTextWithShadow(this.textRenderer, Text.of("Reset"), x + 176 + 20, currentY + 8, 0xFFFFFFFF);
             }
+            
+            currentY += itemHeight;
         }
     }
 
