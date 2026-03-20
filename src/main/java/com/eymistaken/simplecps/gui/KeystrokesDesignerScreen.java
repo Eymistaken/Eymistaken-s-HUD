@@ -102,6 +102,10 @@ public class KeystrokesDesignerScreen extends Screen {
     private enum CpDrag { NONE, SV, HUE }
     private CpDrag cpDragTarget = CpDrag.NONE;
 
+    private boolean cpHexBoxActive = false;
+    private String cpHexInput = "";
+    private long cpCopiedTime = 0;
+
     // Context Menu
     private boolean contextMenuOpen = false;
     private int contextMenuX, contextMenuY;
@@ -241,9 +245,35 @@ public class KeystrokesDesignerScreen extends Screen {
         
         if (colorPickerOpen && colorPickerTarget != null) {
             int[] bnds = getPickerBounds();
-            if (mouseX >= bnds[0] && mouseX <= bnds[0] + 160 && mouseY >= bnds[1] && mouseY <= bnds[1] + 150) {
+            if (mouseX >= bnds[0] && mouseX <= bnds[0] + 160 && mouseY >= bnds[1] && mouseY <= bnds[1] + 180) {
                 if (button == 0) {
                     int cx = bnds[0] + 10;
+                    
+                    int hexBoxX = cx;
+                    int hexBoxY = bnds[1] + 115;
+                    int hexBoxW = 60;
+                    int hexBoxH = 15;
+                    int copyBtnX = hexBoxX + hexBoxW + 5;
+                    int copyBtnY = hexBoxY;
+                    int copyBtnW = 40;
+                    int copyBtnH = 15;
+
+                    if (mouseX >= hexBoxX && mouseX <= hexBoxX + hexBoxW && mouseY >= hexBoxY && mouseY <= hexBoxY + hexBoxH) {
+                        cpHexBoxActive = true;
+                        cpHexInput = String.format("#%06X", getCurrentPickerColor() & 0xFFFFFF);
+                        return true;
+                    } else {
+                        cpHexBoxActive = false;
+                    }
+                    
+                    if (mouseX >= copyBtnX && mouseX <= copyBtnX + copyBtnW && mouseY >= copyBtnY && mouseY <= copyBtnY + copyBtnH) {
+                        if (this.client != null) {
+                            this.client.keyboard.setClipboard(String.format("#%06X", getCurrentPickerColor() & 0xFFFFFF));
+                            cpCopiedTime = System.currentTimeMillis();
+                        }
+                        return true;
+                    }
+
                     if (mouseX >= cx && mouseX <= cx + 140 && mouseY >= bnds[1] + 10 && mouseY <= bnds[1] + 90) {
                         cpDragTarget = CpDrag.SV;
                         cpSat = (float)((mouseX - cx) / 140.0);
@@ -254,25 +284,26 @@ public class KeystrokesDesignerScreen extends Screen {
                         cpDragTarget = CpDrag.HUE;
                         cpHue = (float)((mouseX - cx) / 140.0);
                         cpHue = Math.max(0, Math.min(1, cpHue));
-                    } else if (mouseX >= cx + 50 && mouseX <= cx + 93 && mouseY >= bnds[1] + 115 && mouseY <= bnds[1] + 140) {
-                    // Apply Clicked
-                    if (colorPickerTargetPressed) {
-                        colorPickerTarget.btnPressedColor = getCurrentPickerColor();
-                    } else {
-                        colorPickerTarget.btnColor = getCurrentPickerColor();
+                    } else if (mouseX >= cx + 50 && mouseX <= cx + 93 && mouseY >= bnds[1] + 145 && mouseY <= bnds[1] + 170) {
+                        // Apply Clicked
+                        if (colorPickerTargetPressed) {
+                            colorPickerTarget.btnPressedColor = getCurrentPickerColor();
+                        } else {
+                            colorPickerTarget.btnColor = getCurrentPickerColor();
+                        }
+                        SimpleCPSConfig.save();
+                        colorPickerOpen = false;
+                    } else if (mouseX >= cx + 97 && mouseX <= cx + 140 && mouseY >= bnds[1] + 145 && mouseY <= bnds[1] + 170) {
+                        // Reset Clicked
+                        if (colorPickerTargetPressed) {
+                            colorPickerTarget.btnPressedColor = -1;
+                        } else {
+                            colorPickerTarget.btnColor = -1;
+                        }
+                        SimpleCPSConfig.save();
+                        colorPickerOpen = false;
                     }
-                    SimpleCPSConfig.save();
-                    colorPickerOpen = false;
-                } else if (mouseX >= cx + 97 && mouseX <= cx + 140 && mouseY >= bnds[1] + 115 && mouseY <= bnds[1] + 140) {
-                    // Reset Clicked
-                    if (colorPickerTargetPressed) {
-                        colorPickerTarget.btnPressedColor = -1;
-                    } else {
-                        colorPickerTarget.btnColor = -1;
-                    }
-                    SimpleCPSConfig.save();
-                    colorPickerOpen = false;
-                }    }
+                }
                 return true;
             } else {
                 colorPickerOpen = false;
@@ -583,6 +614,33 @@ public class KeystrokesDesignerScreen extends Screen {
         int scanCode = keyInput.comp_4796();
         int modifiers = keyInput.comp_4797();
         
+        if (colorPickerOpen && cpHexBoxActive) {
+            if (keyCode == GLFW.GLFW_KEY_BACKSPACE) {
+                if (!cpHexInput.isEmpty()) {
+                    cpHexInput = cpHexInput.substring(0, cpHexInput.length() - 1);
+                    tryApplyHexPicker();
+                }
+                return true;
+            }
+            if (keyCode == GLFW.GLFW_KEY_V && (modifiers & GLFW.GLFW_MOD_CONTROL) != 0) {
+                 if (this.client != null) {
+                     String clipboard = this.client.keyboard.getClipboard();
+                     if (clipboard != null) {
+                         clipboard = clipboard.trim();
+                         if (clipboard.matches("^#?[0-9a-fA-F]{1,8}$")) {
+                             cpHexInput = clipboard.startsWith("#") ? clipboard : "#" + clipboard;
+                             tryApplyHexPicker();
+                         }
+                     }
+                 }
+                 return true;
+            }
+            if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER || keyCode == GLFW.GLFW_KEY_ESCAPE) {
+                cpHexBoxActive = false;
+                return true;
+            }
+        }
+
         if (waitingForKeybind) {
             if (keyCode != GLFW.GLFW_KEY_ESCAPE) {
                  if (contextMenuTarget != null) {
@@ -627,6 +685,12 @@ public class KeystrokesDesignerScreen extends Screen {
             else if (keyCode == GLFW.GLFW_KEY_SPACE) {
                  target.label += " ";
             }
+            else if (keyCode == GLFW.GLFW_KEY_V && (modifiers & GLFW.GLFW_MOD_CONTROL) != 0) {
+                 String clipboard = client.keyboard.getClipboard();
+                 if (clipboard != null && !clipboard.isEmpty()) {
+                     target.label += clipboard;
+                 }
+            }
             return true;
         }
         
@@ -666,6 +730,16 @@ public class KeystrokesDesignerScreen extends Screen {
         char chr = (char) charInput.comp_4793();
         int modifiers = charInput.comp_4794();
         
+        if (colorPickerOpen && cpHexBoxActive) {
+            if (cpHexInput.length() < 9 && ((chr >= '0' && chr <= '9') || (chr >= 'a' && chr <= 'f') || (chr >= 'A' && chr <= 'F') || chr == '#')) {
+                if (chr == '#' && cpHexInput.contains("#")) return super.charTyped(charInput);
+                if (cpHexInput.isEmpty() && chr != '#') cpHexInput = "#" + chr;
+                else cpHexInput += chr;
+                tryApplyHexPicker();
+                return true;
+            }
+        }
+
         if (currentState == InteractionState.TEXT_EDIT_MODE && !selectedButtons.isEmpty()) {
             SimpleCPSConfig.KeyButtonData target = selectedButtons.get(0);
             target.label += chr;
@@ -694,12 +768,12 @@ public class KeystrokesDesignerScreen extends Screen {
         }
         
         int py = by;
-        if (py + 150 > this.height) {
-            py = this.height - 150 - 5;
+        if (py + 180 > this.height) {
+            py = this.height - 180 - 5;
         }
         if (py < 5) py = 5;
         
-        return new int[]{px, py, 160, 150};
+        return new int[]{px, py, 160, 180};
     }
 
     private void renderColorPicker(DrawContext context, int mouseX, int mouseY) {
@@ -707,8 +781,8 @@ public class KeystrokesDesignerScreen extends Screen {
         int px = bnds[0];
         int py = bnds[1];
         
-        context.fill(px, py, px + 160, py + 150, 0xFF222222);
-        drawBorder(context, px, py, 160, 150, 0xFFFFFFFF);
+        context.fill(px, py, px + 160, py + 180, 0xFF222222);
+        drawBorder(context, px, py, 160, 180, 0xFFFFFFFF);
         
         int cx = px + 10;
         int cy = py + 10;
@@ -737,21 +811,58 @@ public class KeystrokesDesignerScreen extends Screen {
         context.fill(hCurX - 2, cy - 1, hCurX + 2, cy + 11, 0xFFFFFFFF);
         context.fill(hCurX - 1, cy, hCurX + 1, cy + 10, 0xFF000000);
         
-        // Preview + Apply (Y=115, H=25)
+        // Hex Box + Copy Button at Y=115
         cy = py + 115;
+        int hexBoxX = cx;
+        int hexBoxY = cy;
+        int hexBoxW = 60;
+        int hexBoxH = 15;
+        
+        String displayHex = cpHexBoxActive ? cpHexInput + (((System.currentTimeMillis() / 500) % 2 == 0) ? "_" : "") : String.format("#%06X", getCurrentPickerColor() & 0xFFFFFF);
+        context.fill(hexBoxX, hexBoxY, hexBoxX + hexBoxW, hexBoxY + hexBoxH, 0xFF000000);
+        drawBorder(context, hexBoxX, hexBoxY, hexBoxW, hexBoxH, cpHexBoxActive ? 0xFF00FF00 : 0xFFFFFFFF);
+        context.drawText(this.textRenderer, displayHex, hexBoxX + 4, hexBoxY + 4, 0xFFFFFFFF, true);
+        
+        int copyBtnX = hexBoxX + hexBoxW + 5;
+        int copyBtnY = hexBoxY;
+        int copyBtnW = 40;
+        int copyBtnH = 15;
+        boolean copyHovered = mouseX >= copyBtnX && mouseX <= copyBtnX + copyBtnW && mouseY >= copyBtnY && mouseY <= copyBtnY + copyBtnH;
+        context.fill(copyBtnX, copyBtnY, copyBtnX + copyBtnW, copyBtnY + copyBtnH, copyHovered ? 0xFF444444 : 0xFF222222);
+        drawBorder(context, copyBtnX, copyBtnY, copyBtnW, copyBtnH, 0xFFFFFFFF);
+        boolean isCopied = System.currentTimeMillis() - cpCopiedTime < 2000;
+        String copyText = isCopied ? "Copied!" : "Copy";
+        context.drawText(this.textRenderer, copyText, copyBtnX + 4, copyBtnY + 4, isCopied ? 0xFF55FF55 : 0xFFFFFFFF, true);
+
+        // Preview + Apply (Y=145, H=25)
+        cy = py + 145;
         int curColor = getCurrentPickerColor();
         context.fill(cx, cy, cx + 40, cy + 25, curColor);
         drawBorder(context, cx, cy, 40, 25, 0xFFFFFFFF);
         
         boolean applyHover = mouseX >= cx + 50 && mouseX <= cx + 93 && mouseY >= cy && mouseY <= cy + 25;
-    context.fill(cx + 50, cy, cx + 93, cy + 25, applyHover ? 0xFF444444 : 0xFF333333);
-    drawBorder(context, cx + 50, cy, 43, 25, 0xFFFFFFFF);
-    context.drawText(this.textRenderer, "Apply", cx + 59, cy + 8, 0xFFFFFFFF, true);
+        context.fill(cx + 50, cy, cx + 93, cy + 25, applyHover ? 0xFF444444 : 0xFF333333);
+        drawBorder(context, cx + 50, cy, 43, 25, 0xFFFFFFFF);
+        context.drawText(this.textRenderer, "Apply", cx + 59, cy + 8, 0xFFFFFFFF, true);
 
-    boolean resetHover = mouseX >= cx + 97 && mouseX <= cx + 140 && mouseY >= cy && mouseY <= cy + 25;
-    context.fill(cx + 97, cy, cx + 140, cy + 25, resetHover ? 0xFF444444 : 0xFF333333);
-    drawBorder(context, cx + 97, cy, 43, 25, 0xFFFFFFFF);
-    context.drawText(this.textRenderer, "Reset", cx + 105, cy + 8, 0xFFFFFFFF, true);
+        boolean resetHover = mouseX >= cx + 97 && mouseX <= cx + 140 && mouseY >= cy && mouseY <= cy + 25;
+        context.fill(cx + 97, cy, cx + 140, cy + 25, resetHover ? 0xFF444444 : 0xFF333333);
+        drawBorder(context, cx + 97, cy, 43, 25, 0xFFFFFFFF);
+        context.drawText(this.textRenderer, "Reset", cx + 105, cy + 8, 0xFFFFFFFF, true);
+    }
+
+    private void tryApplyHexPicker() {
+        String hex = cpHexInput.startsWith("#") ? cpHexInput.substring(1) : cpHexInput;
+        if (hex.length() == 6) {
+            try {
+                int rgb = Integer.parseInt(hex, 16);
+                java.awt.Color col = new java.awt.Color(rgb);
+                float[] hsb = java.awt.Color.RGBtoHSB(col.getRed(), col.getGreen(), col.getBlue(), null);
+                this.cpHue = hsb[0];
+                this.cpSat = hsb[1];
+                this.cpVal = hsb[2];
+            } catch (NumberFormatException ignored) {}
+        }
     }
 
     private void renderContextMenu(DrawContext context, int mouseX, int mouseY) {

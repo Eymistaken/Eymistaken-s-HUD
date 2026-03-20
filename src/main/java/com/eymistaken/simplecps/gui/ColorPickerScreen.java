@@ -6,6 +6,7 @@ import net.minecraft.text.Text;
 import net.minecraft.client.gui.Click;
 import org.lwjgl.glfw.GLFW;
 import net.minecraft.client.input.KeyInput;
+import net.minecraft.client.input.CharInput;
 
 import java.awt.Color;
 import java.util.function.IntConsumer;
@@ -21,6 +22,11 @@ public class ColorPickerScreen extends Screen {
 
     private enum DragTarget { NONE, SV, HUE }
     private DragTarget dragTarget = DragTarget.NONE;
+
+    private boolean hexBoxActive = false;
+    private String hexInput = "";
+    private long copiedTime = 0;
+    private boolean isAllSelected = false;
 
     public ColorPickerScreen(int initialColor, IntConsumer onSave, Screen parent) {
         super(Text.of("Color Picker"));
@@ -100,6 +106,41 @@ public class ColorPickerScreen extends Screen {
         
         context.drawText(this.textRenderer, "Save & Close", cx + 65, cy + 166, 0xFFFFFFFF, true);
 
+        // Phase 1 - Hex Box
+        int hexBoxX = cx;
+        int hexBoxY = cy - 20;
+        int hexBoxW = 60;
+        int hexBoxH = 15;
+        
+        String displayHex = hexBoxActive ? hexInput + (((System.currentTimeMillis() / 500) % 2 == 0) ? "_" : "") : String.format("#%06X", getCurrentColor() & 0xFFFFFF);
+        if (isAllSelected && hexBoxActive) {
+            displayHex = hexInput;
+        }
+        
+        context.fill(hexBoxX, hexBoxY, hexBoxX + hexBoxW, hexBoxY + hexBoxH, 0xFF000000);
+        drawBorder(context, hexBoxX, hexBoxY, hexBoxW, hexBoxH, hexBoxActive ? 0xFF00FF00 : 0xFFFFFFFF);
+        
+        if (isAllSelected && hexBoxActive) {
+            int textW = this.textRenderer.getWidth(hexInput);
+            context.fill(hexBoxX + 4, hexBoxY + 3, hexBoxX + 4 + textW, hexBoxY + 13, 0x804444FF);
+        }
+        
+        context.drawText(this.textRenderer, displayHex, hexBoxX + 4, hexBoxY + 4, 0xFFFFFFFF, true);
+
+        // Phase 2 - Copy Button
+        int copyBtnX = hexBoxX + hexBoxW + 5;
+        int copyBtnY = hexBoxY;
+        int copyBtnW = 40;
+        int copyBtnH = 15;
+        
+        boolean copyHovered = mouseX >= copyBtnX && mouseX <= copyBtnX + copyBtnW && mouseY >= copyBtnY && mouseY <= copyBtnY + copyBtnH;
+        context.fill(copyBtnX, copyBtnY, copyBtnX + copyBtnW, copyBtnY + copyBtnH, copyHovered ? 0xFF444444 : 0xFF222222);
+        drawBorder(context, copyBtnX, copyBtnY, copyBtnW, copyBtnH, 0xFFFFFFFF);
+        
+        boolean isCopied = System.currentTimeMillis() - copiedTime < 2000;
+        String copyText = isCopied ? "Copied!" : "Copy";
+        context.drawText(this.textRenderer, copyText, copyBtnX + 4, copyBtnY + 4, isCopied ? 0xFF55FF55 : 0xFFFFFFFF, true);
+
         super.render(context, mouseX, mouseY, delta);
     }
 
@@ -120,6 +161,34 @@ public class ColorPickerScreen extends Screen {
             int totalHeight = 180;
             int cx = this.width / 2 - 100;
             int cy = (this.height - totalHeight) / 2;
+
+            int hexBoxX = cx;
+            int hexBoxY = cy - 20;
+            int hexBoxW = 60;
+            int hexBoxH = 15;
+
+            int copyBtnX = hexBoxX + hexBoxW + 5;
+            int copyBtnY = hexBoxY;
+            int copyBtnW = 40;
+            int copyBtnH = 15;
+
+            if (mouseX >= hexBoxX && mouseX <= hexBoxX + hexBoxW && mouseY >= hexBoxY && mouseY <= hexBoxY + hexBoxH) {
+                hexBoxActive = true;
+                isAllSelected = false;
+                hexInput = String.format("#%06X", getCurrentColor() & 0xFFFFFF);
+                return true;
+            } else {
+                hexBoxActive = false;
+                isAllSelected = false;
+            }
+
+            if (mouseX >= copyBtnX && mouseX <= copyBtnX + copyBtnW && mouseY >= copyBtnY && mouseY <= copyBtnY + copyBtnH) {
+                if (this.client != null) {
+                    this.client.keyboard.setClipboard(String.format("#%06X", getCurrentColor() & 0xFFFFFF));
+                    copiedTime = System.currentTimeMillis();
+                }
+                return true;
+            }
 
             if (mouseX >= cx && mouseX <= cx + 200 && mouseY >= cy && mouseY <= cy + 100) {
                 dragTarget = DragTarget.SV;
@@ -181,10 +250,91 @@ public class ColorPickerScreen extends Screen {
         this.hue = Math.max(0.0f, Math.min(1.0f, h));
     }
 
+    @Override
+    public boolean charTyped(CharInput charInput) {
+        char chr = (char) charInput.comp_4793();
+        if (hexBoxActive) {
+            if (isAllSelected || hexInput.length() < 9) {
+                if ((chr >= '0' && chr <= '9') || (chr >= 'a' && chr <= 'f') || (chr >= 'A' && chr <= 'F') || chr == '#') {
+                    if (chr == '#' && hexInput.contains("#") && !isAllSelected) return super.charTyped(charInput);
+                    
+                    if (isAllSelected) {
+                        hexInput = "";
+                        isAllSelected = false;
+                    }
+                    
+                    if (hexInput.isEmpty() && chr != '#') hexInput = "#" + chr;
+                    else hexInput += chr;
+                    tryApplyHex();
+                    return true;
+                }
+            }
+        }
+        return super.charTyped(charInput);
+    }
+
+    private void tryApplyHex() {
+        String hex = hexInput.startsWith("#") ? hexInput.substring(1) : hexInput;
+        if (hex.length() == 6) {
+            try {
+                int rgb = Integer.parseInt(hex, 16);
+                Color col = new Color(rgb);
+                float[] hsb = Color.RGBtoHSB(col.getRed(), col.getGreen(), col.getBlue(), null);
+                this.hue = hsb[0];
+                this.saturation = hsb[1];
+                this.value = hsb[2];
+            } catch (NumberFormatException ignored) {}
+        }
+    }
+    private boolean isCtrlDown() {
+        return GLFW.glfwGetKey(this.client.getWindow().getHandle(), GLFW.GLFW_KEY_LEFT_CONTROL) == GLFW.GLFW_PRESS ||
+               GLFW.glfwGetKey(this.client.getWindow().getHandle(), GLFW.GLFW_KEY_RIGHT_CONTROL) == GLFW.GLFW_PRESS;
+    }
 
     @Override
     public boolean keyPressed(KeyInput keyInput) {
         int keyCode = keyInput.getKeycode();
+        
+        if (hexBoxActive) {
+            if (isCtrlDown()) {
+                if (keyCode == GLFW.GLFW_KEY_A) {
+                    isAllSelected = true;
+                    return true;
+                } else if (keyCode == GLFW.GLFW_KEY_V) {
+                    if (this.client != null) {
+                        String clipboard = this.client.keyboard.getClipboard();
+                        if (clipboard != null) {
+                            clipboard = clipboard.trim();
+                            if (clipboard.matches("^#?[0-9a-fA-F]{1,8}$")) {
+                                hexInput = clipboard.startsWith("#") ? clipboard : "#" + clipboard;
+                                isAllSelected = false;
+                                tryApplyHex();
+                            }
+                        }
+                    }
+                    return true;
+                }
+            }
+
+            if (isAllSelected && (keyCode == GLFW.GLFW_KEY_BACKSPACE || keyCode == GLFW.GLFW_KEY_ESCAPE)) {
+                isAllSelected = false;
+                return true;
+            }
+
+            if (keyCode == GLFW.GLFW_KEY_BACKSPACE) {
+                if (!hexInput.isEmpty()) {
+                    hexInput = hexInput.substring(0, hexInput.length() - 1);
+                    tryApplyHex();
+                }
+                return true;
+            }
+            if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER || keyCode == GLFW.GLFW_KEY_ESCAPE) {
+                hexBoxActive = false;
+                isAllSelected = false;
+                return true;
+            }
+        }
+
         if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
             if (this.client != null) {
                 this.client.setScreen(parent);
