@@ -120,8 +120,8 @@ public class HudEditorScreen extends Screen {
     
     @Override
     public boolean mouseClicked(Click click, boolean bl) {
-        double mouseX = click.x();
-        double mouseY = click.y();
+        double mouseX = click.comp_4798();
+        double mouseY = click.comp_4799();
         int button = click.button();
         
         if (contextMenuOpen && contextMenuTarget != null) {
@@ -216,8 +216,8 @@ public class HudEditorScreen extends Screen {
 
     @Override
     public boolean mouseDragged(Click click, double deltaX, double deltaY) {
-        double mouseX = click.x();
-        double mouseY = click.y();
+        double mouseX = click.comp_4798();
+        double mouseY = click.comp_4799();
         int button = click.button();
         
         if (button == 0 && draggingSlider != null) {
@@ -452,7 +452,7 @@ public class HudEditorScreen extends Screen {
 
     @Override
     public boolean charTyped(CharInput charInput) {
-        char chr = (char) charInput.codePoint();
+        char chr = (char) charInput.comp_4793();
         if (textEditTarget != null) {
             textEditBuffer += chr;
             return true;

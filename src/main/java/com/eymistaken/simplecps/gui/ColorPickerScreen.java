@@ -153,8 +153,8 @@ public class ColorPickerScreen extends Screen {
 
     @Override
     public boolean mouseClicked(Click click, boolean bl) {
-        double mouseX = click.x();
-        double mouseY = click.y();
+        double mouseX = click.comp_4798();
+        double mouseY = click.comp_4799();
         int button = click.button();
         
         if (button == 0) {
@@ -210,8 +210,8 @@ public class ColorPickerScreen extends Screen {
 
     @Override
     public boolean mouseDragged(Click click, double deltaX, double deltaY) {
-        double mouseX = click.x();
-        double mouseY = click.y();
+        double mouseX = click.comp_4798();
+        double mouseY = click.comp_4799();
         int button = click.button();
         
         if (button == 0 && dragTarget != DragTarget.NONE) {
@@ -252,7 +252,7 @@ public class ColorPickerScreen extends Screen {
 
     @Override
     public boolean charTyped(CharInput charInput) {
-        char chr = (char) charInput.codePoint();
+        char chr = (char) charInput.comp_4793();
         if (hexBoxActive) {
             if (isAllSelected || hexInput.length() < 9) {
                 if ((chr >= '0' && chr <= '9') || (chr >= 'a' && chr <= 'f') || (chr >= 'A' && chr <= 'F') || chr == '#') {
