@@ -239,8 +239,8 @@ public class KeystrokesDesignerScreen extends Screen {
 
     @Override
     public boolean mouseClicked(Click click, boolean bl) {
-        double mouseX = click.comp_4798();
-        double mouseY = click.comp_4799();
+        double mouseX = click.x();
+        double mouseY = click.y();
         int button = click.button();
         
         if (colorPickerOpen && colorPickerTarget != null) {
@@ -433,8 +433,8 @@ public class KeystrokesDesignerScreen extends Screen {
     
     @Override
     public boolean mouseDragged(Click click, double deltaX, double deltaY) {
-        double mouseX = click.comp_4798();
-        double mouseY = click.comp_4799();
+        double mouseX = click.x();
+        double mouseY = click.y();
         int button = click.button();
         
         if (colorPickerOpen) {
@@ -548,8 +548,8 @@ public class KeystrokesDesignerScreen extends Screen {
     
     @Override
     public boolean mouseReleased(Click click) {
-        double mouseX = click.comp_4798();
-        double mouseY = click.comp_4799();
+        double mouseX = click.x();
+        double mouseY = click.y();
         int button = click.button();
         
         if (button == 0) {
@@ -611,8 +611,8 @@ public class KeystrokesDesignerScreen extends Screen {
     @Override
     public boolean keyPressed(KeyInput keyInput) {
         int keyCode = keyInput.getKeycode();
-        int scanCode = keyInput.comp_4796();
-        int modifiers = keyInput.comp_4797();
+        int scanCode = keyInput.scancode();
+        int modifiers = keyInput.modifiers();
         
         if (colorPickerOpen && cpHexBoxActive) {
             if (keyCode == GLFW.GLFW_KEY_BACKSPACE) {
@@ -727,8 +727,8 @@ public class KeystrokesDesignerScreen extends Screen {
 
     @Override
     public boolean charTyped(CharInput charInput) {
-        char chr = (char) charInput.comp_4793();
-        int modifiers = charInput.comp_4794();
+        char chr = (char) charInput.codePoint();
+        int modifiers = charInput.modifiers();
         
         if (colorPickerOpen && cpHexBoxActive) {
             if (cpHexInput.length() < 9 && ((chr >= '0' && chr <= '9') || (chr >= 'a' && chr <= 'f') || (chr >= 'A' && chr <= 'F') || chr == '#')) {
