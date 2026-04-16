@@ -2,9 +2,9 @@ name: Automatic Release System
 
 on:
   push:
-    branches: [ "main" ] # Runs when you push to main
+    branches: ["main"]
     paths-ignore:
-      - 'docs/**' # Changes in the docs folder will not trigger the build.
+      - 'docs/**'
 
 permissions:
   contents: write
@@ -12,40 +12,36 @@ permissions:
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Java 21
+      - name: Setup Java 25
         uses: actions/setup-java@v4
         with:
-          java-version: '21'
-          distribution: 'temurin'
+          distribution: temurin
+          java-version: '25'
+          cache: gradle
 
       - name: Grant Gradle Permissions
         run: chmod +x gradlew
 
-      # --- STEP 1: Extract Version from File ---
       - name: Read Version
         id: get_version
         run: |
-          # Finds the mod_version line from gradle.properties
-          # Extracts '1.0.5' from 'mod_version=1.0.5'
           VERSION=$(grep "mod_version" gradle.properties | cut -d'=' -f2 | tr -d '[:space:]')
           echo "Found Version: $VERSION"
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 
-      # --- STEP 2: Build ---
       - name: Build Mod
         run: ./gradlew build
 
-      # --- STEP 3: Create Release (Without dealing with tags manually) ---
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ env.VERSION }} # Automatically adds 'v1.0.5' tag
-          name: Version v${{ env.VERSION }} # Title becomes 'Version v1.0.5'
+          tag_name: v${{ env.VERSION }}
+          name: Version v${{ env.VERSION }}
           files: build/libs/*.jar
           generate_release_notes: true
         env:
