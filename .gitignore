@@ -1,0 +1,37 @@
+# --- Build & Cache (Derleme ve Önbellek) ---
+build/
+.gradle/
+out/
+bin/
+.fabric/
+
+# --- IDE Settings (Editör Ayarları) ---
+.idea/
+.vscode/
+*.ipr
+*.iws
+*.iml
+
+# --- Runtime (Oyun Çalışırken Oluşanlar) ---
+run/
+logs/
+crash-reports/
+
+# --- OS Junk (İşletim Sistemi Çöpleri) ---
+.DS_Store
+Thumbs.db
+
+# --- Reverse Engineering & Dev Tools (Geliştirme Araçları) ---
+decomp/
+cfr.jar
+make_slot.py
+reflect.txt
+HandledScreen.java
+DrawContext.java
+LICENSE
+# --- Agent Skills ---
+.agent/
+.agent/skills/
+# --- Every Debugging Log Files---
+*.log
+*.txt

@@ -1,0 +1,247 @@
+package com.eymistaken.simplecps;
+
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import net.fabricmc.loader.api.FabricLoader;
+
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import org.lwjgl.glfw.GLFW;
+
+public class SimpleCPSConfig {
+
+    private static final File CONFIG_FILE = new File(FabricLoader.getInstance().getConfigDir().toFile(), "simplecps.json");
+    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+    public static SimpleCPSConfig instance = new SimpleCPSConfig();
+
+    public static void load() {
+        if (CONFIG_FILE.exists()) {
+            try (FileReader reader = new FileReader(CONFIG_FILE)) {
+                instance = GSON.fromJson(reader, SimpleCPSConfig.class);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            if (instance.keystrokesLayout == null || instance.keystrokesLayout.isEmpty()) {
+                instance.resetLayout();
+            }
+        } else {
+            instance.resetLayout();
+            save(); // Create default
+        }
+    }
+
+    public static void save() {
+        File tempFile = new File(CONFIG_FILE.getParentFile(), CONFIG_FILE.getName() + ".tmp");
+        try (FileWriter writer = new FileWriter(tempFile)) {
+            GSON.toJson(instance, writer);
+            writer.flush();
+        } catch (IOException e) {
+            e.printStackTrace();
+            return;
+        }
+        
+        try {
+            try {
+                java.nio.file.Files.move(tempFile.toPath(), CONFIG_FILE.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING, java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+            } catch (java.nio.file.AtomicMoveNotSupportedException e) {
+                java.nio.file.Files.move(tempFile.toPath(), CONFIG_FILE.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+    
+    public void resetToDefaults() {
+        instance = new SimpleCPSConfig();
+        save();
+    }
+
+    // Enums
+    public enum Position { TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT, CENTER }
+    public enum RainbowTarget { TEXT, BACKGROUND }
+    public enum HeatmapMode { EASY, MEDIUM, HARD } // New Enum
+    public enum CombatMode { CLASSIC, MODERN }
+
+    // --- CPS ---
+    public boolean enabled = true;
+    public Position position = Position.TOP_LEFT;
+    public int xOffset = 0;
+    public int yOffset = 0;
+    public int textColor = 0xFFFFFF;
+    public boolean rightClickCps = true;
+    public boolean rainbow = false;
+    public int scale = 100;
+    public boolean cpsShowBackground = false;
+    public int cpsBackgroundColor = 0x000000;
+    public int cpsBackgroundOpacity = 128;
+    // New Fields
+    public String cpsLeftText = "";
+    public String cpsRightText = "";
+    public String cpsSeparator = " | ";
+
+    // --- PING ---
+    public boolean showPing = false;
+    public Position pingPosition = Position.TOP_LEFT;
+    public int pingXOffset = 0;
+    public int pingYOffset = 0;
+    public int pingColor = 0xFFFFFF;
+    public boolean pingShowBackground = false;
+    public int pingBackgroundColor = 0x000000;
+    public int pingBackgroundOpacity = 128;
+
+    // --- FPS ---
+    public boolean showFps = false;
+    public Position fpsPosition = Position.TOP_LEFT;
+    public int fpsXOffset = 0;
+    public int fpsYOffset = 0;
+    public int fpsColor = 0xFFFFFF;
+    public boolean fpsRainbow = false;
+    public int fpsScale = 100;
+    public String fpsText = "FPS";
+    public boolean fpsShowBackground = false;
+    public int fpsBackgroundColor = 0x000000;
+    public int fpsBackgroundOpacity = 128;
+
+    // --- KEYSTROKES ---
+    public boolean showKeystrokes = false;
+    public Position keystrokesPosition = Position.TOP_LEFT;
+    public int keystrokesXOffset = 0;
+    public int keystrokesYOffset = 0;
+    public int keystrokesScale = 80;
+    public boolean keystrokesRainbow = false;
+    public RainbowTarget keystrokesRainbowTarget = RainbowTarget.TEXT;
+    public int keystrokesColor = 0xFFFFFF;
+    public int keystrokesPressedColor = 0x00FF00;
+    public int keystrokesBackgroundColor = 0x000000;
+    public int keystrokesBackgroundOpacity = 128;
+    public int keystrokesEffectMode = 1; // 0=None, 1=Squish, 2=Ripple, 3=Both
+    
+    // Toggleable Defaults
+    public boolean showLCTRL = true;
+    public boolean showLSHIFT = true;
+    public boolean showSpace = true; // Migrated logic if needed, but space is usually in list
+
+    public static class KeyButtonData {
+        public String label;
+        public int x, y, w, h;
+        public int keyCode;
+        public boolean isMouse = false; // New: Mouse Button Support
+        public boolean showCps = false; // New: CPS Counter
+        public boolean shadow = true;
+        public boolean bold = false;
+        public boolean italic = false;
+        public boolean underlined = false;
+        public int labelX = -1, labelY = -1; // -1 means center
+        @com.google.gson.annotations.SerializedName("btnColor")
+        public int btnColor = -1; // -1 means global color
+        @com.google.gson.annotations.SerializedName("btnPressedColor")
+        public int btnPressedColor = -1; // -1 means global pressed color
+        public Boolean animationEnabled = null; // null means unset (treat as true)
+
+        public KeyButtonData(String label, int x, int y, int w, int h, int keyCode) {
+            this(label, x, y, w, h, keyCode, false);
+        }
+
+        public KeyButtonData(String label, int x, int y, int w, int h, int keyCode, boolean isMouse) {
+            this.label = label;
+            this.x = x;
+            this.y = y;
+            this.w = w;
+            this.h = h;
+            this.keyCode = keyCode;
+            this.isMouse = isMouse;
+        }
+    }
+
+    public List<KeyButtonData> keystrokesLayout = new ArrayList<>();
+
+    public SimpleCPSConfig() {
+        // Default Layout: WASD + Space + Mouse + Modifiers
+    }
+    
+    public void resetLayout() {
+        keystrokesLayout.clear();
+        // WASD (Row 1 & 2)
+        // W: centered in 3-key width (67px). x=23.
+        keystrokesLayout.add(new KeyButtonData("W", 23, 0, 21, 21, GLFW.GLFW_KEY_W));
+        keystrokesLayout.add(new KeyButtonData("A", 0, 23, 21, 21, GLFW.GLFW_KEY_A));
+        keystrokesLayout.add(new KeyButtonData("S", 23, 23, 21, 21, GLFW.GLFW_KEY_S));
+        keystrokesLayout.add(new KeyButtonData("D", 46, 23, 21, 21, GLFW.GLFW_KEY_D));
+        
+        // LMB / RMB (Row 3, Taller but slightly reduced per request)
+        // Previous Height: 27. Requested 3/4 size -> ~21.
+        // y = 23 + 21 + 2 = 46. Height 21.
+        KeyButtonData lmb = new KeyButtonData("LMB", 0, 46, 33, 21, 0, true);
+        lmb.showCps = false; // Default off
+        keystrokesLayout.add(lmb);
+        
+        KeyButtonData rmb = new KeyButtonData("RMB", 34, 46, 33, 21, 1, true);
+        rmb.showCps = false; // Default off
+        keystrokesLayout.add(rmb);
+        
+        // Space (Row 4)
+        // y = 46 + 21 + 2 = 69. Width 67. Height 13.
+        keystrokesLayout.add(new KeyButtonData("-----", 0, 69, 67, 13, GLFW.GLFW_KEY_SPACE));
+        
+        // Modifiers (Row 5 - Below Space)
+        // y = 69 + 13 + 2 = 84. Height 13.
+        keystrokesLayout.add(new KeyButtonData("CTRL", 0, 84, 33, 13, GLFW.GLFW_KEY_LEFT_CONTROL));
+        keystrokesLayout.add(new KeyButtonData("SHIFT", 34, 84, 33, 13, GLFW.GLFW_KEY_LEFT_SHIFT));
+    }
+
+    // --- COMBO ---
+    public boolean showCombo = false;
+    public Position comboPosition = Position.TOP_LEFT;
+    public int comboXOffset = 0;
+    public int comboYOffset = 0;
+    public int comboScale = 100;
+    public int comboColor = 0xFFFFFF;
+    public boolean comboRainbow = false;
+    public String comboText = "Combo";
+    public boolean comboShowBackground = false;
+    public int comboBackgroundColor = 0x000000;
+    public int comboBackgroundOpacity = 128;
+    public double comboTimeout = 3.0;
+    public boolean comboResetOnAnyDamage = true; // Default: True (Legacy Mode). If False -> Advanced Mode (Decay/Distance)
+    public boolean comboContinueOnSwitch = true;
+    public boolean comboHideWhenInactive = false;
+    public boolean comboHeatmap = false;
+    public HeatmapMode comboHeatmapMode = HeatmapMode.MEDIUM; // Default: Medium
+    public boolean comboOnlyPlayers = true; // Default: True
+    // public boolean comboDecay = true; // Removed - Tied to !comboResetOnAnyDamage
+    // public boolean comboDistanceCheck = true; // Removed - Tied to !comboResetOnAnyDamage
+    // public boolean comboLOSCheck = true; // Removed
+    public CombatMode combatMode = CombatMode.MODERN;
+
+    // --- REACH DISPLAY ---
+    public boolean showReach = false;
+    public Position reachPosition = Position.TOP_LEFT;
+    public int reachXOffset = 0;
+    public int reachYOffset = 0;
+    public int reachColor = 0xFFFFFF;
+    public boolean reachRainbow = false;
+    public double reachTimeout = 3.0;
+    public int reachScale = 100;
+    public boolean reachShowBackground = false;
+    public int reachBackgroundColor = 0x000000;
+    public int reachBackgroundOpacity = 128;
+    public boolean reachOnlyPlayers = true;
+    public boolean reachAlwaysShow = false;
+    public String reachNoHitText = "No Hit";
+
+    // --- ARMOR HUD ---
+    public boolean showArmor = false;
+    public Position armorPosition = Position.BOTTOM_LEFT;
+    public int armorXOffset = 0;
+    public int armorYOffset = 0;
+    public boolean armorVertical = true; // Orientation
+    public boolean armorShowBackgroundSlots = false; // Render Style
+    public boolean armorShowMainHand = true; // Main Hand toggle
+    public boolean armorShowOffHand = true; // Off Hand toggle
+    public boolean armorDurabilityText = true; // Durability Text
+    public boolean armorDamageFlash = true; // Damage Flash
+}
