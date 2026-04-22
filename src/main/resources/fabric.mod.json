@@ -24,6 +24,9 @@
         ],
         "client": [
             "com.eymistaken.simplecps.SimpleCPSClient"
+        ],
+        "modmenu": [
+            "com.eymistaken.simplecps.ModMenuIntegration"
         ]
     },
     "depends": {
@@ -31,5 +34,9 @@
         "fabric-api": "*",
         "minecraft": "26.1",
         "java": ">=25"
+    },
+    "suggests": {
+        "cloth-config": "*",
+        "modmenu": "*"
     }
 }
