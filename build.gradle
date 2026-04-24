@@ -11,32 +11,19 @@ base {
 }
 
 repositories {
-    mavenCentral() // Bu çok önemli, bunu mutlaka geri ekle
     maven { url "https://maven.shedaniel.me/" }
     maven { url "https://maven.terraformersmc.com/releases/" }
 }
 
 dependencies {
-    // 1. Minecraft'ın kendisi
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
-    
-    // 2. MAPPINGS (BUNU UNUTMUŞTUK!)
-    // Lütfen kendi eski build.gradle dosyanda yazan mappings satırını buraya ekle.
-    // Eğer hatırlamıyorsan genellikle şöyledir: mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
-    // (Bunu kullanırsan gradle.properties dosyanda yarn_mappings sürümünün yazması gerekir)
-    
-    // 3. Loader ve API
-    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
-    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 
-    // 4. ModMenu
-    modImplementation "com.terraformersmc:modmenu:18.0.0-alpha.8"
-    
-    // 5. Cloth Config
-    modApi("me.shedaniel.cloth:cloth-config-fabric:26.1.154") {
+    compileOnly "com.terraformersmc:modmenu:18.0.0-alpha.8"
+    compileOnly("me.shedaniel.cloth:cloth-config-fabric:26.1.154") {
         exclude(group: "net.fabricmc.fabric-api")
     }
-    include "me.shedaniel.cloth:cloth-config-fabric:26.1.154"
 }
 
 processResources {
