@@ -18,7 +18,7 @@ public class ComboTracker {
         SimpleCPSConfig config = SimpleCPSConfig.instance;
         if (config.comboOnlyPlayers && !(target instanceof Player)) return;
         
-        // 1.9+ Modern Combat Logic
+        // 1.9+ Modern Combat Logic 
         if (config.combatMode == SimpleCPSConfig.CombatMode.MODERN) {
             float cooldown = attacker.getAttackStrengthScale(0.5f);
             if (cooldown < 0.9f) return;

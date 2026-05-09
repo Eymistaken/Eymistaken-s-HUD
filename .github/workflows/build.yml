@@ -35,7 +35,7 @@ jobs:
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 
       - name: Build Mod
-        run: ./gradlew build
+        run: ./gradlew clean build --refresh-dependencies --stacktrace
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
