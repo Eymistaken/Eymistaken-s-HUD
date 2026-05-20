@@ -13,7 +13,7 @@ public class ArmorModule extends HudModule {
     private final int[] lastDamages = new int[6];
     private final long[] flashEndTimes = new long[6];
 
-    private static final net.minecraft.resources.Identifier SLOT_TEXTURE = net.minecraft.resources.Identifier.fromNamespaceAndPath("simplecps", "textures/gui/hotbar_slot.png");
+    private static final net.minecraft.resources.Identifier SLOT_TEXTURE = net.minecraft.resources.Identifier.fromNamespaceAndPath("minecraft", "hud/hotbar");
 
     @Override
     public SimpleCPSConfig.Position getPositionType() {
@@ -145,6 +145,80 @@ public class ArmorModule extends HudModule {
         int currentY = this.y;
         long now = System.currentTimeMillis();
         
+        // Draw Background Slots
+        if (showBg) {
+            int N = displayItems.size();
+            if (vertical) {
+                int bgY = this.y;
+                for (int i = 0; i < N; i++) {
+                    if (N == 1) {
+                        // Standalone slot in vertical mode
+                        context.blitSprite(
+                            net.minecraft.client.renderer.RenderPipelines.GUI_TEXTURED,
+                            SLOT_TEXTURE,
+                            182, 22,
+                            0, 0,
+                            this.x - 2, bgY - 2,
+                            21, 22
+                        );
+                        context.blitSprite(
+                            net.minecraft.client.renderer.RenderPipelines.GUI_TEXTURED,
+                            SLOT_TEXTURE,
+                            182, 22,
+                            181, 0,
+                            this.x + 19, bgY - 2,
+                            1, 22
+                        );
+                    } else {
+                        // Connected vertically: adjust vertical offsets and heights to hide top/bottom black borders between slots
+                        int vOff = (i == 0) ? 0 : 1;
+                        int h = (i == 0) ? 21 : ((i == N - 1) ? 21 : 20);
+                        int destY = (i == 0) ? (bgY - 2) : (bgY - 1);
+                        
+                        // Draw main body (width = 21, includes left black border + slot body)
+                        context.blitSprite(
+                            net.minecraft.client.renderer.RenderPipelines.GUI_TEXTURED,
+                            SLOT_TEXTURE,
+                            182, 22,
+                            0, vOff,
+                            this.x - 2, destY,
+                            21, h
+                        );
+                        // Draw rightmost border (width = 1, includes right black border)
+                        context.blitSprite(
+                            net.minecraft.client.renderer.RenderPipelines.GUI_TEXTURED,
+                            SLOT_TEXTURE,
+                            182, 22,
+                            181, vOff,
+                            this.x + 19, destY,
+                            1, h
+                        );
+                    }
+                    bgY += 20;
+                }
+            } else {
+                // Connected horizontally: draw continuous background in a single operation
+                // Main body (covers left black border + all slot bodies and inner dividers)
+                context.blitSprite(
+                    net.minecraft.client.renderer.RenderPipelines.GUI_TEXTURED,
+                    SLOT_TEXTURE,
+                    182, 22,
+                    0, 0,
+                    this.x - 2, this.y - 2,
+                    20 * N + 1, 22
+                );
+                // Rightmost border (includes right black border)
+                context.blitSprite(
+                    net.minecraft.client.renderer.RenderPipelines.GUI_TEXTURED,
+                    SLOT_TEXTURE,
+                    182, 22,
+                    181, 0,
+                    this.x + 20 * N - 1, this.y - 2,
+                    1, 22
+                );
+            }
+        }
+        
         for (int i = 0; i < displayItems.size(); i++) {
             ItemStack stack = displayItems.get(i);
             
@@ -159,12 +233,6 @@ public class ArmorModule extends HudModule {
                 lastDamages[i] = currentDamage;
             } else {
                 lastDamages[i] = 0;
-            }
-
-            // Draw Background Slot
-            if (showBg) {
-                // The correct parameter sequence for drawTexturedQuad is: x1, y1, x2, y2
-                context.blit(SLOT_TEXTURE, currentX - 2, currentY - 2, currentX + 20, currentY + 20, 0f, 1f, 0f, 1f);
             }
             
             // Draw Item
