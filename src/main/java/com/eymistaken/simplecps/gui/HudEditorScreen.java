@@ -16,7 +16,7 @@ import net.minecraft.network.chat.Component;
 public class HudEditorScreen extends Screen {
 
     private final Screen parent;
-    private String draggingModule = null;
+    private com.eymistaken.simplecps.api.IHudElement draggingElement = null;
     
     // Local click offset within the module (0,0 is top-left of module)
     private int dragOffsetX = 0;
@@ -24,7 +24,7 @@ public class HudEditorScreen extends Screen {
 
     private boolean contextMenuOpen = false;
     private int contextMenuX, contextMenuY;
-    private com.eymistaken.simplecps.api.HudModule contextMenuTarget = null;
+    private com.eymistaken.simplecps.api.IHudElement contextMenuTarget = null;
     
     // For text editing (Stage 4 prep)
     private com.eymistaken.simplecps.api.TextSetting textEditTarget = null;
@@ -33,26 +33,57 @@ public class HudEditorScreen extends Screen {
     // For slider dragging
     private com.eymistaken.simplecps.api.SliderSetting draggingSlider = null;
 
+    // Marquee Selection and Multi-Selection Dragging
+    private final java.util.Set<com.eymistaken.simplecps.api.IHudElement> selectedElements = new java.util.HashSet<>();
+    private boolean isSelectingMarquee = false;
+    private int marqueeStartX = -1;
+    private int marqueeStartY = -1;
+    private int marqueeCurrentX = -1;
+    private int marqueeCurrentY = -1;
+ 
+    // Snapping Guides
+    private Integer snapLineX = null;
+    private Integer snapLineY = null;
+ 
+    // Snapshots to prevent feedback loops in dragging
+    private double dragStartX = 0;
+    private double dragStartY = 0;
+    private int leaderDragStartX = 0;
+    private int leaderDragStartY = 0;
+    private final java.util.Map<com.eymistaken.simplecps.api.IHudElement, java.awt.Point> dragStartOffsets = new java.util.HashMap<>();
+    private final java.util.Map<com.eymistaken.simplecps.api.IHudElement, java.awt.Point> dragStartScreenPositions = new java.util.HashMap<>();
+
     public HudEditorScreen(Screen parent) {
         super(Component.nullToEmpty("HUD Editor"));
         this.parent = parent;
     }
+    
+    private java.util.List<com.eymistaken.simplecps.api.IHudElement> getAllActiveElements() {
+        java.util.List<com.eymistaken.simplecps.api.IHudElement> list = new java.util.ArrayList<>();
+        for (com.eymistaken.simplecps.api.HudModule module : HudModuleManager.getInstance().getModules()) {
+            java.util.List<com.eymistaken.simplecps.api.IHudElement> sub = module.getSubElements();
+            list.addAll(sub);
+            if (sub.isEmpty()) {
+                list.add(module);
+            }
+        }
+        return list;
+    }
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
-        for (var entry : HudModuleManager.getInstance().getModuleBounds().entrySet()) {
-            String name = entry.getKey();
-            HudModuleManager.ModuleBounds p = entry.getValue();
+        for (com.eymistaken.simplecps.api.IHudElement element : getAllActiveElements()) {
+            int ex = element.getX();
+            int ey = element.getY();
+            int ew = element.getWidth();
+            int eh = element.getHeight();
             
-            if (mouseX >= p.x && mouseX <= p.x + p.w &&
-                mouseY >= p.y && mouseY <= p.y + p.h) {
+            if (mouseX >= ex && mouseX <= ex + ew &&
+                mouseY >= ey && mouseY <= ey + eh) {
                 
                 // Scroll to scale (range 50-300)
                 int scaleChange = (verticalAmount > 0) ? 5 : -5;
-                com.eymistaken.simplecps.api.HudModule module = HudModuleManager.getInstance().getModuleByName(name);
-                if (module != null) {
-                    module.setScale(clamp(module.getScale() + scaleChange));
-                }
+                element.setScale(clamp(element.getScale() + scaleChange));
                 return true;
             }
         }
@@ -79,22 +110,69 @@ public class HudEditorScreen extends Screen {
         SimpleCPSClient.onHudRender(context, delta);
 
         // Draw Selection Borders
-        for (var entry : HudModuleManager.getInstance().getModuleBounds().entrySet()) {
-            String name = entry.getKey();
-            HudModuleManager.ModuleBounds p = entry.getValue();
+        for (com.eymistaken.simplecps.api.IHudElement element : getAllActiveElements()) {
+            int ex = element.getX();
+            int ey = element.getY();
+            int ew = element.getWidth();
+            int eh = element.getHeight();
             
-            boolean isHovered = mouseX >= p.x && mouseX <= p.x + p.w && 
-                                mouseY >= p.y && mouseY <= p.y + p.h;
+            boolean isSelected = selectedElements.contains(element);
+            boolean isHovered = mouseX >= ex && mouseX <= ex + ew && 
+                                mouseY >= ey && mouseY <= ey + eh;
             
-            if (isHovered || name.equals(draggingModule)) {
-                int borderColor = 0xFFFFFFFF;
-                context.fill(p.x - 1, p.y - 1, p.x + p.w + 1, p.y, borderColor); // Top
-                context.fill(p.x - 1, p.y + p.h, p.x + p.w + 1, p.y + p.h + 1, borderColor); // Bottom
-                context.fill(p.x - 1, p.y, p.x, p.y + p.h, borderColor); // Left
-                context.fill(p.x + p.w, p.y, p.x + p.w + 1, p.y + p.h, borderColor); // Right
+            if (isSelected) {
+                // Bright cyan border for selection
+                int selColor = 0xFF00FFFF;
+                context.fill(ex - 2, ey - 2, ex + ew + 2, ey, selColor); // Top
+                context.fill(ex - 2, ey + eh, ex + ew + 2, ey + eh + 2, selColor); // Bottom
+                context.fill(ex - 2, ey, ex, ey + eh, selColor); // Left
+                context.fill(ex + ew, ey, ex + ew + 2, ey + eh, selColor); // Right
                 
-                context.text(this.font, name, p.x, p.y - 10, 0xFFFFFFFF, true);
+                // White premium corner highlights
+                context.fill(ex - 3, ey - 3, ex + 2, ey - 2, 0xFFFFFFFF);
+                context.fill(ex - 3, ey - 3, ex - 2, ey + 2, 0xFFFFFFFF);
+                context.fill(ex + ew - 2, ey - 3, ex + ew + 3, ey - 2, 0xFFFFFFFF);
+                context.fill(ex + ew + 2, ey - 3, ex + ew + 3, ey + 2, 0xFFFFFFFF);
+                context.fill(ex - 3, ey + eh + 1, ex + 2, ey + eh + 2, 0xFFFFFFFF);
+                context.fill(ex - 3, ey + eh - 2, ex - 2, ey + eh + 2, 0xFFFFFFFF);
+                context.fill(ex + ew - 2, ey + eh + 1, ex + ew + 3, ey + eh + 2, 0xFFFFFFFF);
+                context.fill(ex + ew + 2, ey + eh - 2, ex + ew + 3, ey + eh + 2, 0xFFFFFFFF);
+
+                context.text(this.font, element.getName(), ex, ey - 10, 0xFF00FFFF, true);
+            } else if (isHovered || element == draggingElement) {
+                int borderColor = 0xFFFFFFFF;
+                context.fill(ex - 1, ey - 1, ex + ew + 1, ey, borderColor); // Top
+                context.fill(ex - 1, ey + eh, ex + ew + 1, ey + eh + 1, borderColor); // Bottom
+                context.fill(ex - 1, ey, ex, ey + eh, borderColor); // Left
+                context.fill(ex + ew, ey, ex + ew + 1, ey + eh, borderColor); // Right
+                
+                context.text(this.font, element.getName(), ex, ey - 10, 0xFFFFFFFF, true);
             }
+        }
+
+        // Draw Marquee Selection Box
+        if (isSelectingMarquee) {
+            int x1 = Math.min(marqueeStartX, marqueeCurrentX);
+            int y1 = Math.min(marqueeStartY, marqueeCurrentY);
+            int x2 = Math.max(marqueeStartX, marqueeCurrentX);
+            int y2 = Math.max(marqueeStartY, marqueeCurrentY);
+            
+            // Semi-transparent blue fill
+            context.fill(x1, y1, x2, y2, 0x3300AAFF);
+            // Solid blue borders
+            int mColor = 0xFF00AAFF;
+            context.fill(x1, y1, x2, y1 + 1, mColor); // Top
+            context.fill(x1, y2 - 1, x2, y2, mColor); // Bottom
+            context.fill(x1, y1, x1 + 1, y2, mColor); // Left
+            context.fill(x2 - 1, y1, x2, y2, mColor); // Right
+        }
+ 
+        // Draw Snap Lines
+        if (snapLineX != null) {
+            context.fill(snapLineX, 0, snapLineX + 1, this.height, 0xFFFF00FF);
+        }
+        if (snapLineY != null) {
+            context.fill(0, snapLineY, this.width, snapLineY + 1, 0xFFFF00FF);
         }
         
         context.centeredText(this.font, Component.nullToEmpty("Drag & Drop Editor - Scroll to Scale"), this.width / 2, 10, 0xFFFFFFFF);
@@ -153,45 +231,81 @@ public class HudEditorScreen extends Screen {
         }
         
         if (button == 0) { // Left click
-            for (var entry : HudModuleManager.getInstance().getModuleBounds().entrySet()) {
-                String name = entry.getKey();
-                HudModuleManager.ModuleBounds p = entry.getValue();
+            boolean elementClicked = false;
+            for (com.eymistaken.simplecps.api.IHudElement element : getAllActiveElements()) {
+                int ex = element.getX();
+                int ey = element.getY();
+                int ew = element.getWidth();
+                int eh = element.getHeight();
                 
-                if (mouseX >= p.x && mouseX <= p.x + p.w &&
-                    mouseY >= p.y && mouseY <= p.y + p.h) {
+                if (mouseX >= ex && mouseX <= ex + ew &&
+                    mouseY >= ey && mouseY <= ey + eh) {
                     
-                    draggingModule = name;
-                    dragOffsetX = (int)mouseX - p.x;
-                    dragOffsetY = (int)mouseY - p.y;
+                    if (!selectedElements.contains(element)) {
+                        selectedElements.clear();
+                        selectedElements.add(element);
+                    }
+                    draggingElement = element;
+                    dragOffsetX = (int)mouseX - ex;
+                    dragOffsetY = (int)mouseY - ey;
+                    elementClicked = true;
+                    
+                    // Snapshot starting coordinates to prevent feedback loops
+                    dragStartX = mouseX;
+                    dragStartY = mouseY;
+                    leaderDragStartX = element.getX();
+                    leaderDragStartY = element.getY();
+                    dragStartOffsets.clear();
+                    
+                    java.util.Set<com.eymistaken.simplecps.api.IHudElement> targets = new java.util.HashSet<>();
+                    if (selectedElements.contains(element)) {
+                        targets.addAll(selectedElements);
+                    } else {
+                        targets.add(element);
+                    }
+                    dragStartScreenPositions.clear();
+                    for (com.eymistaken.simplecps.api.IHudElement el : targets) {
+                        dragStartOffsets.put(el, new java.awt.Point(el.getXOffset(), el.getYOffset()));
+                        dragStartScreenPositions.put(el, new java.awt.Point(el.getX(), el.getY()));
+                    }
+                    
                     return true;
                 }
             }
+            if (!elementClicked) {
+                selectedElements.clear();
+                isSelectingMarquee = true;
+                marqueeStartX = (int)mouseX;
+                marqueeStartY = (int)mouseY;
+                marqueeCurrentX = (int)mouseX;
+                marqueeCurrentY = (int)mouseY;
+                return true;
+            }
         } else if (button == 1) { // Right click
-             for (var entry : HudModuleManager.getInstance().getModuleBounds().entrySet()) {
-                String name = entry.getKey();
-                HudModuleManager.ModuleBounds p = entry.getValue();
+            for (com.eymistaken.simplecps.api.IHudElement element : getAllActiveElements()) {
+                int ex = element.getX();
+                int ey = element.getY();
+                int ew = element.getWidth();
+                int eh = element.getHeight();
                 
-                if (mouseX >= p.x && mouseX <= p.x + p.w &&
-                    mouseY >= p.y && mouseY <= p.y + p.h) {
+                if (mouseX >= ex && mouseX <= ex + ew &&
+                    mouseY >= ey && mouseY <= ey + eh) {
                     
-                    com.eymistaken.simplecps.api.HudModule module = HudModuleManager.getInstance().getModuleByName(name);
-                    if (module != null) {
-                        contextMenuTarget = module;
-                        contextMenuOpen = true;
-                        contextMenuX = (int)mouseX;
-                        
-                        int h = getMenuHeight(module);
-                        int y = (int)mouseY;
-                        
-                        if (y + h > this.height) y = y - h;
-                        if (y < 0) y = 0;
-                        if (y + h > this.height) y = this.height - h;
-                        
-                        contextMenuY = y;
-                    }
+                    contextMenuTarget = element;
+                    contextMenuOpen = true;
+                    contextMenuX = (int)mouseX;
+                    
+                    int h = getMenuHeight(element);
+                    int y = (int)mouseY;
+                    
+                    if (y + h > this.height) y = y - h;
+                    if (y < 0) y = 0;
+                    if (y + h > this.height) y = this.height - h;
+                    
+                    contextMenuY = y;
                     return true;
                 }
-             }
+            }
         }
         return super.mouseClicked(click, bl);
     }
@@ -200,8 +314,39 @@ public class HudEditorScreen extends Screen {
     public boolean mouseReleased(MouseButtonEvent click) {
         int button = click.button();
         if (button == 0) {
-            if (draggingModule != null) {
-                draggingModule = null;
+            if (isSelectingMarquee) {
+                int x1 = Math.min(marqueeStartX, marqueeCurrentX);
+                int y1 = Math.min(marqueeStartY, marqueeCurrentY);
+                int x2 = Math.max(marqueeStartX, marqueeCurrentX);
+                int y2 = Math.max(marqueeStartY, marqueeCurrentY);
+                
+                if (x2 - x1 > 2 && y2 - y1 > 2) {
+                    for (com.eymistaken.simplecps.api.IHudElement element : getAllActiveElements()) {
+                        int ex = element.getX();
+                        int ey = element.getY();
+                        int ew = element.getWidth();
+                        int eh = element.getHeight();
+                        
+                        boolean intersect = !(ex + ew < x1 || ex > x2 || ey + eh < y1 || ey > y2);
+                        if (intersect) {
+                            selectedElements.add(element);
+                        }
+                    }
+                }
+                isSelectingMarquee = false;
+                return true;
+            }
+            snapLineX = null;
+            snapLineY = null;
+            if (draggingElement != null) {
+                if (selectedElements.contains(draggingElement)) {
+                    for (com.eymistaken.simplecps.api.IHudElement sel : selectedElements) {
+                        sel.onPositionUpdated();
+                    }
+                } else {
+                    draggingElement.onPositionUpdated();
+                }
+                draggingElement = null;
                 return true;
             }
             if (draggingSlider != null) {
@@ -232,40 +377,156 @@ public class HudEditorScreen extends Screen {
             return true;
         }
         
-        if (button == 0 && draggingModule != null) {
-            // 1. Calculate TARGET Screen Position
-            int targetX = (int)mouseX - dragOffsetX;
-            int targetY = (int)mouseY - dragOffsetY;
+        if (button == 0 && isSelectingMarquee) {
+            marqueeCurrentX = (int)mouseX;
+            marqueeCurrentY = (int)mouseY;
+            return true;
+        }
+        
+        if (button == 0 && draggingElement != null) {
+            // Calculate absolute mouse displacement since drag start
+            int dx = (int)(mouseX - dragStartX);
+            int dy = (int)(mouseY - dragStartY);
             
-            // 2. Determine Smart Anchor based on Center of module
-            HudModuleManager.ModuleBounds p = HudModuleManager.getInstance().getModuleBounds().get(draggingModule);
-            int w = (p != null) ? p.w : 50;
-            int h = (p != null) ? p.h : 20;
+            int rawTargetX = leaderDragStartX + dx;
+            int rawTargetY = leaderDragStartY + dy;
             
-            int centerX = targetX + w / 2;
-            int centerY = targetY + h / 2;
+            // Apply Snapping to Leader
+            java.awt.Point snappedPos = new java.awt.Point();
+            applySnapping(draggingElement, rawTargetX, rawTargetY, snappedPos);
             
-            SimpleCPSConfig.Position newAnchor = determineAnchor(centerX, centerY);
+            // Snapped displacement from drag start position
+            int snapDispX = snappedPos.x - leaderDragStartX;
+            int snapDispY = snappedPos.y - leaderDragStartY;
             
-            // 3. Estimate Base Position for that Anchor (to calc pure offset)
-            Point base = getEstimatedBasePos(newAnchor, w, h);
-            
-            // 4. Calculate Relative Offset
-            int newOffsetX = targetX - base.x;
-            int newOffsetY = targetY - base.y;
-            
-            // 5. Apply to Config
-            com.eymistaken.simplecps.api.HudModule module = HudModuleManager.getInstance().getModuleByName(draggingModule);
-            if (module != null) {
-                module.setPositionType(newAnchor);
-                module.setXOffset(newOffsetX);
-                module.setYOffset(newOffsetY);
+            for (var entry : dragStartScreenPositions.entrySet()) {
+                com.eymistaken.simplecps.api.IHudElement el = entry.getKey();
+                java.awt.Point startScreenPos = entry.getValue();
+                
+                int targetX = startScreenPos.x + snapDispX;
+                int targetY = startScreenPos.y + snapDispY;
+                
+                if (el instanceof com.eymistaken.simplecps.api.HudModule module) {
+                    int w = module.getWidth();
+                    int h = module.getHeight();
+                    int centerX = targetX + w / 2;
+                    int centerY = targetY + h / 2;
+                    
+                    SimpleCPSConfig.Position newAnchor = determineAnchor(centerX, centerY);
+                    Point base = getEstimatedBasePos(newAnchor, w, h);
+                    
+                    module.setPositionType(newAnchor);
+                    module.setXOffset(targetX - base.x);
+                    module.setYOffset(targetY - base.y);
+                } else {
+                    // Non-HudModule sub-elements (like ArmorElement)
+                    com.eymistaken.simplecps.api.HudModule parent = null;
+                    for (com.eymistaken.simplecps.api.HudModule m : HudModuleManager.getInstance().getModules()) {
+                        if (m.getSubElements().contains(el)) {
+                            parent = m;
+                            break;
+                        }
+                    }
+                    if (parent != null) {
+                        el.setXOffset(targetX - parent.getX());
+                        el.setYOffset(targetY - parent.getY());
+                    } else {
+                        java.awt.Point startOffset = dragStartOffsets.get(el);
+                        if (startOffset != null) {
+                            el.setXOffset(startOffset.x + snapDispX);
+                            el.setYOffset(startOffset.y + snapDispY);
+                        }
+                    }
+                }
             }
             return true;
         }
         return super.mouseDragged(click, deltaX, deltaY);
     }
-
+    
+    private void applySnapping(com.eymistaken.simplecps.api.IHudElement leader, int targetX, int targetY, java.awt.Point outSnappedPos) {
+        snapLineX = null;
+        snapLineY = null;
+        int threshold = 4; // 3-4 pixels snap threshold
+        
+        int tLeft = targetX;
+        int tRight = tLeft + leader.getWidth();
+        int tTop = targetY;
+        int tBottom = tTop + leader.getHeight();
+        int tCX = tLeft + leader.getWidth() / 2;
+        int tCY = tTop + leader.getHeight() / 2;
+        
+        int snappedX = targetX;
+        int snappedY = targetY;
+        
+        // Find X Snap
+        for (com.eymistaken.simplecps.api.IHudElement other : getAllActiveElements()) {
+            if (other == leader) continue;
+            if (selectedElements.contains(other)) continue; // Don't snap to selected group
+            
+            int oLeft = other.getX();
+            int oRight = oLeft + other.getWidth();
+            int oCX = oLeft + other.getWidth() / 2;
+            
+            if (Math.abs(tLeft - oLeft) <= threshold) {
+                snappedX = oLeft;
+                snapLineX = oLeft;
+                break;
+            } else if (Math.abs(tRight - oRight) <= threshold) {
+                snappedX = oRight - leader.getWidth();
+                snapLineX = oRight;
+                break;
+            } else if (Math.abs(tLeft - oRight) <= threshold) {
+                snappedX = oRight;
+                snapLineX = oRight;
+                break;
+            } else if (Math.abs(tRight - oLeft) <= threshold) {
+                snappedX = oLeft - leader.getWidth();
+                snapLineX = oLeft;
+                break;
+            } else if (Math.abs(tCX - oCX) <= threshold) {
+                snappedX = oCX - leader.getWidth() / 2;
+                snapLineX = oCX;
+                break;
+            }
+        }
+        
+        // Find Y Snap
+        for (com.eymistaken.simplecps.api.IHudElement other : getAllActiveElements()) {
+            if (other == leader) continue;
+            if (selectedElements.contains(other)) continue; // Don't snap to selected group
+            
+            int oTop = other.getY();
+            int oBottom = oTop + other.getHeight();
+            int oCY = oTop + other.getHeight() / 2;
+            
+            if (Math.abs(tTop - oTop) <= threshold) {
+                snappedY = oTop;
+                snapLineY = oTop;
+                break;
+            } else if (Math.abs(tBottom - oBottom) <= threshold) {
+                snappedY = oBottom - leader.getHeight();
+                snapLineY = oBottom;
+                break;
+            } else if (Math.abs(tTop - oBottom) <= threshold) {
+                snappedY = oBottom;
+                snapLineY = oBottom;
+                break;
+            } else if (Math.abs(tBottom - oTop) <= threshold) {
+                snappedY = oTop - leader.getHeight();
+                snapLineY = oTop;
+                break;
+            } else if (Math.abs(tCY - oCY) <= threshold) {
+                snappedY = oCY - leader.getHeight() / 2;
+                snapLineY = oCY;
+                break;
+            }
+        }
+        
+        outSnappedPos.x = snappedX;
+        outSnappedPos.y = snappedY;
+    }
+ 
     private SimpleCPSConfig.Position determineAnchor(int cx, int cy) {
         int w = this.width;
         int h = this.height;
@@ -306,9 +567,9 @@ public class HudEditorScreen extends Screen {
         }
     }
 
-    private int getMenuHeight(com.eymistaken.simplecps.api.HudModule module) {
+    private int getMenuHeight(com.eymistaken.simplecps.api.IHudElement element) {
         int height = 20;
-        for (com.eymistaken.simplecps.api.HudModuleSetting setting : module.getContextMenuSettings()) {
+        for (com.eymistaken.simplecps.api.HudModuleSetting setting : element.getContextMenuSettings()) {
             if (setting instanceof com.eymistaken.simplecps.api.SliderSetting) height += 24;
             else height += 20;
         }

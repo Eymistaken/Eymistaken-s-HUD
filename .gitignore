@@ -35,3 +35,6 @@ LICENSE
 # --- Every Debugging Log Files---
 *.log
 *.txt
+GEMINI.md
+# --- IntelliJ IDEA Files ---
+.idea/

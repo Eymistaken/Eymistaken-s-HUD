@@ -4,7 +4,7 @@ import com.eymistaken.simplecps.SimpleCPSClient;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
-public abstract class HudModule {
+public abstract class HudModule implements IHudElement {
 
     protected final Minecraft client;
 
@@ -14,6 +14,16 @@ public abstract class HudModule {
 
     protected int x, y;
     private static float hue = 0;
+
+    @Override
+    public int getX() {
+        return x;
+    }
+
+    @Override
+    public int getY() {
+        return y;
+    }
 
     public void setRenderPosition(int x, int y) {
         this.x = x;
@@ -98,5 +108,10 @@ public abstract class HudModule {
         if (hue > 360) hue = 0;
         int rgb = net.minecraft.util.Mth.hsvToRgb(hue / 360f, 1.0f, 1.0f);
         return rgb | 0xFF000000;
+    }
+
+    @Override
+    public void onPositionUpdated() {
+        com.eymistaken.simplecps.SimpleCPSConfig.save();
     }
 }

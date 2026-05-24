@@ -244,4 +244,18 @@ public class SimpleCPSConfig {
     public boolean armorShowOffHand = true; // Off Hand toggle
     public boolean armorDurabilityText = true; // Durability Text
     public boolean armorDamageFlash = true; // Damage Flash
+
+    // Armor Individual Slots Offsets
+    public int armorHelmetXOffset = 0;
+    public int armorHelmetYOffset = 0;
+    public int armorChestXOffset = 0;
+    public int armorChestYOffset = 0;
+    public int armorLeggingsXOffset = 0;
+    public int armorLeggingsYOffset = 0;
+    public int armorBootsXOffset = 0;
+    public int armorBootsYOffset = 0;
+    public int armorMainHandXOffset = 0;
+    public int armorMainHandYOffset = 0;
+    public int armorOffHandXOffset = 0;
+    public int armorOffHandYOffset = 0;
 }
