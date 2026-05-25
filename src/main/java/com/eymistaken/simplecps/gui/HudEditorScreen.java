@@ -391,9 +391,20 @@ public class HudEditorScreen extends Screen {
             int rawTargetX = leaderDragStartX + dx;
             int rawTargetY = leaderDragStartY + dy;
             
-            // Apply Snapping to Leader
+            // Apply Snapping to Leader (unless Shift is held)
             java.awt.Point snappedPos = new java.awt.Point();
-            applySnapping(draggingElement, rawTargetX, rawTargetY, snappedPos);
+            long windowHandle = net.minecraft.client.Minecraft.getInstance().getWindow().handle();
+            boolean isShiftDown = org.lwjgl.glfw.GLFW.glfwGetKey(windowHandle, org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_SHIFT) == org.lwjgl.glfw.GLFW.GLFW_PRESS ||
+                                  org.lwjgl.glfw.GLFW.glfwGetKey(windowHandle, org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT_SHIFT) == org.lwjgl.glfw.GLFW.GLFW_PRESS;
+            
+            if (isShiftDown) {
+                snappedPos.x = rawTargetX;
+                snappedPos.y = rawTargetY;
+                snapLineX = null;
+                snapLineY = null;
+            } else {
+                applySnapping(draggingElement, rawTargetX, rawTargetY, snappedPos);
+            }
             
             // Snapped displacement from drag start position
             int snapDispX = snappedPos.x - leaderDragStartX;
@@ -448,6 +459,7 @@ public class HudEditorScreen extends Screen {
         snapLineX = null;
         snapLineY = null;
         int threshold = 4; // 3-4 pixels snap threshold
+        int snapGap = 4; // Gap snapping (similar to Keystrokes designer)
         
         int tLeft = targetX;
         int tRight = tLeft + leader.getWidth();
@@ -468,6 +480,7 @@ public class HudEditorScreen extends Screen {
             int oRight = oLeft + other.getWidth();
             int oCX = oLeft + other.getWidth() / 2;
             
+            // 1. Direct Edge Snap
             if (Math.abs(tLeft - oLeft) <= threshold) {
                 snappedX = oLeft;
                 snapLineX = oLeft;
@@ -484,9 +497,39 @@ public class HudEditorScreen extends Screen {
                 snappedX = oLeft - leader.getWidth();
                 snapLineX = oLeft;
                 break;
-            } else if (Math.abs(tCX - oCX) <= threshold) {
+            }
+            // 2. Center-to-Center Snap
+            else if (Math.abs(tCX - oCX) <= threshold) {
                 snappedX = oCX - leader.getWidth() / 2;
                 snapLineX = oCX;
+                break;
+            }
+            // 3. Center-to-Edge Snaps (e.g. alignment of center to borders)
+            else if (Math.abs(tCX - oLeft) <= threshold) {
+                snappedX = oLeft - leader.getWidth() / 2;
+                snapLineX = oLeft;
+                break;
+            } else if (Math.abs(tCX - oRight) <= threshold) {
+                snappedX = oRight - leader.getWidth() / 2;
+                snapLineX = oRight;
+                break;
+            } else if (Math.abs(tLeft - oCX) <= threshold) {
+                snappedX = oCX;
+                snapLineX = oCX;
+                break;
+            } else if (Math.abs(tRight - oCX) <= threshold) {
+                snappedX = oCX - leader.getWidth();
+                snapLineX = oCX;
+                break;
+            }
+            // 4. Gap Snapping (4px space locking)
+            else if (Math.abs(tLeft - (oRight + snapGap)) <= threshold) {
+                snappedX = oRight + snapGap;
+                snapLineX = oRight + snapGap;
+                break;
+            } else if (Math.abs(tRight - (oLeft - snapGap)) <= threshold) {
+                snappedX = oLeft - snapGap - leader.getWidth();
+                snapLineX = oLeft - snapGap;
                 break;
             }
         }
@@ -500,6 +543,7 @@ public class HudEditorScreen extends Screen {
             int oBottom = oTop + other.getHeight();
             int oCY = oTop + other.getHeight() / 2;
             
+            // 1. Direct Edge Snap
             if (Math.abs(tTop - oTop) <= threshold) {
                 snappedY = oTop;
                 snapLineY = oTop;
@@ -516,9 +560,39 @@ public class HudEditorScreen extends Screen {
                 snappedY = oTop - leader.getHeight();
                 snapLineY = oTop;
                 break;
-            } else if (Math.abs(tCY - oCY) <= threshold) {
+            }
+            // 2. Center-to-Center Snap
+            else if (Math.abs(tCY - oCY) <= threshold) {
                 snappedY = oCY - leader.getHeight() / 2;
                 snapLineY = oCY;
+                break;
+            }
+            // 3. Center-to-Edge Snaps
+            else if (Math.abs(tCY - oTop) <= threshold) {
+                snappedY = oTop - leader.getHeight() / 2;
+                snapLineY = oTop;
+                break;
+            } else if (Math.abs(tCY - oBottom) <= threshold) {
+                snappedY = oBottom - leader.getHeight() / 2;
+                snapLineY = oBottom;
+                break;
+            } else if (Math.abs(tTop - oCY) <= threshold) {
+                snappedY = oCY;
+                snapLineY = oCY;
+                break;
+            } else if (Math.abs(tBottom - oCY) <= threshold) {
+                snappedY = oCY - leader.getHeight();
+                snapLineY = oCY;
+                break;
+            }
+            // 4. Gap Snapping (4px space locking)
+            else if (Math.abs(tTop - (oBottom + snapGap)) <= threshold) {
+                snappedY = oBottom + snapGap;
+                snapLineY = oBottom + snapGap;
+                break;
+            } else if (Math.abs(tBottom - (oTop - snapGap)) <= threshold) {
+                snappedY = oTop - snapGap - leader.getHeight();
+                snapLineY = oTop - snapGap;
                 break;
             }
         }
@@ -720,6 +794,49 @@ public class HudEditorScreen extends Screen {
         return super.charTyped(charInput);
     }
 
+    private void nudgeElement(com.eymistaken.simplecps.api.IHudElement el, int dx, int dy) {
+        int targetX = el.getX() + dx;
+        int targetY = el.getY() + dy;
+        
+        if (el instanceof com.eymistaken.simplecps.api.HudModule module) {
+            int w = module.getWidth();
+            int h = module.getHeight();
+            int centerX = targetX + w / 2;
+            int centerY = targetY + h / 2;
+            
+            SimpleCPSConfig.Position newAnchor = determineAnchor(centerX, centerY);
+            Point base = getEstimatedBasePos(newAnchor, w, h);
+            
+            module.setPositionType(newAnchor);
+            module.setXOffset(targetX - base.x);
+            module.setYOffset(targetY - base.y);
+        } else {
+            // Non-HudModule sub-elements (like ArmorElement)
+            com.eymistaken.simplecps.api.HudModule parent = null;
+            for (com.eymistaken.simplecps.api.HudModule m : HudModuleManager.getInstance().getModules()) {
+                if (m.getSubElements().contains(el)) {
+                    parent = m;
+                    break;
+                }
+            }
+            if (parent != null) {
+                el.setXOffset(targetX - parent.getX());
+                el.setYOffset(targetY - parent.getY());
+            } else {
+                el.setXOffset(el.getXOffset() + dx);
+                el.setYOffset(el.getYOffset() + dy);
+            }
+        }
+        el.onPositionUpdated();
+    }
+
+    private void nudgeElements(int dx, int dy) {
+        for (com.eymistaken.simplecps.api.IHudElement el : selectedElements) {
+            nudgeElement(el, dx, dy);
+        }
+        SimpleCPSConfig.save();
+    }
+
     @Override
     public boolean keyPressed(KeyEvent keyInput) {
         int keyCode = keyInput.input();
@@ -739,6 +856,26 @@ public class HudEditorScreen extends Screen {
                 return true;
             }
         }
+        
+        if (textEditTarget == null && !selectedElements.isEmpty()) {
+            int dx = 0;
+            int dy = 0;
+            if (keyCode == GLFW.GLFW_KEY_UP) {
+                dy = -1;
+            } else if (keyCode == GLFW.GLFW_KEY_DOWN) {
+                dy = 1;
+            } else if (keyCode == GLFW.GLFW_KEY_LEFT) {
+                dx = -1;
+            } else if (keyCode == GLFW.GLFW_KEY_RIGHT) {
+                dx = 1;
+            }
+            
+            if (dx != 0 || dy != 0) {
+                nudgeElements(dx, dy);
+                return true;
+            }
+        }
+        
         return super.keyPressed(keyInput);
     }
 }

@@ -124,15 +124,25 @@ public class HudModuleManager {
                 }
                 case BOTTOM_LEFT -> { 
                     x = stackGap; 
-                    if (!detached) bottomLeftStack -= usedHeight;
-                    y = detached ? (screenHeight - usedHeight - stackGap) : bottomLeftStack;
-                    if (!detached) bottomLeftStack -= gap;
+                    if (!detached) {
+                        int currentBottom = (module instanceof ArmorModule && bottomLeftStack == screenHeight - stackGap) ? screenHeight : bottomLeftStack;
+                        currentBottom -= usedHeight;
+                        y = currentBottom;
+                        bottomLeftStack = currentBottom - gap;
+                    } else {
+                        y = screenHeight - usedHeight - stackGap;
+                    }
                 }
                 case BOTTOM_RIGHT -> { 
                     x = screenWidth - w - stackGap; 
-                    if (!detached) bottomRightStack -= usedHeight;
-                    y = detached ? (screenHeight - usedHeight - stackGap) : bottomRightStack;
-                    if (!detached) bottomRightStack -= gap;
+                    if (!detached) {
+                        int currentBottom = (module instanceof ArmorModule && bottomRightStack == screenHeight - stackGap) ? screenHeight : bottomRightStack;
+                        currentBottom -= usedHeight;
+                        y = currentBottom;
+                        bottomRightStack = currentBottom - gap;
+                    } else {
+                        y = screenHeight - usedHeight - stackGap;
+                    }
                 }
                 case CENTER -> { 
                     x = (screenWidth - w) / 2; 

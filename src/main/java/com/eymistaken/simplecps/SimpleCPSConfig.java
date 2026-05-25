@@ -241,8 +241,8 @@ public class SimpleCPSConfig {
     public boolean armorVertical = true; // Orientation
     public boolean armorShowBackgroundSlots = false; // Render Style
     public boolean armorShowMainHand = true; // Main Hand toggle
-    public boolean armorShowOffHand = true; // Off Hand toggle
-    public boolean armorDurabilityText = true; // Durability Text
+    public boolean armorShowOffHand = false; // Off Hand toggle
+    public boolean armorDurabilityText = false; // Durability Text
     public boolean armorDamageFlash = true; // Damage Flash
 
     // Armor Individual Slots Offsets

@@ -358,23 +358,59 @@ public class ArmorModule extends HudModule {
         }
     }
 
-    private void drawSlotBackground(GuiGraphicsExtractor context, int slotX, int slotY) {
-        context.blitSprite(
-            net.minecraft.client.renderer.RenderPipelines.GUI_TEXTURED,
-            SLOT_TEXTURE,
-            182, 22,
-            0, 0,
-            slotX - 2, slotY - 2,
-            21, 22
-        );
-        context.blitSprite(
-            net.minecraft.client.renderer.RenderPipelines.GUI_TEXTURED,
-            SLOT_TEXTURE,
-            182, 22,
-            181, 0,
-            slotX + 19, slotY - 2,
-            1, 22
-        );
+    private void drawSlotBackground(GuiGraphicsExtractor context, List<ArmorElement> ordered, ArmorElement el, int slotX, int slotY) {
+        boolean hasLeft = ordered.stream().anyMatch(other -> other != el && Math.abs(other.getX() - (slotX - 20)) <= 1 && Math.abs(other.getY() - slotY) <= 1);
+        boolean hasRight = ordered.stream().anyMatch(other -> other != el && Math.abs(other.getX() - (slotX + 20)) <= 1 && Math.abs(other.getY() - slotY) <= 1);
+        
+        if (!hasLeft && !hasRight) {
+            // Isolated Slot
+            context.blitSprite(
+                net.minecraft.client.renderer.RenderPipelines.GUI_TEXTURED,
+                SLOT_TEXTURE,
+                182, 22,
+                0, 0,
+                slotX - 2, slotY - 2,
+                21, 22
+            );
+            context.blitSprite(
+                net.minecraft.client.renderer.RenderPipelines.GUI_TEXTURED,
+                SLOT_TEXTURE,
+                182, 22,
+                181, 0,
+                slotX + 19, slotY - 2,
+                1, 22
+            );
+        } else if (!hasLeft && hasRight) {
+            // Leftmost Slot of a horizontal row
+            context.blitSprite(
+                net.minecraft.client.renderer.RenderPipelines.GUI_TEXTURED,
+                SLOT_TEXTURE,
+                182, 22,
+                0, 0,
+                slotX - 2, slotY - 2,
+                20, 22
+            );
+        } else if (hasLeft && hasRight) {
+            // Middle Slot of a horizontal row
+            context.blitSprite(
+                net.minecraft.client.renderer.RenderPipelines.GUI_TEXTURED,
+                SLOT_TEXTURE,
+                182, 22,
+                20, 0,
+                slotX - 2, slotY - 2,
+                20, 22
+            );
+        } else {
+            // Rightmost Slot of a horizontal row
+            context.blitSprite(
+                net.minecraft.client.renderer.RenderPipelines.GUI_TEXTURED,
+                SLOT_TEXTURE,
+                182, 22,
+                160, 0,
+                slotX - 2, slotY - 2,
+                22, 22
+            );
+        }
     }
 
     @Override
@@ -389,15 +425,13 @@ public class ArmorModule extends HudModule {
         boolean showText = SimpleCPSConfig.instance.armorDurabilityText;
         boolean damageFlash = SimpleCPSConfig.instance.armorDamageFlash;
         
-        int stackX = this.x;
-        int stackY = this.y;
         long now = System.currentTimeMillis();
         
+        // Pre-calculate and cache positions for all ordered elements so neighbor checks are 100% correct in the current frame
+        int stackX = this.x;
+        int stackY = this.y;
         for (int i = 0; i < ordered.size(); i++) {
             ArmorElement el = ordered.get(i);
-            ItemStack stack = el.getItemStack();
-            
-            // Determine position
             int elX, elY;
             if (el.getXOffset() != 0 || el.getYOffset() != 0) {
                 elX = this.x + el.getXOffset();
@@ -405,22 +439,46 @@ public class ArmorModule extends HudModule {
             } else {
                 elX = stackX;
                 elY = stackY;
-                // Advance stack cursor
                 if (vertical) {
                     stackY += 20;
                 } else {
                     stackX += 20;
                 }
             }
-            
-            // Cache computed position for IHudElement bounds in editor
             el.cachedX = elX;
             el.cachedY = elY;
-            
-            // Draw Background Slot
-            if (showBg) {
-                drawSlotBackground(context, elX, elY);
+        }
+        
+        // Pass 1: Background drawing
+        if (showBg) {
+            for (ArmorElement el : ordered) {
+                drawSlotBackground(context, ordered, el, el.getX(), el.getY());
             }
+        }
+        
+        // Pass 2: Draw Horizontal Dividers between vertically stacked touching slots
+        if (showBg) {
+            for (ArmorElement el : ordered) {
+                int slotX = el.getX();
+                int slotY = el.getY();
+                
+                boolean hasBottom = ordered.stream().anyMatch(other -> other != el && Math.abs(other.getX() - slotX) <= 1 && Math.abs(other.getY() - (slotY + 20)) <= 1);
+                
+                if (hasBottom) {
+                    // Draw horizontal divider to cover the adjacent black borders
+                    // Dark shadow on the top side of divider, light highlight on the bottom side
+                    context.fill(slotX - 1, slotY + 18, slotX + 21, slotY + 19, 0xFF3C3C3C);
+                    context.fill(slotX - 1, slotY + 19, slotX + 21, slotY + 20, 0xFF8F8F8F);
+                }
+            }
+        }
+        
+        // Pass 3: Draw Items and Durability text
+        for (int i = 0; i < ordered.size(); i++) {
+            ArmorElement el = ordered.get(i);
+            ItemStack stack = el.getItemStack();
+            int elX = el.getX();
+            int elY = el.getY();
             
             // Damage Flash Logic
             int damageIndex = el.slot.ordinal();
@@ -492,8 +550,8 @@ public class ArmorModule extends HudModule {
         config.armorVertical = true;
         config.armorShowBackgroundSlots = false;
         config.armorShowMainHand = true;
-        config.armorShowOffHand = true;
-        config.armorDurabilityText = true;
+        config.armorShowOffHand = false;
+        config.armorDurabilityText = false;
         config.armorDamageFlash = true;
     }
 
