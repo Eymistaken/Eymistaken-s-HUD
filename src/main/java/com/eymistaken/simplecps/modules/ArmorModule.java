@@ -467,8 +467,8 @@ public class ArmorModule extends HudModule {
                 if (hasBottom) {
                     // Draw horizontal divider to cover the adjacent black borders
                     // Dark shadow on the top side of divider, light highlight on the bottom side
-                    context.fill(slotX - 1, slotY + 18, slotX + 21, slotY + 19, 0xFF3C3C3C);
-                    context.fill(slotX - 1, slotY + 19, slotX + 21, slotY + 20, 0xFF8F8F8F);
+                    context.fill(slotX - 1, slotY + 18, slotX + 19, slotY + 19, 0xFF3C3C3C);
+                    context.fill(slotX - 1, slotY + 19, slotX + 19, slotY + 20, 0xFF8F8F8F);
                 }
             }
         }
