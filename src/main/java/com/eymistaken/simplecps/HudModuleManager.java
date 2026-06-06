@@ -14,15 +14,20 @@ public class HudModuleManager {
 
     private static HudModuleManager instance;
     private final List<HudModule> modules = new ArrayList<>();
-    
+
     // Module Bounds for Editor
     public static class ModuleBounds {
         public int x, y, w, h;
         public ModuleBounds(int x, int y, int w, int h) {
             this.x = x; this.y = y; this.w = w; this.h = h;
         }
+
+        public void update(int x, int y, int w, int h) {
+            this.x = x; this.y = y; this.w = w; this.h = h;
+        }
     }
-    
+
+    private final Map<String, ModuleBounds> moduleBoundsPool = new HashMap<>();
     private final Map<String, ModuleBounds> moduleBounds = new HashMap<>();
 
     private HudModuleManager() {
@@ -50,7 +55,7 @@ public class HudModuleManager {
     public List<HudModule> getModules() {
         return modules;
     }
-    
+
     public HudModule getModuleByName(String name) {
         for (HudModule module : modules) {
             if (module.getName().equals(name)) {
@@ -59,7 +64,7 @@ public class HudModuleManager {
         }
         return null;
     }
-    
+
     public Map<String, ModuleBounds> getModuleBounds() {
         return moduleBounds;
     }
@@ -72,11 +77,11 @@ public class HudModuleManager {
 
     public void renderAll(GuiGraphicsExtractor drawContext, float tickDelta) {
         Minecraft client = Minecraft.getInstance();
-        if (client.player == null || client.level == null || client.options.hideGui) return; 
-        
+        if (client.player == null || client.level == null || client.options.hideGui) return;
+
         boolean isEditor = client.screen instanceof HudEditorScreen;
-        if (client.options.hideGui && !isEditor) return; 
-        
+        if (client.options.hideGui && !isEditor) return;
+
         moduleBounds.clear();
 
         SimpleCPSConfig config = SimpleCPSConfig.instance;
@@ -93,11 +98,11 @@ public class HudModuleManager {
 
         for (HudModule module : modules) {
              if (!module.isEnabled() && !isEditor) continue;
-             
+
              // Get Dimensions
              int w = module.getWidth();
              int h = module.getHeight();
-             
+
              // If module has no size (e.g. Reach with no hit), skip rendering/stacking logic if logically hidden
              if (w == 0 || h == 0) continue;
 
@@ -105,25 +110,25 @@ public class HudModuleManager {
              SimpleCPSConfig.Position pos = module.getPositionType();
              int xOff = module.getXOffset();
              int yOff = module.getYOffset();
-             
+
              boolean detached = xOff != 0 || yOff != 0;
-             
+
              int x = 0, y = 0;
-             int usedHeight = h; 
-             
+             int usedHeight = h;
+
              switch (pos) {
-                case TOP_LEFT -> { 
-                    x = stackGap; 
-                    y = detached ? stackGap : topLeftStack; 
-                    if(!detached) topLeftStack += usedHeight + gap; 
+                case TOP_LEFT -> {
+                    x = stackGap;
+                    y = detached ? stackGap : topLeftStack;
+                    if(!detached) topLeftStack += usedHeight + gap;
                 }
-                case TOP_RIGHT -> { 
-                    x = screenWidth - w - stackGap; 
-                    y = detached ? stackGap : topRightStack; 
-                    if(!detached) topRightStack += usedHeight + gap; 
+                case TOP_RIGHT -> {
+                    x = screenWidth - w - stackGap;
+                    y = detached ? stackGap : topRightStack;
+                    if(!detached) topRightStack += usedHeight + gap;
                 }
-                case BOTTOM_LEFT -> { 
-                    x = stackGap; 
+                case BOTTOM_LEFT -> {
+                    x = stackGap;
                     if (!detached) {
                         int currentBottom = (module instanceof ArmorModule && bottomLeftStack == screenHeight - stackGap) ? screenHeight : bottomLeftStack;
                         currentBottom -= usedHeight;
@@ -133,8 +138,8 @@ public class HudModuleManager {
                         y = screenHeight - usedHeight - stackGap;
                     }
                 }
-                case BOTTOM_RIGHT -> { 
-                    x = screenWidth - w - stackGap; 
+                case BOTTOM_RIGHT -> {
+                    x = screenWidth - w - stackGap;
                     if (!detached) {
                         int currentBottom = (module instanceof ArmorModule && bottomRightStack == screenHeight - stackGap) ? screenHeight : bottomRightStack;
                         currentBottom -= usedHeight;
@@ -144,23 +149,30 @@ public class HudModuleManager {
                         y = screenHeight - usedHeight - stackGap;
                     }
                 }
-                case CENTER -> { 
-                    x = (screenWidth - w) / 2; 
-                    y = (screenHeight - h) / 2; 
-                    
+                case CENTER -> {
+                    x = (screenWidth - w) / 2;
+                    y = (screenHeight - h) / 2;
+
                     if (module instanceof ReachModule && !detached) {
                          y += 15;
                     }
                 }
             }
-            
+
             int finalX = x + xOff;
             int finalY = y + yOff;
-            
-            moduleBounds.put(module.getName(), new ModuleBounds(finalX, finalY, w, h));
-            
+
+            ModuleBounds bounds = moduleBoundsPool.get(module.getName());
+            if (bounds == null) {
+                bounds = new ModuleBounds(finalX, finalY, w, h);
+                moduleBoundsPool.put(module.getName(), bounds);
+            } else {
+                bounds.update(finalX, finalY, w, h);
+            }
+            moduleBounds.put(module.getName(), bounds);
+
             module.setRenderPosition(finalX, finalY);
-            module.extractRenderState(drawContext, tickDelta); 
+            module.extractRenderState(drawContext, tickDelta);
         }
     }
 }
