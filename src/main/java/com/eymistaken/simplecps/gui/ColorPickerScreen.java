@@ -336,7 +336,7 @@ public class ColorPickerScreen extends Screen {
 
         if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
             if (this.minecraft != null) {
-                this.minecraft.setScreen(parent);
+                this.minecraft.gui.setScreen(parent);
             }
             return true;
         }
@@ -347,14 +347,14 @@ public class ColorPickerScreen extends Screen {
         onSave.accept(getCurrentColor() & 0x00FFFFFF);
         com.eymistaken.simplecps.SimpleCPSConfig.save();
         if (this.minecraft != null) {
-            this.minecraft.setScreen(parent);
+            this.minecraft.gui.setScreen(parent);
         }
     }
 
     @Override
     public void onClose() {
         if (this.minecraft != null) {
-            this.minecraft.setScreen(parent);
+            this.minecraft.gui.setScreen(parent);
         }
     }
 }

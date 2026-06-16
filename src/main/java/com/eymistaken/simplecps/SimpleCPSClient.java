@@ -55,8 +55,8 @@ public class SimpleCPSClient implements ClientModInitializer {
         HudModuleManager.getInstance().tickAll(client);
 
         while (openEditorKey.consumeClick()) {
-            if (client.screen == null) {
-                client.setScreen(new HudEditorScreen(null));
+            if (client.gui.screen() == null) {
+                client.gui.setScreen(new HudEditorScreen(null));
             }
         }
     }

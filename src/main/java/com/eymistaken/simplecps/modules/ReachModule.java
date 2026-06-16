@@ -76,7 +76,7 @@ public class ReachModule extends HudModule {
         SimpleCPSConfig config = SimpleCPSConfig.instance;
         String text = ReachTracker.getReachDisplay();
         
-        boolean isEditor = client.screen instanceof com.eymistaken.simplecps.gui.HudEditorScreen;
+        boolean isEditor = client.gui.screen() instanceof com.eymistaken.simplecps.gui.HudEditorScreen;
         
         if (text == null) {
             if (isEditor) {

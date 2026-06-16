@@ -157,7 +157,7 @@ public class ArmorModule extends HudModule {
                         }
                         
                         SimpleCPSConfig.Position anchor = getPositionType();
-                        net.minecraft.client.gui.screens.Screen screen = client.screen;
+                        net.minecraft.client.gui.screens.Screen screen = client.gui.screen();
                         int screenW = screen != null ? screen.width : 400;
                         int screenH = screen != null ? screen.height : 300;
                         

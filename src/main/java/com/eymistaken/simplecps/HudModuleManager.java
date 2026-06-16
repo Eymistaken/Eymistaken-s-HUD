@@ -72,10 +72,10 @@ public class HudModuleManager {
 
     public void renderAll(GuiGraphicsExtractor drawContext, float tickDelta) {
         Minecraft client = Minecraft.getInstance();
-        if (client.player == null || client.level == null || client.options.hideGui) return; 
+        if (client.player == null || client.level == null || client.gui.hud.isHidden()) return; 
         
-        boolean isEditor = client.screen instanceof HudEditorScreen;
-        if (client.options.hideGui && !isEditor) return; 
+        boolean isEditor = client.gui.screen() instanceof HudEditorScreen;
+        if (client.gui.hud.isHidden() && !isEditor) return; 
         
         moduleBounds.clear();
 

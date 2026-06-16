@@ -330,7 +330,7 @@ public class KeystrokesModule extends HudModule {
             ),
             new com.eymistaken.simplecps.api.ActionSetting("Open Designer", () -> {
                 net.minecraft.client.Minecraft client = net.minecraft.client.Minecraft.getInstance();
-                client.execute(() -> client.setScreen(new com.eymistaken.simplecps.gui.KeystrokesDesignerScreen(client.screen)));
+                client.execute(() -> client.gui.setScreen(new com.eymistaken.simplecps.gui.KeystrokesDesignerScreen(client.gui.screen())));
             })
         ));
         return settings;

@@ -637,7 +637,7 @@ public class HudEditorScreen extends Screen {
     public void onClose() {
         SimpleCPSConfig.save();
         if (this.minecraft != null) {
-            this.minecraft.setScreen(this.parent);
+            this.minecraft.gui.setScreen(this.parent);
         }
     }
 
@@ -674,7 +674,7 @@ public class HudEditorScreen extends Screen {
                 cycleSetting.setter.accept(next);
                 SimpleCPSConfig.save();
             } else if (setting instanceof com.eymistaken.simplecps.api.ColorSetting colorSetting) {
-                this.minecraft.setScreen(new ColorPickerScreen(
+                this.minecraft.gui.setScreen(new ColorPickerScreen(
                     colorSetting.getter.get(),
                     newColor -> {
                         colorSetting.setter.accept(newColor);

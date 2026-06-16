@@ -78,7 +78,7 @@ public class ClothConfigFactory {
                 .setSaveConsumer(val -> {
                     if (val) {
                         openColorPicker = true;
-                        openColorPickerRunnable = () -> Minecraft.getInstance().setScreen(new com.eymistaken.simplecps.gui.ColorPickerScreen(config.textColor, c -> config.textColor = c, parent));
+                        openColorPickerRunnable = () -> Minecraft.getInstance().gui.setScreen(new com.eymistaken.simplecps.gui.ColorPickerScreen(config.textColor, c -> config.textColor = c, parent));
                     }
                 })
                 .build());
@@ -99,7 +99,7 @@ public class ClothConfigFactory {
                 .setSaveConsumer(val -> {
                     if (val) {
                         openColorPicker = true;
-                        openColorPickerRunnable = () -> Minecraft.getInstance().setScreen(new com.eymistaken.simplecps.gui.ColorPickerScreen(config.cpsBackgroundColor, c -> config.cpsBackgroundColor = c, parent));
+                        openColorPickerRunnable = () -> Minecraft.getInstance().gui.setScreen(new com.eymistaken.simplecps.gui.ColorPickerScreen(config.cpsBackgroundColor, c -> config.cpsBackgroundColor = c, parent));
                     }
                 })
                 .build());
@@ -160,7 +160,7 @@ public class ClothConfigFactory {
                 .setSaveConsumer(val -> {
                     if (val) {
                         openColorPicker = true;
-                        openColorPickerRunnable = () -> Minecraft.getInstance().setScreen(new com.eymistaken.simplecps.gui.ColorPickerScreen(config.pingColor, c -> config.pingColor = c, parent));
+                        openColorPickerRunnable = () -> Minecraft.getInstance().gui.setScreen(new com.eymistaken.simplecps.gui.ColorPickerScreen(config.pingColor, c -> config.pingColor = c, parent));
                     }
                 })
                 .build());
@@ -181,7 +181,7 @@ public class ClothConfigFactory {
                 .setSaveConsumer(val -> {
                     if (val) {
                         openColorPicker = true;
-                        openColorPickerRunnable = () -> Minecraft.getInstance().setScreen(new com.eymistaken.simplecps.gui.ColorPickerScreen(config.pingBackgroundColor, c -> config.pingBackgroundColor = c, parent));
+                        openColorPickerRunnable = () -> Minecraft.getInstance().gui.setScreen(new com.eymistaken.simplecps.gui.ColorPickerScreen(config.pingBackgroundColor, c -> config.pingBackgroundColor = c, parent));
                     }
                 })
                 .build());
@@ -235,7 +235,7 @@ public class ClothConfigFactory {
                 .setSaveConsumer(val -> {
                     if (val) {
                         openColorPicker = true;
-                        openColorPickerRunnable = () -> Minecraft.getInstance().setScreen(new com.eymistaken.simplecps.gui.ColorPickerScreen(config.fpsColor, c -> config.fpsColor = c, parent));
+                        openColorPickerRunnable = () -> Minecraft.getInstance().gui.setScreen(new com.eymistaken.simplecps.gui.ColorPickerScreen(config.fpsColor, c -> config.fpsColor = c, parent));
                     }
                 })
                 .build());
@@ -261,7 +261,7 @@ public class ClothConfigFactory {
                  .setSaveConsumer(val -> {
                      if (val) {
                          openColorPicker = true;
-                         openColorPickerRunnable = () -> Minecraft.getInstance().setScreen(new com.eymistaken.simplecps.gui.ColorPickerScreen(config.fpsBackgroundColor, c -> config.fpsBackgroundColor = c, parent));
+                         openColorPickerRunnable = () -> Minecraft.getInstance().gui.setScreen(new com.eymistaken.simplecps.gui.ColorPickerScreen(config.fpsBackgroundColor, c -> config.fpsBackgroundColor = c, parent));
                      }
                  })
                  .build());
@@ -287,7 +287,7 @@ public class ClothConfigFactory {
                     if (val) {
                          // Schedule opening the designer
                         Minecraft.getInstance().execute(() -> 
-                            Minecraft.getInstance().setScreen(new KeystrokesDesignerScreen(parent))
+                            Minecraft.getInstance().gui.setScreen(new KeystrokesDesignerScreen(parent))
                         );
                     }
                 })
@@ -326,7 +326,7 @@ public class ClothConfigFactory {
                 .setSaveConsumer(val -> {
                     if (val) {
                         openColorPicker = true;
-                        openColorPickerRunnable = () -> Minecraft.getInstance().setScreen(new com.eymistaken.simplecps.gui.ColorPickerScreen(config.keystrokesColor, c -> config.keystrokesColor = c, parent));
+                        openColorPickerRunnable = () -> Minecraft.getInstance().gui.setScreen(new com.eymistaken.simplecps.gui.ColorPickerScreen(config.keystrokesColor, c -> config.keystrokesColor = c, parent));
                     }
                 })
                 .build());
@@ -342,7 +342,7 @@ public class ClothConfigFactory {
                 .setSaveConsumer(val -> {
                     if (val) {
                         openColorPicker = true;
-                        openColorPickerRunnable = () -> Minecraft.getInstance().setScreen(new com.eymistaken.simplecps.gui.ColorPickerScreen(config.keystrokesPressedColor, c -> config.keystrokesPressedColor = c, parent));
+                        openColorPickerRunnable = () -> Minecraft.getInstance().gui.setScreen(new com.eymistaken.simplecps.gui.ColorPickerScreen(config.keystrokesPressedColor, c -> config.keystrokesPressedColor = c, parent));
                     }
                 })
                 .build());
@@ -368,7 +368,7 @@ public class ClothConfigFactory {
                 .setSaveConsumer(val -> {
                     if (val) {
                         openColorPicker = true;
-                        openColorPickerRunnable = () -> Minecraft.getInstance().setScreen(new com.eymistaken.simplecps.gui.ColorPickerScreen(config.keystrokesBackgroundColor, c -> config.keystrokesBackgroundColor = c, parent));
+                        openColorPickerRunnable = () -> Minecraft.getInstance().gui.setScreen(new com.eymistaken.simplecps.gui.ColorPickerScreen(config.keystrokesBackgroundColor, c -> config.keystrokesBackgroundColor = c, parent));
                     }
                 })
                 .build());
@@ -462,7 +462,7 @@ public class ClothConfigFactory {
                 .setSaveConsumer(val -> {
                     if (val) {
                         openColorPicker = true;
-                        openColorPickerRunnable = () -> Minecraft.getInstance().setScreen(new com.eymistaken.simplecps.gui.ColorPickerScreen(config.comboColor, c -> config.comboColor = c, parent));
+                        openColorPickerRunnable = () -> Minecraft.getInstance().gui.setScreen(new com.eymistaken.simplecps.gui.ColorPickerScreen(config.comboColor, c -> config.comboColor = c, parent));
                     }
                 })
                 .build());
@@ -488,7 +488,7 @@ public class ClothConfigFactory {
                  .setSaveConsumer(val -> {
                      if (val) {
                          openColorPicker = true;
-                         openColorPickerRunnable = () -> Minecraft.getInstance().setScreen(new com.eymistaken.simplecps.gui.ColorPickerScreen(config.comboBackgroundColor, c -> config.comboBackgroundColor = c, parent));
+                         openColorPickerRunnable = () -> Minecraft.getInstance().gui.setScreen(new com.eymistaken.simplecps.gui.ColorPickerScreen(config.comboBackgroundColor, c -> config.comboBackgroundColor = c, parent));
                      }
                  })
                  .build());
@@ -537,7 +537,7 @@ public class ClothConfigFactory {
                 .setSaveConsumer(val -> {
                     if (val) {
                         openColorPicker = true;
-                        openColorPickerRunnable = () -> Minecraft.getInstance().setScreen(new com.eymistaken.simplecps.gui.ColorPickerScreen(config.reachColor, c -> config.reachColor = c, parent));
+                        openColorPickerRunnable = () -> Minecraft.getInstance().gui.setScreen(new com.eymistaken.simplecps.gui.ColorPickerScreen(config.reachColor, c -> config.reachColor = c, parent));
                     }
                 })
                 .build());
@@ -573,7 +573,7 @@ public class ClothConfigFactory {
                 .setSaveConsumer(val -> {
                     if (val) {
                         openColorPicker = true;
-                        openColorPickerRunnable = () -> Minecraft.getInstance().setScreen(new com.eymistaken.simplecps.gui.ColorPickerScreen(config.reachBackgroundColor, c -> config.reachBackgroundColor = c, parent));
+                        openColorPickerRunnable = () -> Minecraft.getInstance().gui.setScreen(new com.eymistaken.simplecps.gui.ColorPickerScreen(config.reachBackgroundColor, c -> config.reachBackgroundColor = c, parent));
                     }
                 })
                 .build());
@@ -663,7 +663,7 @@ public class ClothConfigFactory {
                     if (val) {
                          // We need to schedule this because the screen is currently closing
                         Minecraft.getInstance().execute(() -> 
-                            Minecraft.getInstance().setScreen(new HudEditorScreen(parent))
+                            Minecraft.getInstance().gui.setScreen(new HudEditorScreen(parent))
                         );
                     }
                 })
