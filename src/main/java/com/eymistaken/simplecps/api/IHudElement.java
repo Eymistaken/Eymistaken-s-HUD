@@ -8,6 +8,14 @@ public interface IHudElement {
     int getY();
     int getWidth();
     int getHeight();
+
+    default int getLayoutWidth() {
+        return getWidth();
+    }
+
+    default int getLayoutHeight() {
+        return getHeight();
+    }
     
     int getXOffset();
     int getYOffset();

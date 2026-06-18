@@ -79,88 +79,16 @@ public class HudModuleManager {
         
         moduleBounds.clear();
 
-        SimpleCPSConfig config = SimpleCPSConfig.instance;
         int screenWidth = drawContext.guiWidth();
         int screenHeight = drawContext.guiHeight();
 
-        // Stacking Variables
-        int stackGap = 5;
-        int topLeftStack = stackGap;
-        int topRightStack = stackGap;
-        int bottomLeftStack = screenHeight - stackGap;
-        int bottomRightStack = screenHeight - stackGap;
-        int gap = 4;
+        for (HudPlacementResolver.ModulePlacement placement : HudPlacementResolver.resolveModules(modules, screenWidth, screenHeight, isEditor)) {
+            if (!placement.shouldRender) continue;
 
-        for (HudModule module : modules) {
-             if (!module.isEnabled() && !isEditor) continue;
-             
-             // Get Dimensions
-             int w = module.getWidth();
-             int h = module.getHeight();
-             
-             // If module has no size (e.g. Reach with no hit), skip rendering/stacking logic if logically hidden
-             if (w == 0 || h == 0) continue;
+            moduleBounds.put(placement.module.getName(), new ModuleBounds(placement.x, placement.y, placement.w, placement.h));
 
-             // Get Config/Position
-             SimpleCPSConfig.Position pos = module.getPositionType();
-             int xOff = module.getXOffset();
-             int yOff = module.getYOffset();
-             
-             boolean detached = xOff != 0 || yOff != 0;
-             
-             int x = 0, y = 0;
-             int usedHeight = h; 
-             
-             switch (pos) {
-                case TOP_LEFT -> { 
-                    x = stackGap; 
-                    y = detached ? stackGap : topLeftStack; 
-                    if(!detached) topLeftStack += usedHeight + gap; 
-                }
-                case TOP_RIGHT -> { 
-                    x = screenWidth - w - stackGap; 
-                    y = detached ? stackGap : topRightStack; 
-                    if(!detached) topRightStack += usedHeight + gap; 
-                }
-                case BOTTOM_LEFT -> { 
-                    x = stackGap; 
-                    if (!detached) {
-                        int currentBottom = (module instanceof ArmorModule && bottomLeftStack == screenHeight - stackGap) ? screenHeight : bottomLeftStack;
-                        currentBottom -= usedHeight;
-                        y = currentBottom;
-                        bottomLeftStack = currentBottom - gap;
-                    } else {
-                        y = screenHeight - usedHeight - stackGap;
-                    }
-                }
-                case BOTTOM_RIGHT -> { 
-                    x = screenWidth - w - stackGap; 
-                    if (!detached) {
-                        int currentBottom = (module instanceof ArmorModule && bottomRightStack == screenHeight - stackGap) ? screenHeight : bottomRightStack;
-                        currentBottom -= usedHeight;
-                        y = currentBottom;
-                        bottomRightStack = currentBottom - gap;
-                    } else {
-                        y = screenHeight - usedHeight - stackGap;
-                    }
-                }
-                case CENTER -> { 
-                    x = (screenWidth - w) / 2; 
-                    y = (screenHeight - h) / 2; 
-                    
-                    if (module instanceof ReachModule && !detached) {
-                         y += 15;
-                    }
-                }
-            }
-            
-            int finalX = x + xOff;
-            int finalY = y + yOff;
-            
-            moduleBounds.put(module.getName(), new ModuleBounds(finalX, finalY, w, h));
-            
-            module.setRenderPosition(finalX, finalY);
-            module.extractRenderState(drawContext, tickDelta); 
+            placement.module.setRenderPosition(placement.x, placement.y);
+            placement.module.extractRenderState(drawContext, tickDelta);
         }
     }
 }

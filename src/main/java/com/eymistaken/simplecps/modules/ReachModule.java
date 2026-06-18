@@ -90,6 +90,22 @@ public class ReachModule extends HudModule {
         return text;
     }
 
+    private int measureWidth(String reachText) {
+        SimpleCPSConfig config = SimpleCPSConfig.instance;
+        float scale = config.reachScale / 100f;
+        int textWidth = (int)(client.font.width(reachText) * scale);
+        int padding = 2;
+        return config.reachShowBackground ? (int)(((textWidth / scale) + padding * 2) * scale) : textWidth;
+    }
+
+    private int measureHeight() {
+        SimpleCPSConfig config = SimpleCPSConfig.instance;
+        float scale = config.reachScale / 100f;
+        int textHeight = (int)(client.font.lineHeight * scale);
+        int padding = 2;
+        return config.reachShowBackground ? (int)(((textHeight / scale) + padding * 2) * scale) : textHeight;
+    }
+
     @Override
     public void extractRenderState(GuiGraphicsExtractor context, float tickDelta) {
         String reachText = getDisplayText();
@@ -125,23 +141,27 @@ public class ReachModule extends HudModule {
     public int getWidth() {
         String reachText = getDisplayText();
         if (reachText == null) return 0;
-        
-        SimpleCPSConfig config = SimpleCPSConfig.instance;
-        float scale = config.reachScale / 100f;
-        int textWidth = (int)(client.font.width(reachText) * scale);
-        int padding = 2;
-        return config.reachShowBackground ? (int)(((textWidth / scale) + padding * 2) * scale) : textWidth;
+        return measureWidth(reachText);
     }
 
     @Override
     public int getHeight() {
         String reachText = getDisplayText();
         if (reachText == null) return 0;
+        return measureHeight();
+    }
 
-        SimpleCPSConfig config = SimpleCPSConfig.instance;
-        float scale = config.reachScale / 100f;
-        int textHeight = (int)(client.font.lineHeight * scale);
-        int padding = 2;
-        return config.reachShowBackground ? (int)(((textHeight / scale) + padding * 2) * scale) : textHeight;
+    @Override
+    public int getLayoutWidth() {
+        String reachText = getDisplayText();
+        if (reachText == null) {
+            reachText = "3.00 blocks";
+        }
+        return measureWidth(reachText);
+    }
+
+    @Override
+    public int getLayoutHeight() {
+        return measureHeight();
     }
 }

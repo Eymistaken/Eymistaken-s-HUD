@@ -1,6 +1,7 @@
 package com.eymistaken.simplecps.gui;
 
 import com.eymistaken.simplecps.HudModuleManager;
+import com.eymistaken.simplecps.HudPlacementResolver;
 import com.eymistaken.simplecps.SimpleCPSClient;
 import com.eymistaken.simplecps.SimpleCPSConfig;
 import org.lwjgl.glfw.GLFW;
@@ -25,6 +26,9 @@ public class HudEditorScreen extends Screen {
     private boolean contextMenuOpen = false;
     private int contextMenuX, contextMenuY;
     private com.eymistaken.simplecps.api.IHudElement contextMenuTarget = null;
+
+    private boolean globalMenuOpen = false;
+    private int globalMenuX, globalMenuY;
     
     // For text editing (Stage 4 prep)
     private com.eymistaken.simplecps.api.TextSetting textEditTarget = null;
@@ -52,6 +56,8 @@ public class HudEditorScreen extends Screen {
     private int leaderDragStartY = 0;
     private final java.util.Map<com.eymistaken.simplecps.api.IHudElement, java.awt.Point> dragStartOffsets = new java.util.HashMap<>();
     private final java.util.Map<com.eymistaken.simplecps.api.IHudElement, java.awt.Point> dragStartScreenPositions = new java.util.HashMap<>();
+    private final java.util.Map<com.eymistaken.simplecps.api.IHudElement, java.awt.Point> currentDragTargetPositions = new java.util.HashMap<>();
+    private boolean hasDraggedElement = false;
 
     public HudEditorScreen(Screen parent) {
         super(Component.nullToEmpty("HUD Editor"));
@@ -175,11 +181,13 @@ public class HudEditorScreen extends Screen {
             context.fill(0, snapLineY, this.width, snapLineY + 1, 0xFFFF00FF);
         }
         
-        context.centeredText(this.font, Component.nullToEmpty("Drag & Drop Editor - Scroll to Scale"), this.width / 2, 10, 0xFFFFFFFF);
-        context.centeredText(this.font, Component.nullToEmpty("Right Click to Open Settings"), this.width / 2, 22, 0xFFAAAAAA);
+        context.centeredText(this.font, Component.nullToEmpty("Eymistaken's HUD"), this.width / 2, 10, 0xFFFFFFFF);
 
         if (contextMenuOpen && contextMenuTarget != null) {
             renderContextMenu(context, mouseX, mouseY);
+        }
+        if (globalMenuOpen) {
+            renderGlobalMenu(context, mouseX, mouseY);
         }
         
         if (textEditTarget != null) {
@@ -200,6 +208,26 @@ public class HudEditorScreen extends Screen {
         double mouseX = click.x();
         double mouseY = click.y();
         int button = click.button();
+
+        if (globalMenuOpen) {
+            int menuW = 180;
+            int menuH = getGlobalMenuHeight();
+            if (mouseX >= globalMenuX && mouseX <= globalMenuX + menuW &&
+                mouseY >= globalMenuY && mouseY <= globalMenuY + menuH) {
+                if (mouseY >= globalMenuY + 20 && mouseY < globalMenuY + 40) {
+                    SimpleCPSConfig.instance.preventOverlap = !SimpleCPSConfig.instance.preventOverlap;
+                    SimpleCPSConfig.save();
+                    return true;
+                } else if (mouseY >= globalMenuY + 40 && mouseY < globalMenuY + 60) {
+                    resetHudLayout();
+                    globalMenuOpen = false;
+                    return true;
+                }
+                return true;
+            } else {
+                globalMenuOpen = false;
+            }
+        }
         
         if (contextMenuOpen && contextMenuTarget != null) {
             int menuW = 220;
@@ -256,6 +284,8 @@ public class HudEditorScreen extends Screen {
                     leaderDragStartX = element.getX();
                     leaderDragStartY = element.getY();
                     dragStartOffsets.clear();
+                    currentDragTargetPositions.clear();
+                    hasDraggedElement = false;
                     
                     java.util.Set<com.eymistaken.simplecps.api.IHudElement> targets = new java.util.HashSet<>();
                     if (selectedElements.contains(element)) {
@@ -293,6 +323,7 @@ public class HudEditorScreen extends Screen {
                     
                     contextMenuTarget = element;
                     contextMenuOpen = true;
+                    globalMenuOpen = false;
                     contextMenuX = (int)mouseX;
                     
                     int h = getMenuHeight(element);
@@ -306,6 +337,9 @@ public class HudEditorScreen extends Screen {
                     return true;
                 }
             }
+            contextMenuOpen = false;
+            openGlobalMenu((int)mouseX, (int)mouseY);
+            return true;
         }
         return super.mouseClicked(click, bl);
     }
@@ -339,14 +373,19 @@ public class HudEditorScreen extends Screen {
             snapLineX = null;
             snapLineY = null;
             if (draggingElement != null) {
-                if (selectedElements.contains(draggingElement)) {
-                    for (com.eymistaken.simplecps.api.IHudElement sel : selectedElements) {
-                        sel.onPositionUpdated();
+                java.util.Set<com.eymistaken.simplecps.api.IHudElement> targets = getDragTargets();
+                if (hasDraggedElement) {
+                    resolveDraggedTargets(targets);
+                    for (com.eymistaken.simplecps.api.IHudElement target : targets) {
+                        HudPlacementResolver.setManualLayout(target, HudModuleManager.getInstance().getModules(), true);
                     }
-                } else {
-                    draggingElement.onPositionUpdated();
+                }
+                for (com.eymistaken.simplecps.api.IHudElement target : targets) {
+                    target.onPositionUpdated();
                 }
                 draggingElement = null;
+                hasDraggedElement = false;
+                currentDragTargetPositions.clear();
                 return true;
             }
             if (draggingSlider != null) {
@@ -410,45 +449,17 @@ public class HudEditorScreen extends Screen {
             int snapDispX = snappedPos.x - leaderDragStartX;
             int snapDispY = snappedPos.y - leaderDragStartY;
             
+            hasDraggedElement = true;
+            currentDragTargetPositions.clear();
             for (var entry : dragStartScreenPositions.entrySet()) {
                 com.eymistaken.simplecps.api.IHudElement el = entry.getKey();
                 java.awt.Point startScreenPos = entry.getValue();
                 
                 int targetX = startScreenPos.x + snapDispX;
                 int targetY = startScreenPos.y + snapDispY;
-                
-                if (el instanceof com.eymistaken.simplecps.api.HudModule module) {
-                    int w = module.getWidth();
-                    int h = module.getHeight();
-                    int centerX = targetX + w / 2;
-                    int centerY = targetY + h / 2;
-                    
-                    SimpleCPSConfig.Position newAnchor = determineAnchor(centerX, centerY);
-                    Point base = getEstimatedBasePos(newAnchor, w, h);
-                    
-                    module.setPositionType(newAnchor);
-                    module.setXOffset(targetX - base.x);
-                    module.setYOffset(targetY - base.y);
-                } else {
-                    // Non-HudModule sub-elements (like ArmorElement)
-                    com.eymistaken.simplecps.api.HudModule parent = null;
-                    for (com.eymistaken.simplecps.api.HudModule m : HudModuleManager.getInstance().getModules()) {
-                        if (m.getSubElements().contains(el)) {
-                            parent = m;
-                            break;
-                        }
-                    }
-                    if (parent != null) {
-                        el.setXOffset(targetX - parent.getX());
-                        el.setYOffset(targetY - parent.getY());
-                    } else {
-                        java.awt.Point startOffset = dragStartOffsets.get(el);
-                        if (startOffset != null) {
-                            el.setXOffset(startOffset.x + snapDispX);
-                            el.setYOffset(startOffset.y + snapDispY);
-                        }
-                    }
-                }
+
+                currentDragTargetPositions.put(el, new java.awt.Point(targetX, targetY));
+                applyElementScreenPosition(el, targetX, targetY);
             }
             return true;
         }
@@ -650,9 +661,56 @@ public class HudEditorScreen extends Screen {
         return height;
     }
 
+    private int getGlobalMenuHeight() {
+        return 60;
+    }
+
+    private void openGlobalMenu(int mouseX, int mouseY) {
+        globalMenuOpen = true;
+        contextMenuOpen = false;
+        globalMenuX = mouseX;
+
+        int h = getGlobalMenuHeight();
+        int y = mouseY;
+        if (y + h > this.height) y = y - h;
+        if (y < 0) y = 0;
+        if (y + h > this.height) y = this.height - h;
+        globalMenuY = y;
+    }
+
+    private void resetHudLayout() {
+        java.util.List<com.eymistaken.simplecps.api.HudModule> modules = HudModuleManager.getInstance().getModules();
+        for (com.eymistaken.simplecps.api.HudModule module : modules) {
+            clearManualLayout(module, modules);
+            for (com.eymistaken.simplecps.api.IHudElement subElement : module.getSubElements()) {
+                clearManualLayout(subElement, modules);
+                subElement.resetToDefaults();
+            }
+            module.resetToDefaults();
+            for (com.eymistaken.simplecps.api.IHudElement subElement : module.getSubElements()) {
+                clearManualLayout(subElement, modules);
+                subElement.resetToDefaults();
+            }
+        }
+        SimpleCPSConfig.instance.preventOverlap = true;
+        selectedElements.clear();
+        draggingElement = null;
+        snapLineX = null;
+        snapLineY = null;
+        SimpleCPSConfig.save();
+    }
+
+    private void clearManualLayout(
+        com.eymistaken.simplecps.api.IHudElement element,
+        java.util.List<com.eymistaken.simplecps.api.HudModule> modules
+    ) {
+        HudPlacementResolver.setManualLayout(element, modules, false);
+    }
+
     private void handleMenuClick(int index, double mouseX, double mouseY) {
         if (index == -1) {
             contextMenuTarget.resetToDefaults();
+            HudPlacementResolver.setManualLayout(contextMenuTarget, HudModuleManager.getInstance().getModules(), false);
             SimpleCPSConfig.save();
             contextMenuOpen = false;
             return;
@@ -784,6 +842,40 @@ public class HudEditorScreen extends Screen {
         }
     }
 
+    private void renderGlobalMenu(GuiGraphicsExtractor context, int mouseX, int mouseY) {
+        int w = 180;
+        int h = getGlobalMenuHeight();
+        int x = globalMenuX;
+        int y = globalMenuY;
+
+        context.fill(x, y, x + w, y + h, 0xFF222222);
+        context.fill(x - 1, y - 1, x + w + 1, y, 0xFFFFFFFF);
+        context.fill(x - 1, y + h, x + w + 1, y + h + 1, 0xFFFFFFFF);
+        context.fill(x - 1, y, x, y + h, 0xFFFFFFFF);
+        context.fill(x + w, y, x + w + 1, y + h, 0xFFFFFFFF);
+
+        context.text(this.font, "HUD Settings", x + 5, y + 6, 0xFFFFFFFF, true);
+
+        int rowY = y + 20;
+        boolean hovered = mouseX >= x && mouseX <= x + w && mouseY >= rowY && mouseY < rowY + 20;
+        if (hovered) {
+            context.fill(x, rowY, x + w, rowY + 20, 0xFF444444);
+        }
+
+        context.text(this.font, "Prevent Overlap", x + 5, rowY + 6, 0xFFFFFFFF, true);
+        String val = SimpleCPSConfig.instance.preventOverlap ? "[ON]" : "[OFF]";
+        int valW = this.font.width(val);
+        int color = SimpleCPSConfig.instance.preventOverlap ? 0xFF55FF55 : 0xFFFF5555;
+        context.text(this.font, val, x + w - valW - 5, rowY + 6, color, true);
+
+        int resetY = y + 40;
+        boolean resetHovered = mouseX >= x && mouseX <= x + w && mouseY >= resetY && mouseY < resetY + 20;
+        if (resetHovered) {
+            context.fill(x, resetY, x + w, resetY + 20, 0xFF444444);
+        }
+        context.text(this.font, "Reset HUD", x + 5, resetY + 6, 0xFFFFAA55, true);
+    }
+
     @Override
     public boolean charTyped(CharacterEvent charInput) {
         char chr = (char) charInput.codepoint();
@@ -794,45 +886,139 @@ public class HudEditorScreen extends Screen {
         return super.charTyped(charInput);
     }
 
-    private void nudgeElement(com.eymistaken.simplecps.api.IHudElement el, int dx, int dy) {
-        int targetX = el.getX() + dx;
-        int targetY = el.getY() + dy;
-        
+    private java.util.Set<com.eymistaken.simplecps.api.IHudElement> getDragTargets() {
+        java.util.Set<com.eymistaken.simplecps.api.IHudElement> targets = new java.util.HashSet<>();
+        if (selectedElements.contains(draggingElement)) {
+            targets.addAll(selectedElements);
+        } else if (draggingElement != null) {
+            targets.add(draggingElement);
+        }
+        return targets;
+    }
+
+    private void resolveDraggedTargets(java.util.Set<com.eymistaken.simplecps.api.IHudElement> targets) {
+        if (!SimpleCPSConfig.instance.preventOverlap || targets.isEmpty()) return;
+
+        java.util.Map<com.eymistaken.simplecps.api.IHudElement, java.awt.Point> targetPositions = new java.util.HashMap<>();
+        for (com.eymistaken.simplecps.api.IHudElement target : targets) {
+            java.awt.Point pos = currentDragTargetPositions.get(target);
+            if (pos == null) {
+                pos = new java.awt.Point(target.getX(), target.getY());
+            }
+            targetPositions.put(target, pos);
+        }
+        resolveAndApplyTargetPositions(targets, targetPositions);
+    }
+
+    private void resolveAndApplyTargetPositions(
+        java.util.Set<com.eymistaken.simplecps.api.IHudElement> targets,
+        java.util.Map<com.eymistaken.simplecps.api.IHudElement, java.awt.Point> targetPositions
+    ) {
+        HudPlacementResolver.Rect groupRect = buildGroupRect(targetPositions);
+        if (groupRect == null) return;
+
+        HudPlacementResolver.Rect resolved = HudPlacementResolver.findNearestFree(
+            groupRect,
+            getBlockingRects(targets),
+            this.width,
+            this.height
+        );
+        int dx = resolved.x - groupRect.x;
+        int dy = resolved.y - groupRect.y;
+
+        for (var entry : targetPositions.entrySet()) {
+            java.awt.Point pos = entry.getValue();
+            applyElementScreenPosition(entry.getKey(), pos.x + dx, pos.y + dy);
+        }
+    }
+
+    private HudPlacementResolver.Rect buildGroupRect(java.util.Map<com.eymistaken.simplecps.api.IHudElement, java.awt.Point> targetPositions) {
+        if (targetPositions.isEmpty()) return null;
+
+        int minX = Integer.MAX_VALUE;
+        int minY = Integer.MAX_VALUE;
+        int maxX = Integer.MIN_VALUE;
+        int maxY = Integer.MIN_VALUE;
+
+        for (var entry : targetPositions.entrySet()) {
+            com.eymistaken.simplecps.api.IHudElement element = entry.getKey();
+            java.awt.Point pos = entry.getValue();
+            int w = Math.max(1, element.getWidth());
+            int h = Math.max(1, element.getHeight());
+            minX = Math.min(minX, pos.x);
+            minY = Math.min(minY, pos.y);
+            maxX = Math.max(maxX, pos.x + w);
+            maxY = Math.max(maxY, pos.y + h);
+        }
+
+        return new HudPlacementResolver.Rect(minX, minY, maxX - minX, maxY - minY);
+    }
+
+    private java.util.List<HudPlacementResolver.Rect> getBlockingRects(java.util.Set<com.eymistaken.simplecps.api.IHudElement> movingElements) {
+        java.util.List<HudPlacementResolver.Rect> blockers = new java.util.ArrayList<>();
+        for (com.eymistaken.simplecps.api.IHudElement element : getAllActiveElements()) {
+            if (movingElements.contains(element)) continue;
+            int w = element.getWidth();
+            int h = element.getHeight();
+            if (w <= 0 || h <= 0) continue;
+            blockers.add(new HudPlacementResolver.Rect(element.getX(), element.getY(), w, h));
+        }
+        return blockers;
+    }
+
+    private void applyElementScreenPosition(com.eymistaken.simplecps.api.IHudElement el, int targetX, int targetY) {
         if (el instanceof com.eymistaken.simplecps.api.HudModule module) {
-            int w = module.getWidth();
-            int h = module.getHeight();
+            int w = Math.max(1, module.getWidth());
+            int h = Math.max(1, module.getHeight());
             int centerX = targetX + w / 2;
             int centerY = targetY + h / 2;
-            
+
             SimpleCPSConfig.Position newAnchor = determineAnchor(centerX, centerY);
-            Point base = getEstimatedBasePos(newAnchor, w, h);
-            
+            Point base = HudPlacementResolver.getBasePos(newAnchor, this.width, this.height, w, h);
+
             module.setPositionType(newAnchor);
             module.setXOffset(targetX - base.x);
             module.setYOffset(targetY - base.y);
         } else {
-            // Non-HudModule sub-elements (like ArmorElement)
-            com.eymistaken.simplecps.api.HudModule parent = null;
-            for (com.eymistaken.simplecps.api.HudModule m : HudModuleManager.getInstance().getModules()) {
-                if (m.getSubElements().contains(el)) {
-                    parent = m;
-                    break;
-                }
-            }
+            com.eymistaken.simplecps.api.HudModule parent = findParentModule(el);
             if (parent != null) {
                 el.setXOffset(targetX - parent.getX());
                 el.setYOffset(targetY - parent.getY());
             } else {
-                el.setXOffset(el.getXOffset() + dx);
-                el.setYOffset(el.getYOffset() + dy);
+                el.setXOffset(targetX);
+                el.setYOffset(targetY);
             }
         }
-        el.onPositionUpdated();
+    }
+
+    private com.eymistaken.simplecps.api.HudModule findParentModule(com.eymistaken.simplecps.api.IHudElement el) {
+        for (com.eymistaken.simplecps.api.HudModule module : HudModuleManager.getInstance().getModules()) {
+            if (module.getSubElements().contains(el)) {
+                return module;
+            }
+        }
+        return null;
     }
 
     private void nudgeElements(int dx, int dy) {
-        for (com.eymistaken.simplecps.api.IHudElement el : selectedElements) {
-            nudgeElement(el, dx, dy);
+        java.util.Set<com.eymistaken.simplecps.api.IHudElement> targets = new java.util.HashSet<>(selectedElements);
+        java.util.Map<com.eymistaken.simplecps.api.IHudElement, java.awt.Point> targetPositions = new java.util.HashMap<>();
+        for (com.eymistaken.simplecps.api.IHudElement el : targets) {
+            targetPositions.put(el, new java.awt.Point(el.getX() + dx, el.getY() + dy));
+        }
+
+        if (SimpleCPSConfig.instance.preventOverlap) {
+            resolveAndApplyTargetPositions(targets, targetPositions);
+        } else {
+            for (var entry : targetPositions.entrySet()) {
+                java.awt.Point pos = entry.getValue();
+                applyElementScreenPosition(entry.getKey(), pos.x, pos.y);
+            }
+        }
+
+        for (com.eymistaken.simplecps.api.IHudElement el : targets) {
+            HudPlacementResolver.setManualLayout(el, HudModuleManager.getInstance().getModules(), true);
+            el.onPositionUpdated();
         }
         SimpleCPSConfig.save();
     }

@@ -9,7 +9,9 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.lwjgl.glfw.GLFW;
 
 public class SimpleCPSConfig {
@@ -28,8 +30,10 @@ public class SimpleCPSConfig {
             if (instance.keystrokesLayout == null || instance.keystrokesLayout.isEmpty()) {
                 instance.resetLayout();
             }
+            instance.ensureDefaults();
         } else {
             instance.resetLayout();
+            instance.ensureDefaults();
             save(); // Create default
         }
     }
@@ -57,7 +61,34 @@ public class SimpleCPSConfig {
     
     public void resetToDefaults() {
         instance = new SimpleCPSConfig();
+        instance.resetLayout();
+        instance.ensureDefaults();
         save();
+    }
+
+    private void ensureDefaults() {
+        if (manualLayoutElements == null) {
+            manualLayoutElements = new HashMap<>();
+        }
+        if (keystrokesLayout == null || keystrokesLayout.isEmpty()) {
+            resetLayout();
+        }
+    }
+
+    public static boolean isManualLayout(String key) {
+        if (key == null || key.isEmpty()) return false;
+        instance.ensureDefaults();
+        return Boolean.TRUE.equals(instance.manualLayoutElements.get(key));
+    }
+
+    public static void setManualLayout(String key, boolean manual) {
+        if (key == null || key.isEmpty()) return;
+        instance.ensureDefaults();
+        if (manual) {
+            instance.manualLayoutElements.put(key, true);
+        } else {
+            instance.manualLayoutElements.remove(key);
+        }
     }
 
     // Enums
@@ -65,6 +96,10 @@ public class SimpleCPSConfig {
     public enum RainbowTarget { TEXT, BACKGROUND }
     public enum HeatmapMode { EASY, MEDIUM, HARD } // New Enum
     public enum CombatMode { CLASSIC, MODERN }
+
+    // --- HUD EDITOR ---
+    public boolean preventOverlap = true;
+    public Map<String, Boolean> manualLayoutElements = new HashMap<>();
 
     // --- CPS ---
     public boolean enabled = true;
