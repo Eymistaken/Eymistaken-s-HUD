@@ -27,10 +27,7 @@ public class SimpleCPSConfig {
             } catch (IOException e) {
                 e.printStackTrace();
             }
-            if (instance.keystrokesLayout == null || instance.keystrokesLayout.isEmpty()) {
-                instance.resetLayout();
-            }
-            instance.ensureDefaults();
+            instance.normalize();
         } else {
             instance.resetLayout();
             instance.ensureDefaults();
@@ -73,6 +70,18 @@ public class SimpleCPSConfig {
         if (keystrokesLayout == null || keystrokesLayout.isEmpty()) {
             resetLayout();
         }
+    }
+
+    /**
+     * Fill in any missing/empty collections with safe defaults. Called after
+     * loading from disk and after applying a saved preset, so an old or partial
+     * config never leaves null maps/lists behind.
+     */
+    public void normalize() {
+        if (keystrokesLayout == null || keystrokesLayout.isEmpty()) {
+            resetLayout();
+        }
+        ensureDefaults();
     }
 
     public static boolean isManualLayout(String key) {

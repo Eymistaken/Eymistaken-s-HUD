@@ -1,5 +1,6 @@
 package com.eymistaken.simplecps.gui;
 
+import com.eymistaken.simplecps.ConfigPresetManager;
 import com.eymistaken.simplecps.HudModuleManager;
 import com.eymistaken.simplecps.HudPlacementResolver;
 import com.eymistaken.simplecps.SimpleCPSClient;
@@ -29,7 +30,27 @@ public class HudEditorScreen extends Screen {
 
     private boolean globalMenuOpen = false;
     private int globalMenuX, globalMenuY;
-    
+
+    // Global menu layout (title row + N action rows, each 20px tall)
+    private static final int GLOBAL_MENU_WIDTH = 180;
+    private static final int GLOBAL_ROW_PREVENT_OVERLAP = 0;
+    private static final int GLOBAL_ROW_SAVE_CONFIG = 1;
+    private static final int GLOBAL_ROW_CONFIGS = 2;
+    private static final int GLOBAL_ROW_RESET_HUD = 3;
+    private static final int GLOBAL_ROW_COUNT = 4;
+
+    // Configs fly-out submenu (hover on the "Configs" row)
+    private static final int SUBMENU_WIDTH = 170;
+    private boolean configsSubmenuOpen = false;
+    private int configsSubmenuX, configsSubmenuY;
+    private java.util.List<String> cachedPresetNames = new java.util.ArrayList<>();
+
+    // Generic text prompt overlay (used for renaming a config)
+    private boolean textPromptActive = false;
+    private String textPromptBuffer = "";
+    private String textPromptLabel = "";
+    private java.util.function.Consumer<String> textPromptCallback = null;
+
     // For text editing (Stage 4 prep)
     private com.eymistaken.simplecps.api.TextSetting textEditTarget = null;
     private String textEditBuffer = "";
@@ -189,8 +210,14 @@ public class HudEditorScreen extends Screen {
         if (globalMenuOpen) {
             renderGlobalMenu(context, mouseX, mouseY);
         }
-        
-        if (textEditTarget != null) {
+        updateConfigsSubmenuHover(mouseX, mouseY);
+        if (configsSubmenuOpen) {
+            renderConfigsSubmenu(context, mouseX, mouseY);
+        }
+
+        if (textEditTarget != null || textPromptActive) {
+            String label = textPromptActive ? textPromptLabel : textEditTarget.label;
+            String buffer = textPromptActive ? textPromptBuffer : textEditBuffer;
             int cx = this.width / 2;
             int cy = this.height - 40;
             context.fill(cx - 100, cy - 10, cx + 100, cy + 10, 0xAA000000);
@@ -198,8 +225,8 @@ public class HudEditorScreen extends Screen {
             context.fill(cx - 101, cy + 10, cx + 101, cy + 11, 0xFFFFFFFF);
             context.fill(cx - 101, cy - 10, cx - 100, cy + 10, 0xFFFFFFFF);
             context.fill(cx + 100, cy - 10, cx + 101, cy + 10, 0xFFFFFFFF);
-            
-            context.centeredText(this.font, textEditTarget.label + ": " + textEditBuffer + "_", cx, cy - 4, 0xFFFFFFFF);
+
+            context.centeredText(this.font, label + ": " + buffer + "_", cx, cy - 4, 0xFFFFFFFF);
         }
     }
     
@@ -209,26 +236,85 @@ public class HudEditorScreen extends Screen {
         double mouseY = click.y();
         int button = click.button();
 
+        // While the rename prompt is up, swallow all clicks (Enter/Esc dismiss it).
+        if (textPromptActive) {
+            return true;
+        }
+
+        // Configs submenu must be handled BEFORE the global menu: a submenu click
+        // lands outside the global menu rect and would otherwise close everything.
+        if (configsSubmenuOpen && insideSubmenuRect((int) mouseX, (int) mouseY)) {
+            if (!cachedPresetNames.isEmpty()) {
+                int rowsTop = configsSubmenuY + 20;
+                if (mouseY >= rowsTop) {
+                    int idx = (int) ((mouseY - rowsTop) / 20);
+                    if (idx >= 0 && idx < cachedPresetNames.size()) {
+                        String name = cachedPresetNames.get(idx);
+                        boolean overTrash = mouseX >= configsSubmenuX + SUBMENU_WIDTH - 20
+                                         && mouseX <= configsSubmenuX + SUBMENU_WIDTH;
+                        if (button == 0) {
+                            if (overTrash) {
+                                ConfigPresetManager.deletePreset(name);
+                                cachedPresetNames = ConfigPresetManager.listPresets();
+                                if (cachedPresetNames.isEmpty()) configsSubmenuOpen = false;
+                            } else {
+                                if (ConfigPresetManager.applyPreset(name)) {
+                                    selectedElements.clear();
+                                    draggingElement = null;
+                                }
+                                configsSubmenuOpen = false;
+                                globalMenuOpen = false;
+                            }
+                            return true;
+                        } else if (button == 1) {
+                            final String target = name;
+                            startTextPrompt("Rename Config", name, newName -> {
+                                if (newName != null && !newName.trim().isEmpty()) {
+                                    ConfigPresetManager.renamePreset(target, newName.trim());
+                                    cachedPresetNames = ConfigPresetManager.listPresets();
+                                }
+                            });
+                            return true;
+                        }
+                    }
+                }
+            }
+            return true; // consume any click inside the submenu box
+        }
+
         if (globalMenuOpen) {
-            int menuW = 180;
+            int menuW = GLOBAL_MENU_WIDTH;
             int menuH = getGlobalMenuHeight();
             if (mouseX >= globalMenuX && mouseX <= globalMenuX + menuW &&
                 mouseY >= globalMenuY && mouseY <= globalMenuY + menuH) {
-                if (mouseY >= globalMenuY + 20 && mouseY < globalMenuY + 40) {
-                    SimpleCPSConfig.instance.preventOverlap = !SimpleCPSConfig.instance.preventOverlap;
-                    SimpleCPSConfig.save();
-                    return true;
-                } else if (mouseY >= globalMenuY + 40 && mouseY < globalMenuY + 60) {
-                    resetHudLayout();
-                    globalMenuOpen = false;
-                    return true;
+                int rowsTop = globalMenuY + 20;
+                if (mouseY >= rowsTop) {
+                    int row = (int) ((mouseY - rowsTop) / 20);
+                    switch (row) {
+                        case GLOBAL_ROW_PREVENT_OVERLAP -> {
+                            SimpleCPSConfig.instance.preventOverlap = !SimpleCPSConfig.instance.preventOverlap;
+                            SimpleCPSConfig.save();
+                        }
+                        case GLOBAL_ROW_SAVE_CONFIG -> {
+                            ConfigPresetManager.savePreset(ConfigPresetManager.uniqueDefaultName());
+                            cachedPresetNames = ConfigPresetManager.listPresets();
+                        }
+                        case GLOBAL_ROW_CONFIGS -> { /* hover opens the fly-out; click just consumes */ }
+                        case GLOBAL_ROW_RESET_HUD -> {
+                            resetHudLayout();
+                            globalMenuOpen = false;
+                            configsSubmenuOpen = false;
+                        }
+                        default -> { }
+                    }
                 }
                 return true;
             } else {
                 globalMenuOpen = false;
+                configsSubmenuOpen = false;
             }
         }
-        
+
         if (contextMenuOpen && contextMenuTarget != null) {
             int menuW = 220;
             int menuH = getMenuHeight(contextMenuTarget);
@@ -662,12 +748,13 @@ public class HudEditorScreen extends Screen {
     }
 
     private int getGlobalMenuHeight() {
-        return 60;
+        return 20 + GLOBAL_ROW_COUNT * 20;
     }
 
     private void openGlobalMenu(int mouseX, int mouseY) {
         globalMenuOpen = true;
         contextMenuOpen = false;
+        configsSubmenuOpen = false;
         globalMenuX = mouseX;
 
         int h = getGlobalMenuHeight();
@@ -842,8 +929,12 @@ public class HudEditorScreen extends Screen {
         }
     }
 
+    private boolean hoverRow(int mouseX, int mouseY, int x, int rowY, int w) {
+        return mouseX >= x && mouseX <= x + w && mouseY >= rowY && mouseY < rowY + 20;
+    }
+
     private void renderGlobalMenu(GuiGraphicsExtractor context, int mouseX, int mouseY) {
-        int w = 180;
+        int w = GLOBAL_MENU_WIDTH;
         int h = getGlobalMenuHeight();
         int x = globalMenuX;
         int y = globalMenuY;
@@ -856,29 +947,147 @@ public class HudEditorScreen extends Screen {
 
         context.text(this.font, "HUD Settings", x + 5, y + 6, 0xFFFFFFFF, true);
 
-        int rowY = y + 20;
-        boolean hovered = mouseX >= x && mouseX <= x + w && mouseY >= rowY && mouseY < rowY + 20;
-        if (hovered) {
-            context.fill(x, rowY, x + w, rowY + 20, 0xFF444444);
-        }
-
-        context.text(this.font, "Prevent Overlap", x + 5, rowY + 6, 0xFFFFFFFF, true);
+        // Row 0: Prevent Overlap toggle
+        int r0 = y + 20 + GLOBAL_ROW_PREVENT_OVERLAP * 20;
+        if (hoverRow(mouseX, mouseY, x, r0, w)) context.fill(x, r0, x + w, r0 + 20, 0xFF444444);
+        context.text(this.font, "Prevent Overlap", x + 5, r0 + 6, 0xFFFFFFFF, true);
         String val = SimpleCPSConfig.instance.preventOverlap ? "[ON]" : "[OFF]";
         int valW = this.font.width(val);
         int color = SimpleCPSConfig.instance.preventOverlap ? 0xFF55FF55 : 0xFFFF5555;
-        context.text(this.font, val, x + w - valW - 5, rowY + 6, color, true);
+        context.text(this.font, val, x + w - valW - 5, r0 + 6, color, true);
 
-        int resetY = y + 40;
-        boolean resetHovered = mouseX >= x && mouseX <= x + w && mouseY >= resetY && mouseY < resetY + 20;
-        if (resetHovered) {
-            context.fill(x, resetY, x + w, resetY + 20, 0xFF444444);
+        // Row 1: Save Config
+        int r1 = y + 20 + GLOBAL_ROW_SAVE_CONFIG * 20;
+        if (hoverRow(mouseX, mouseY, x, r1, w)) context.fill(x, r1, x + w, r1 + 20, 0xFF444444);
+        context.text(this.font, "Save Config", x + 5, r1 + 6, 0xFF55FFFF, true);
+
+        // Row 2: Configs (fly-out)
+        int r2 = y + 20 + GLOBAL_ROW_CONFIGS * 20;
+        if (hoverRow(mouseX, mouseY, x, r2, w) || configsSubmenuOpen) context.fill(x, r2, x + w, r2 + 20, 0xFF444444);
+        context.text(this.font, "Configs", x + 5, r2 + 6, 0xFFFFFFFF, true);
+        context.text(this.font, ">", x + w - this.font.width(">") - 6, r2 + 6, 0xFFFFFFFF, true);
+
+        // Row 3: Reset HUD
+        int r3 = y + 20 + GLOBAL_ROW_RESET_HUD * 20;
+        if (hoverRow(mouseX, mouseY, x, r3, w)) context.fill(x, r3, x + w, r3 + 20, 0xFF444444);
+        context.text(this.font, "Reset HUD", x + 5, r3 + 6, 0xFFFFAA55, true);
+    }
+
+    private int getConfigsSubmenuHeight() {
+        int rows = cachedPresetNames.isEmpty() ? 1 : cachedPresetNames.size();
+        return 20 + rows * 20;
+    }
+
+    private boolean insideSubmenuRect(int mouseX, int mouseY) {
+        int w = SUBMENU_WIDTH;
+        int h = getConfigsSubmenuHeight();
+        return mouseX >= configsSubmenuX && mouseX <= configsSubmenuX + w &&
+               mouseY >= configsSubmenuY && mouseY <= configsSubmenuY + h;
+    }
+
+    private void openConfigsSubmenu() {
+        cachedPresetNames = ConfigPresetManager.listPresets();
+        configsSubmenuOpen = true;
+        int w = SUBMENU_WIDTH;
+        int h = getConfigsSubmenuHeight();
+        // Prefer the right side; flip to the left if it would overflow the screen.
+        int rightX = globalMenuX + GLOBAL_MENU_WIDTH;
+        configsSubmenuX = (rightX + w <= this.width) ? rightX : globalMenuX - w;
+        int y = globalMenuY + 20 + GLOBAL_ROW_CONFIGS * 20;
+        if (y + h > this.height) y = this.height - h;
+        if (y < 0) y = 0;
+        configsSubmenuY = y;
+    }
+
+    private void updateConfigsSubmenuHover(int mouseX, int mouseY) {
+        if (!globalMenuOpen) {
+            configsSubmenuOpen = false;
+            return;
         }
-        context.text(this.font, "Reset HUD", x + 5, resetY + 6, 0xFFFFAA55, true);
+        int configsRowY = globalMenuY + 20 + GLOBAL_ROW_CONFIGS * 20;
+        boolean overConfigsRow = hoverRow(mouseX, mouseY, globalMenuX, configsRowY, GLOBAL_MENU_WIDTH);
+        boolean overSubmenu = configsSubmenuOpen && insideSubmenuRect(mouseX, mouseY);
+        if (overConfigsRow) {
+            if (!configsSubmenuOpen) openConfigsSubmenu();
+        } else if (!overSubmenu) {
+            configsSubmenuOpen = false;
+        }
+    }
+
+    private void renderConfigsSubmenu(GuiGraphicsExtractor context, int mouseX, int mouseY) {
+        int x = configsSubmenuX;
+        int y = configsSubmenuY;
+        int w = SUBMENU_WIDTH;
+        int h = getConfigsSubmenuHeight();
+
+        context.fill(x, y, x + w, y + h, 0xFF222222);
+        context.fill(x - 1, y - 1, x + w + 1, y, 0xFFFFFFFF);
+        context.fill(x - 1, y + h, x + w + 1, y + h + 1, 0xFFFFFFFF);
+        context.fill(x - 1, y, x, y + h, 0xFFFFFFFF);
+        context.fill(x + w, y, x + w + 1, y + h, 0xFFFFFFFF);
+
+        context.text(this.font, "Saved Configs", x + 5, y + 6, 0xFFFFAA55, true);
+
+        int rowY = y + 20;
+        if (cachedPresetNames.isEmpty()) {
+            context.text(this.font, "No saved configs", x + 5, rowY + 6, 0xFF888888, true);
+            return;
+        }
+
+        for (String name : cachedPresetNames) {
+            boolean trashHover = mouseX >= x + w - 20 && mouseX <= x + w && mouseY >= rowY && mouseY < rowY + 20;
+            boolean rowHover = hoverRow(mouseX, mouseY, x, rowY, w) && !trashHover;
+            if (rowHover) context.fill(x, rowY, x + w, rowY + 20, 0xFF444444);
+            if (trashHover) context.fill(x + w - 20, rowY, x + w, rowY + 20, 0xFF552222);
+
+            // Name, truncated with ellipsis if too wide (leave room for the trash icon).
+            String disp = name;
+            int maxTextW = w - 26;
+            if (this.font.width(disp) > maxTextW) {
+                while (disp.length() > 1 && this.font.width(disp + "...") > maxTextW) {
+                    disp = disp.substring(0, disp.length() - 1);
+                }
+                disp = disp + "...";
+            }
+            context.text(this.font, disp, x + 5, rowY + 6, 0xFFFFFFFF, true);
+
+            // Trash icon (drawn with fills to match the rest of this UI).
+            int tx = x + w - 15;
+            int ty = rowY + 5;
+            int tColor = trashHover ? 0xFFFF7777 : 0xFFAAAAAA;
+            context.fill(tx + 3, ty, tx + 7, ty + 1, tColor);       // handle
+            context.fill(tx, ty + 1, tx + 10, ty + 3, tColor);      // lid
+            context.fill(tx + 1, ty + 3, tx + 9, ty + 11, tColor);  // body
+
+            rowY += 20;
+        }
+    }
+
+    private void startTextPrompt(String label, String initial, java.util.function.Consumer<String> callback) {
+        textPromptActive = true;
+        textPromptLabel = label;
+        textPromptBuffer = initial == null ? "" : initial;
+        textPromptCallback = callback;
+        // Close menus so the prompt overlay is unobstructed.
+        configsSubmenuOpen = false;
+        globalMenuOpen = false;
+        contextMenuOpen = false;
+    }
+
+    private void closeTextPrompt() {
+        textPromptActive = false;
+        textPromptBuffer = "";
+        textPromptLabel = "";
+        textPromptCallback = null;
     }
 
     @Override
     public boolean charTyped(CharacterEvent charInput) {
         char chr = (char) charInput.codepoint();
+        if (textPromptActive) {
+            textPromptBuffer += chr;
+            return true;
+        }
         if (textEditTarget != null) {
             textEditBuffer += chr;
             return true;
@@ -1026,6 +1235,24 @@ public class HudEditorScreen extends Screen {
     @Override
     public boolean keyPressed(KeyEvent keyInput) {
         int keyCode = keyInput.input();
+        if (textPromptActive) {
+            if (keyCode == GLFW.GLFW_KEY_ENTER) {
+                java.util.function.Consumer<String> cb = textPromptCallback;
+                String val = textPromptBuffer;
+                closeTextPrompt();
+                if (cb != null) cb.accept(val);
+                return true;
+            } else if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
+                closeTextPrompt();
+                return true;
+            } else if (keyCode == GLFW.GLFW_KEY_BACKSPACE) {
+                if (!textPromptBuffer.isEmpty()) {
+                    textPromptBuffer = textPromptBuffer.substring(0, textPromptBuffer.length() - 1);
+                }
+                return true;
+            }
+            return true; // swallow all other keys while typing (no nudging, etc.)
+        }
         if (textEditTarget != null) {
             if (keyCode == GLFW.GLFW_KEY_ENTER) {
                 textEditTarget.setter.accept(textEditBuffer);
