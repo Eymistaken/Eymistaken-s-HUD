@@ -13,14 +13,25 @@ public class ClothConfigFactory {
     // Color Picker Flags
     private static boolean openColorPicker = false;
     private static Runnable openColorPickerRunnable = null;
+    private static boolean pendingReset = false;
 
     public static Screen create(Screen parent) {
         SimpleCPSConfig config = SimpleCPSConfig.instance;
+        pendingReset = false;
         ConfigBuilder builder = ConfigBuilder.create()
                 .setParentScreen(parent)
                 .setTitle(Component.literal("Eymistaken's HUD Settings"))
                 .setSavingRunnable(() -> {
-                    SimpleCPSConfig.save();
+                    // Cloth runs this after every save consumer, which is the only safe
+                    // point to swap SimpleCPSConfig.instance: all those consumers write
+                    // into the object captured above, so resetting from inside one would
+                    // silently discard whichever of them happened to run afterwards.
+                    if (pendingReset) {
+                        pendingReset = false;
+                        SimpleCPSConfig.instance.resetToDefaults(); // saves on its own
+                    } else {
+                        SimpleCPSConfig.save();
+                    }
                     if (openColorPicker && openColorPickerRunnable != null) {
                         openColorPicker = false;
                         Minecraft.getInstance().execute(openColorPickerRunnable);
@@ -652,10 +663,40 @@ public class ClothConfigFactory {
                 .build());
 
         // --- NEW LAYOUT TAB ---
-        ConfigCategory layout = builder.getOrCreateCategory(Component.literal("Layout"));
+        ConfigCategory layout = builder.getOrCreateCategory(Component.literal("General"));
         layout.addEntry(entryBuilder.startTextDescription(Component.literal("To open the Drag & Drop Editor: Enable the toggle below and click 'Save & Quit'."))
                 .build());
-        
+
+        layout.addEntry(entryBuilder.startBooleanToggle(Component.literal("Text Outline"), config.textOutline)
+                .setDefaultValue(false)
+                .setTooltip(Component.literal("Draw HUD text with a thin black outline on every side instead of a drop shadow."))
+                .setSaveConsumer(val -> config.textOutline = val)
+                .build());
+
+        layout.addEntry(entryBuilder.startEnumSelector(Component.literal("HUD Font"), SimpleCPSConfig.HudFont.class, config.hudFont)
+                .setDefaultValue(SimpleCPSConfig.HudFont.VANILLA)
+                .setTooltip(Component.literal("Font for HUD elements and the editor screens only (never chat or other menus)."))
+                .setSaveConsumer(val -> config.hudFont = val)
+                .build());
+
+        layout.addEntry(entryBuilder.startBooleanToggle(Component.literal("Editor Grid"), config.editorGridEnabled)
+                .setDefaultValue(false)
+                .setTooltip(Component.literal("Show a grid in the Drag & Drop Editor and snap dragged elements to it."))
+                .setSaveConsumer(val -> config.editorGridEnabled = val)
+                .build());
+
+        layout.addEntry(entryBuilder.startIntSlider(Component.literal("Grid Size"), config.editorGridSize, 2, 64)
+                .setDefaultValue(8)
+                .setTooltip(Component.literal("Spacing of the editor grid, in pixels."))
+                .setSaveConsumer(val -> config.editorGridSize = val)
+                .build());
+
+        layout.addEntry(entryBuilder.startBooleanToggle(Component.literal("Server Configs"), config.serverConfigsEnabled)
+                .setDefaultValue(true)
+                .setTooltip(Component.literal("Remember the HUD per server: joining a server you have configured loads its config, and changes made there are saved back to it."))
+                .setSaveConsumer(val -> config.serverConfigsEnabled = val)
+                .build());
+
         layout.addEntry(entryBuilder.startBooleanToggle(Component.literal("Open Drag & Drop Editor"), false)
                 .setDefaultValue(false)
                 .setTooltip(Component.literal("Enable this and Save to open the editor directly."))
@@ -675,7 +716,7 @@ public class ClothConfigFactory {
                 .setTooltip(Component.literal("WARNING: Resets all settings to default! (Click Save & Quit to apply)"))
                 .setSaveConsumer(val -> {
                     if (val) {
-                        SimpleCPSConfig.instance.resetToDefaults();
+                        pendingReset = true; // deferred; see setSavingRunnable above
                     }
                 })
                 .build());

@@ -17,6 +17,11 @@ public class CpsModule extends HudModule {
     public boolean isEnabled() {
         return SimpleCPSConfig.instance.enabled;
     }
+
+    @Override
+    public boolean supportsFade() {
+        return true;
+    }
     
     @Override
     public SimpleCPSConfig.Position getPositionType() {
@@ -108,7 +113,7 @@ public class CpsModule extends HudModule {
         if ((color & 0xFF000000) == 0) color |= 0xFF000000;
 
         float scale = config.scale / 100f;
-        int textWidth = (int)(client.font.width(cpsText) * scale);
+        int textWidth = (int)(textWidth(cpsText) * scale);
         int textHeight = (int)(client.font.lineHeight * scale);
         int padding = 2; 
 
@@ -122,10 +127,10 @@ public class CpsModule extends HudModule {
             int bgW_local = (int)(textWidth / scale) + (padding * 2); 
             int bgH_local = (int)(textHeight / scale) + (padding * 2);
             int bgAlphaColor = (config.cpsBackgroundOpacity << 24) | (config.cpsBackgroundColor & 0x00FFFFFF);
-            context.fill(bgX, bgY, bgX + bgW_local, bgY + bgH_local, bgAlphaColor);
+            context.fill(bgX, bgY, bgX + bgW_local, bgY + bgH_local, col(bgAlphaColor));
         }
-        
-        context.text(client.font, cpsText, 0, 0, color);
+
+        drawText(context, cpsText, 0, 0, color);
         context.pose().popMatrix();
     }
 
@@ -139,7 +144,7 @@ public class CpsModule extends HudModule {
             cpsText += config.cpsSeparator + rightCps + config.cpsRightText;
         }
         float scale = config.scale / 100f;
-        int textWidth = (int)(client.font.width(cpsText) * scale);
+        int textWidth = (int)(textWidth(cpsText) * scale);
         int padding = 2;
         return config.cpsShowBackground ? (int)(((textWidth / scale) + padding * 2) * scale) : textWidth;
     }

@@ -22,12 +22,17 @@ public class SimpleCPSClient implements ClientModInitializer {
         SimpleCPSConfig.load();
 
         HudModuleManager manager = HudModuleManager.getInstance();
+        // Before the plugin loop, so a save triggered during registration already
+        // carries module state.
+        manager.installConfigHooks();
 
         try {
             FabricLoader.getInstance().getEntrypointContainers("eymistaken_hud", com.eymistaken.simplecps.api.EymistakenHudPlugin.class)
                 .forEach(entrypoint -> {
                     try {
-                        entrypoint.getEntrypoint().registerHudModules(manager);
+                        com.eymistaken.simplecps.api.EymistakenHudPlugin plugin = entrypoint.getEntrypoint();
+                        plugin.registerHudModules(manager);
+                        plugin.registerEvents(com.eymistaken.simplecps.api.EymistakenHudEventBus.getInstance());
                     } catch (Exception e) {
                         System.err.println("Failed to load HUD plugin from " + entrypoint.getProvider().getMetadata().getId());
                         e.printStackTrace();
@@ -37,6 +42,11 @@ public class SimpleCPSClient implements ClientModInitializer {
             System.err.println("Error initializing HUD plugins");
             e.printStackTrace();
         }
+
+        // registerModule already replayed each module's state as it arrived; this pass
+        // is the authoritative one, so the result stays correct if the order above ever
+        // changes (e.g. config loading moving after plugin discovery).
+        manager.distributeModuleState();
 
         openEditorKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
             "key.simplecps.open_editor",
@@ -52,6 +62,9 @@ public class SimpleCPSClient implements ClientModInitializer {
     }
 
     public static void onClientTick(Minecraft client) {
+        // Cheap until the server context actually changes; see ServerConfigManager.
+        ServerConfigManager.pollContext(client);
+
         HudModuleManager.getInstance().tickAll(client);
 
         while (openEditorKey.consumeClick()) {

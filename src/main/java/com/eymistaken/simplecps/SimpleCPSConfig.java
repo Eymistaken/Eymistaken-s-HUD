@@ -2,6 +2,7 @@ package com.eymistaken.simplecps;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonElement;
 import net.fabricmc.loader.api.FabricLoader;
 
 import java.io.File;
@@ -10,8 +11,10 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.lwjgl.glfw.GLFW;
 
 public class SimpleCPSConfig {
@@ -23,8 +26,14 @@ public class SimpleCPSConfig {
     public static void load() {
         if (CONFIG_FILE.exists()) {
             try (FileReader reader = new FileReader(CONFIG_FILE)) {
-                instance = GSON.fromJson(reader, SimpleCPSConfig.class);
-            } catch (IOException e) {
+                // An empty file parses to null and a malformed one throws a
+                // RuntimeException; in either case keep the defaults rather than
+                // taking the whole client down during init.
+                SimpleCPSConfig loaded = GSON.fromJson(reader, SimpleCPSConfig.class);
+                if (loaded != null) {
+                    instance = loaded;
+                }
+            } catch (IOException | RuntimeException e) {
                 e.printStackTrace();
             }
             instance.normalize();
@@ -36,6 +45,7 @@ public class SimpleCPSConfig {
     }
 
     public static void save() {
+        collectModuleState();
         File tempFile = new File(CONFIG_FILE.getParentFile(), CONFIG_FILE.getName() + ".tmp");
         try (FileWriter writer = new FileWriter(tempFile)) {
             GSON.toJson(instance, writer);
@@ -54,8 +64,18 @@ public class SimpleCPSConfig {
         } catch (IOException e) {
             e.printStackTrace();
         }
+
+        // Implicit per-server binding: no-op unless the feature is on and we are in a
+        // world. Kept last so a failure here can never cost us the main config write.
+        ServerConfigManager.mirrorToCurrentServer();
     }
     
+    /**
+     * Reset every built-in setting. Third-party module state in {@link #moduleData}
+     * is deliberately left alone — those modules own their settings and expose their
+     * own "Reset Settings" action; the following {@link #save()} collects them back
+     * into the fresh config.
+     */
     public void resetToDefaults() {
         instance = new SimpleCPSConfig();
         instance.resetLayout();
@@ -63,36 +83,179 @@ public class SimpleCPSConfig {
         save();
     }
 
-    private void ensureDefaults() {
+    /**
+     * Replace null collections with empty ones. Idempotent, cheap and free of side
+     * effects — use this, not {@link #ensureDefaults()}, on hot paths like saving or
+     * rendering, which must not resurrect a keystrokes layout the user emptied on
+     * purpose.
+     */
+    public void ensureCollections() {
         if (manualLayoutElements == null) {
             manualLayoutElements = new HashMap<>();
         }
+        if (moduleData == null) {
+            moduleData = new HashMap<>();
+        }
+        if (knownModules == null) {
+            knownModules = new ArrayList<>();
+        }
+    }
+
+    /** {@link #ensureCollections()} plus restoring the stock keystrokes layout when
+     *  there is none. Only for adopting a config (load, preset, share code). */
+    public void ensureDefaults() {
+        ensureCollections();
         if (keystrokesLayout == null || keystrokesLayout.isEmpty()) {
             resetLayout();
         }
     }
 
     /**
-     * Fill in any missing/empty collections with safe defaults. Called after
-     * loading from disk and after applying a saved preset, so an old or partial
-     * config never leaves null maps/lists behind.
+     * Repair a config that came from disk, a preset or a share code so the rest of
+     * the mod can trust it. Safe to call on an object that is not {@link #instance}
+     * yet — that is how an import validates before adopting anything.
+     *
+     * <p>Beyond filling in missing collections this defends against two things GSON
+     * does silently: an enum name this build does not know becomes {@code null}
+     * (which would NPE in the render path on every frame), and any number in the
+     * JSON is accepted verbatim, including negatives and {@code Integer.MAX_VALUE}.
      */
     public void normalize() {
-        if (keystrokesLayout == null || keystrokesLayout.isEmpty()) {
+        ensureDefaults();
+        coalesceEnums();
+        coalesceStrings();
+        clampRanges();
+        keystrokesLayout = sanitizeKeystrokesLayout(keystrokesLayout);
+        if (keystrokesLayout.isEmpty()) {
             resetLayout();
         }
-        ensureDefaults();
+    }
+
+    /** A missing/unknown enum name deserializes to null; fall back to the default. */
+    private void coalesceEnums() {
+        if (position == null) position = Position.TOP_LEFT;
+        if (pingPosition == null) pingPosition = Position.TOP_LEFT;
+        if (fpsPosition == null) fpsPosition = Position.TOP_LEFT;
+        if (keystrokesPosition == null) keystrokesPosition = Position.TOP_LEFT;
+        if (comboPosition == null) comboPosition = Position.TOP_LEFT;
+        if (reachPosition == null) reachPosition = Position.TOP_LEFT;
+        if (armorPosition == null) armorPosition = Position.BOTTOM_LEFT;
+        if (keystrokesRainbowTarget == null) keystrokesRainbowTarget = RainbowTarget.TEXT;
+        if (comboHeatmapMode == null) comboHeatmapMode = HeatmapMode.MEDIUM;
+        if (combatMode == null) combatMode = CombatMode.MODERN;
+        if (hudFont == null) hudFont = HudFont.VANILLA;
+    }
+
+    private void coalesceStrings() {
+        cpsLeftText = text(cpsLeftText, "");
+        cpsRightText = text(cpsRightText, "");
+        cpsSeparator = text(cpsSeparator, " | ");
+        fpsText = text(fpsText, "FPS");
+        comboText = text(comboText, "Combo");
+        reachNoHitText = text(reachNoHitText, "No Hit");
+    }
+
+    private void clampRanges() {
+        // Scales and opacities match the sliders in ClothConfigFactory and the editor.
+        scale = clamp(scale, 50, 300);
+        fpsScale = clamp(fpsScale, 50, 300);
+        keystrokesScale = clamp(keystrokesScale, 50, 300);
+        comboScale = clamp(comboScale, 50, 300);
+        reachScale = clamp(reachScale, 50, 300);
+
+        cpsBackgroundOpacity = clamp(cpsBackgroundOpacity, 0, 255);
+        pingBackgroundOpacity = clamp(pingBackgroundOpacity, 0, 255);
+        fpsBackgroundOpacity = clamp(fpsBackgroundOpacity, 0, 255);
+        keystrokesBackgroundOpacity = clamp(keystrokesBackgroundOpacity, 0, 255);
+        comboBackgroundOpacity = clamp(comboBackgroundOpacity, 0, 255);
+        reachBackgroundOpacity = clamp(reachBackgroundOpacity, 0, 255);
+
+        keystrokesEffectMode = clamp(keystrokesEffectMode, 0, 3);
+        // A grid of 0 or 1 would draw a line per pixel across the whole screen.
+        editorGridSize = clamp(editorGridSize, 2, 64);
+        comboTimeout = clamp(comboTimeout, 0.1, 60.0);
+        reachTimeout = clamp(reachTimeout, 0.1, 60.0);
+
+        // Offsets are added to an anchor position; an unbounded value overflows int
+        // in HudPlacementResolver before anything gets clamped to the screen.
+        xOffset = offset(xOffset);
+        yOffset = offset(yOffset);
+        pingXOffset = offset(pingXOffset);
+        pingYOffset = offset(pingYOffset);
+        fpsXOffset = offset(fpsXOffset);
+        fpsYOffset = offset(fpsYOffset);
+        keystrokesXOffset = offset(keystrokesXOffset);
+        keystrokesYOffset = offset(keystrokesYOffset);
+        comboXOffset = offset(comboXOffset);
+        comboYOffset = offset(comboYOffset);
+        reachXOffset = offset(reachXOffset);
+        reachYOffset = offset(reachYOffset);
+        armorXOffset = offset(armorXOffset);
+        armorYOffset = offset(armorYOffset);
+        armorHelmetXOffset = offset(armorHelmetXOffset);
+        armorHelmetYOffset = offset(armorHelmetYOffset);
+        armorChestXOffset = offset(armorChestXOffset);
+        armorChestYOffset = offset(armorChestYOffset);
+        armorLeggingsXOffset = offset(armorLeggingsXOffset);
+        armorLeggingsYOffset = offset(armorLeggingsYOffset);
+        armorBootsXOffset = offset(armorBootsXOffset);
+        armorBootsYOffset = offset(armorBootsYOffset);
+        armorMainHandXOffset = offset(armorMainHandXOffset);
+        armorMainHandYOffset = offset(armorMainHandYOffset);
+        armorOffHandXOffset = offset(armorOffHandXOffset);
+        armorOffHandYOffset = offset(armorOffHandYOffset);
+    }
+
+    /** Drop null entries and clamp every button to something renderable. */
+    public static List<KeyButtonData> sanitizeKeystrokesLayout(List<KeyButtonData> layout) {
+        List<KeyButtonData> out = new ArrayList<>();
+        if (layout == null) return out;
+        for (KeyButtonData key : layout) {
+            if (key == null) continue;
+            if (out.size() >= MAX_KEYSTROKE_BUTTONS) break;
+            key.label = text(key.label, "");
+            key.x = offset(key.x);
+            key.y = offset(key.y);
+            key.w = clamp(key.w, 1, 1024);
+            key.h = clamp(key.h, 1, 1024);
+            key.labelX = key.labelX < 0 ? -1 : offset(key.labelX);
+            key.labelY = key.labelY < 0 ? -1 : offset(key.labelY);
+            out.add(key);
+        }
+        return out;
+    }
+
+    private static final int MAX_KEYSTROKE_BUTTONS = 256;
+    private static final int MAX_OFFSET = 10_000;
+    private static final int MAX_TEXT_LENGTH = 64;
+
+    private static int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    private static double clamp(double value, double min, double max) {
+        if (Double.isNaN(value)) return min;
+        return Math.max(min, Math.min(max, value));
+    }
+
+    private static int offset(int value) {
+        return clamp(value, -MAX_OFFSET, MAX_OFFSET);
+    }
+
+    private static String text(String value, String fallback) {
+        if (value == null) return fallback;
+        return value.length() > MAX_TEXT_LENGTH ? value.substring(0, MAX_TEXT_LENGTH) : value;
     }
 
     public static boolean isManualLayout(String key) {
         if (key == null || key.isEmpty()) return false;
-        instance.ensureDefaults();
+        instance.ensureCollections();
         return Boolean.TRUE.equals(instance.manualLayoutElements.get(key));
     }
 
     public static void setManualLayout(String key, boolean manual) {
         if (key == null || key.isEmpty()) return;
-        instance.ensureDefaults();
+        instance.ensureCollections();
         if (manual) {
             instance.manualLayoutElements.put(key, true);
         } else {
@@ -100,15 +263,108 @@ public class SimpleCPSConfig {
         }
     }
 
+    // --- THIRD-PARTY MODULE STATE ---
+    //
+    // Built-in modules keep their settings as fields on this class. Third-party
+    // modules can't add fields here, so instead they get an opaque blob keyed by
+    // HudModule.getName(). The mod never looks inside the value; it just carries it
+    // along, which means plugin settings ride in simplecps.json, presets, share
+    // codes and (later) server configs for free.
+
+    /** Per-module opaque state. @see com.eymistaken.simplecps.api.HudModule#saveState() */
+    public Map<String, JsonElement> moduleData = new HashMap<>();
+
+    /**
+     * The modules that were registered when this config was written.
+     *
+     * <p>Needed because <em>absence</em> is ambiguous: a config with no entry for
+     * "Speedometer" could mean "the writer had Speedometer and it was off/unpinned"
+     * or "the writer never had Speedometer at all". Only the first should overwrite
+     * a local value. This roster is what tells them apart.
+     */
+    public List<String> knownModules = new ArrayList<>();
+
+    /** Set by {@link HudModuleManager}; kept as a plain hook so this class never
+     *  imports the manager (constructing it pulls in Minecraft-dependent modules,
+     *  and {@link #save()} runs before the manager exists on a fresh install). */
+    public static Runnable stateCollector;
+    public static Runnable stateDistributor;
+
+    /** Ask every registered module to write its state into {@link #moduleData}. */
+    public static void collectModuleState() {
+        if (stateCollector != null) stateCollector.run();
+    }
+
+    /** Push {@link #moduleData} back into every registered module. */
+    public static void distributeModuleState() {
+        if (stateDistributor != null) stateDistributor.run();
+    }
+
+    /**
+     * Carry over state that {@code incoming} could not possibly have described,
+     * because whoever wrote it did not have those modules installed. Call this
+     * <em>before</em> {@code instance = incoming} on every path that adopts a config
+     * from elsewhere (preset, share code, later: server config).
+     *
+     * <p>The rule is <b>preserve-if-absent</b>: anything the writer knew about wins
+     * outright, anything they never knew about is kept from the old config. Blobs for
+     * modules nobody here has installed are kept verbatim too, so they survive the
+     * round trip and light up the day that module is installed.
+     *
+     * <p>A config written before {@code knownModules} existed has an empty roster, so
+     * it preserves everything local — the conservative direction.
+     */
+    public static void mergeForeignState(SimpleCPSConfig previous, SimpleCPSConfig incoming) {
+        if (previous == null || incoming == null || previous == incoming) return;
+        previous.ensureCollections();
+        incoming.ensureCollections();
+
+        Set<String> writerKnew = new HashSet<>(incoming.knownModules);
+
+        for (Map.Entry<String, JsonElement> entry : previous.moduleData.entrySet()) {
+            if (writerKnew.contains(entry.getKey())) continue;
+            incoming.moduleData.putIfAbsent(entry.getKey(), entry.getValue());
+        }
+
+        for (Map.Entry<String, Boolean> entry : previous.manualLayoutElements.entrySet()) {
+            if (writerKnew.contains(owningModuleOf(entry.getKey()))) continue;
+            incoming.manualLayoutElements.putIfAbsent(entry.getKey(), entry.getValue());
+        }
+    }
+
+    /** Both {@code module:Foo} and {@code module:Foo/element:Bar} belong to "Foo". */
+    private static String owningModuleOf(String layoutKey) {
+        if (layoutKey == null) return "";
+        String s = layoutKey;
+        int slash = s.indexOf('/');
+        if (slash >= 0) s = s.substring(0, slash);
+        return s.startsWith("module:") ? s.substring("module:".length()) : s;
+    }
+
     // Enums
     public enum Position { TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT, CENTER }
     public enum RainbowTarget { TEXT, BACKGROUND }
     public enum HeatmapMode { EASY, MEDIUM, HARD } // New Enum
     public enum CombatMode { CLASSIC, MODERN }
+    // Custom HUD font selection (affects HUD elements + editor screens only, never vanilla text).
+    public enum HudFont { VANILLA, INTER, RUBIK, JETBRAINS_MONO, BEBAS_NEUE, ENCHANT }
 
     // --- HUD EDITOR ---
     public boolean preventOverlap = true;
     public Map<String, Boolean> manualLayoutElements = new HashMap<>();
+    // Editor-only grid: drawn behind the live preview and used as a drag fallback
+    // when nothing snaps to another module's edge.
+    public boolean editorGridEnabled = false;
+    public int editorGridSize = 8;
+
+    // --- GENERAL ---
+    // Draw HUD text with a thin black outline on every side instead of the vanilla drop shadow.
+    public boolean textOutline = false;
+    // Font used for HUD elements and the editor/designer screens (not the rest of Minecraft).
+    public HudFont hudFont = HudFont.VANILLA;
+    // Remember the HUD per server: joining a server you have configured swaps to its
+    // config silently, and edits made there are bound back to it. See ServerConfigManager.
+    public boolean serverConfigsEnabled = true;
 
     // --- CPS ---
     public boolean enabled = true;
@@ -186,6 +442,14 @@ public class SimpleCPSConfig {
         public int btnPressedColor = -1; // -1 means global pressed color
         public Boolean animationEnabled = null; // null means unset (treat as true)
 
+        /**
+         * Required by GSON. Without a no-arg constructor it allocates through Unsafe
+         * and the field initializers above never run — silently turning {@code shadow}
+         * off and the {@code -1} sentinels ("use the global colour", "centre the label")
+         * into 0 for any key whose JSON omits them.
+         */
+        public KeyButtonData() {}
+
         public KeyButtonData(String label, int x, int y, int w, int h, int keyCode) {
             this(label, x, y, w, h, keyCode, false);
         }
@@ -208,7 +472,9 @@ public class SimpleCPSConfig {
     }
     
     public void resetLayout() {
-        keystrokesLayout.clear();
+        // Assign rather than clear(): this runs from ensureDefaults() precisely when
+        // the list may be null, e.g. a hand-edited config with "keystrokesLayout": null.
+        keystrokesLayout = new ArrayList<>();
         // WASD (Row 1 & 2)
         // W: centered in 3-key width (67px). x=23.
         keystrokesLayout.add(new KeyButtonData("W", 23, 0, 21, 21, GLFW.GLFW_KEY_W));

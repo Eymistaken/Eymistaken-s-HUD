@@ -17,6 +17,11 @@ public class PingModule extends HudModule {
     }
 
     @Override
+    public boolean supportsFade() {
+        return true;
+    }
+
+    @Override
     public SimpleCPSConfig.Position getPositionType() {
         return SimpleCPSConfig.instance.pingPosition;
     }
@@ -93,7 +98,7 @@ public class PingModule extends HudModule {
         String pingText = (latency < 0) ? "? ms" : (latency + " ms");
         
         float scale = 1.0f; 
-        int textWidth = (int)(client.font.width(pingText) * scale);
+        int textWidth = (int)(textWidth(pingText) * scale);
         int textHeight = (int)(client.font.lineHeight * scale);
         int padding = 2;
         int pColor = config.pingColor;
@@ -109,10 +114,10 @@ public class PingModule extends HudModule {
             int bgW_local = (int)(textWidth / scale) + (padding * 2);
             int bgH_local = (int)(textHeight / scale) + (padding * 2);
             int bgAlphaColor = (config.pingBackgroundOpacity << 24) | (config.pingBackgroundColor & 0x00FFFFFF);
-            context.fill(bgX, bgY, bgX + bgW_local, bgY + bgH_local, bgAlphaColor);
+            context.fill(bgX, bgY, bgX + bgW_local, bgY + bgH_local, col(bgAlphaColor));
         }
 
-        context.text(client.font, pingText, 0, 0, pColor);
+        drawText(context, pingText, 0, 0, pColor);
         context.pose().popMatrix();
     }
 
@@ -123,7 +128,7 @@ public class PingModule extends HudModule {
         if (cachedEntry != null) latency = cachedEntry.getLatency();
         String pingText = (latency < 0) ? "? ms" : (latency + " ms");
         float scale = 1.0f;
-        int textWidth = (int)(client.font.width(pingText) * scale);
+        int textWidth = (int)(textWidth(pingText) * scale);
         int padding = 2;
         return config.pingShowBackground ? (int)(((textWidth / scale) + padding * 2) * scale) : textWidth;
     }

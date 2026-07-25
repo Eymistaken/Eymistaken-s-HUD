@@ -90,6 +90,15 @@ public final class HudPlacementResolver {
         Rect actual;
     }
 
+    /**
+     * Never switch on a raw anchor: it is null whenever a config names a Position this
+     * build lacks, and a third-party module may simply return null from
+     * {@code getPositionType()}. A switch over null throws regardless of a default arm.
+     */
+    private static SimpleCPSConfig.Position anchorOf(SimpleCPSConfig.Position pos) {
+        return pos == null ? SimpleCPSConfig.Position.TOP_LEFT : pos;
+    }
+
     public static String getModuleKey(HudModule module) {
         return "module:" + module.getName();
     }
@@ -175,15 +184,16 @@ public final class HudPlacementResolver {
         for (Entry entry : entries) {
             int w = Math.max(1, entry.layoutW);
             int h = Math.max(1, entry.layoutH);
+            SimpleCPSConfig.Position anchor = anchorOf(entry.module.getPositionType());
 
             if (entry.manual) {
-                Point base = getBasePos(entry.module.getPositionType(), screenWidth, screenHeight, w, h);
+                Point base = getBasePos(anchor, screenWidth, screenHeight, w, h);
                 entry.preferredX = base.x + entry.module.getXOffset();
                 entry.preferredY = base.y + entry.module.getYOffset();
                 continue;
             }
 
-            switch (entry.module.getPositionType()) {
+            switch (anchor) {
                 case TOP_LEFT -> {
                     entry.preferredX = EDGE_GAP;
                     entry.preferredY = topLeftStack;
@@ -245,7 +255,7 @@ public final class HudPlacementResolver {
     }
 
     public static Point getBasePos(SimpleCPSConfig.Position pos, int screenWidth, int screenHeight, int elementW, int elementH) {
-        return switch (pos) {
+        return switch (anchorOf(pos)) {
             case TOP_LEFT -> new Point(EDGE_GAP, EDGE_GAP);
             case TOP_RIGHT -> new Point(screenWidth - elementW - EDGE_GAP, EDGE_GAP);
             case BOTTOM_LEFT -> new Point(EDGE_GAP, screenHeight - elementH - EDGE_GAP);

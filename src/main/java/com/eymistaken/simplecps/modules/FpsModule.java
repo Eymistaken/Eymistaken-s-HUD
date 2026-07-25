@@ -12,6 +12,11 @@ public class FpsModule extends HudModule {
     }
     
     @Override
+    public boolean supportsFade() {
+        return true;
+    }
+
+    @Override
     public SimpleCPSConfig.Position getPositionType() {
         return SimpleCPSConfig.instance.fpsPosition;
     }
@@ -72,7 +77,7 @@ public class FpsModule extends HudModule {
         String fpsStr = client.getFps() + " " + config.fpsText;
         
         float scale = config.fpsScale / 100f;
-        int textWidth = (int)(client.font.width(fpsStr) * scale);
+        int textWidth = (int)(textWidth(fpsStr) * scale);
         int textHeight = (int)(client.font.lineHeight * scale);
         int padding = 2;
         
@@ -89,10 +94,10 @@ public class FpsModule extends HudModule {
             int bgW_local = (int)(textWidth / scale) + (padding * 2);
             int bgH_local = (int)(textHeight / scale) + (padding * 2);
             int bgAlphaColor = (config.fpsBackgroundOpacity << 24) | (config.fpsBackgroundColor & 0x00FFFFFF);
-            context.fill(bgX, bgY, bgX + bgW_local, bgY + bgH_local, bgAlphaColor);
+            context.fill(bgX, bgY, bgX + bgW_local, bgY + bgH_local, col(bgAlphaColor));
         }
 
-        context.text(client.font, fpsStr, 0, 0, color);
+        drawText(context, fpsStr, 0, 0, color);
         context.pose().popMatrix();
     }
 
@@ -101,7 +106,7 @@ public class FpsModule extends HudModule {
         SimpleCPSConfig config = SimpleCPSConfig.instance;
         String fpsStr = client.getFps() + " " + config.fpsText;
         float scale = config.fpsScale / 100f;
-        int textWidth = (int)(client.font.width(fpsStr) * scale);
+        int textWidth = (int)(textWidth(fpsStr) * scale);
         int padding = 2;
         return config.fpsShowBackground ? (int)(((textWidth / scale) + padding * 2) * scale) : textWidth;
     }

@@ -103,7 +103,7 @@ public class ColorPickerScreen extends Screen {
         context.fill(cx, cy + 160, cx + 200, cy + 180, saveHovered ? 0xFF444444 : 0xFF222222);
         drawBorder(context, cx, cy + 160, 200, 20, 0xFFFFFFFF);
         
-        context.text(this.font, "Save & Close", cx + 65, cy + 166, 0xFFFFFFFF, true);
+        context.text(this.font, com.eymistaken.simplecps.util.EymHudFonts.text("Save & Close"), cx + 65, cy + 166, 0xFFFFFFFF, true);
 
         // Phase 1 - Hex Box
         int hexBoxX = cx;
@@ -120,11 +120,11 @@ public class ColorPickerScreen extends Screen {
         drawBorder(context, hexBoxX, hexBoxY, hexBoxW, hexBoxH, hexBoxActive ? 0xFF00FF00 : 0xFFFFFFFF);
         
         if (isAllSelected && hexBoxActive) {
-            int textW = this.font.width(hexInput);
+            int textW = this.font.width(com.eymistaken.simplecps.util.EymHudFonts.text(hexInput));
             context.fill(hexBoxX + 4, hexBoxY + 3, hexBoxX + 4 + textW, hexBoxY + 13, 0x804444FF);
         }
         
-        context.text(this.font, displayHex, hexBoxX + 4, hexBoxY + 4, 0xFFFFFFFF, true);
+        context.text(this.font, com.eymistaken.simplecps.util.EymHudFonts.text(displayHex), hexBoxX + 4, hexBoxY + 4, 0xFFFFFFFF, true);
 
         // Phase 2 - Copy Button
         int copyBtnX = hexBoxX + hexBoxW + 5;
@@ -138,7 +138,7 @@ public class ColorPickerScreen extends Screen {
         
         boolean isCopied = System.currentTimeMillis() - copiedTime < 2000;
         String copyText = isCopied ? "Copied!" : "Copy";
-        context.text(this.font, copyText, copyBtnX + 4, copyBtnY + 4, isCopied ? 0xFF55FF55 : 0xFFFFFFFF, true);
+        context.text(this.font, com.eymistaken.simplecps.util.EymHudFonts.text(copyText), copyBtnX + 4, copyBtnY + 4, isCopied ? 0xFF55FF55 : 0xFFFFFFFF, true);
 
         super.extractRenderState(context, mouseX, mouseY, delta);
     }

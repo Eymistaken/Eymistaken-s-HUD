@@ -65,8 +65,17 @@ public final class ConfigPresetManager {
         return "Config " + i;
     }
 
+    /** {@code base}, or {@code base (2)}, {@code base (3)}… if it is already taken. */
+    public static String uniqueName(String base) {
+        if (!presetExists(base)) return sanitize(base);
+        int i = 2;
+        while (presetExists(base + " (" + i + ")")) i++;
+        return sanitize(base + " (" + i + ")");
+    }
+
     /** Write the current {@link SimpleCPSConfig#instance} to a preset file (atomic where possible). */
     public static boolean savePreset(String name) {
+        SimpleCPSConfig.collectModuleState(); // this path does not go through save()
         ensureDir();
         String safe = sanitize(name);
         File file = new File(PRESET_DIR, safe + ".json");
@@ -98,12 +107,16 @@ public final class ConfigPresetManager {
         try (FileReader reader = new FileReader(file)) {
             SimpleCPSConfig loaded = GSON.fromJson(reader, SimpleCPSConfig.class);
             if (loaded == null) return false;
+            // Repair and validate while it is still detached, so a corrupt or
+            // hand-edited preset file cannot leave the live config half-replaced.
+            loaded.normalize();
+            SimpleCPSConfig.mergeForeignState(SimpleCPSConfig.instance, loaded);
             SimpleCPSConfig.instance = loaded;
-            SimpleCPSConfig.instance.normalize();
-        } catch (IOException e) {
+        } catch (IOException | RuntimeException e) {
             e.printStackTrace();
             return false;
         }
+        SimpleCPSConfig.distributeModuleState();
         SimpleCPSConfig.save();
         return true;
     }

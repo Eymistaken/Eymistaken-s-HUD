@@ -253,7 +253,9 @@ public class KeystrokesModule extends HudModule {
         
         // Prepare Key Label
         net.minecraft.network.chat.MutableComponent text = net.minecraft.network.chat.Component.literal(btn.label);
-        net.minecraft.network.chat.Style style = net.minecraft.network.chat.Style.EMPTY;
+        // Start from the active HUD font so key labels follow the font selection,
+        // then layer on the per-key bold/italic/underline styling.
+        net.minecraft.network.chat.Style style = com.eymistaken.simplecps.util.EymHudFonts.activeStyle();
         if (btn.bold) style = style.withBold(true);
         if (btn.italic) style = style.withItalic(true);
         if (btn.underlined) style = style.withUnderlined(true);
@@ -297,7 +299,7 @@ public class KeystrokesModule extends HudModule {
             // Draw small
             context.pose().pushMatrix();
             float smallScale = 0.6f;
-            int cpsW = client.font.width(cpsStr);
+            int cpsW = client.font.width(com.eymistaken.simplecps.util.EymHudFonts.text(cpsStr));
             
             // Position at bottom center (or customized?)
             // Center X relative to button
@@ -309,7 +311,7 @@ public class KeystrokesModule extends HudModule {
             context.pose().scale(smallScale, smallScale);
             
             int cpsColor = textColor; 
-            context.text(client.font, cpsStr, 0, 0, cpsColor);
+            context.text(client.font, com.eymistaken.simplecps.util.EymHudFonts.text(cpsStr), 0, 0, cpsColor);
             
             context.pose().popMatrix();
         }

@@ -8,7 +8,14 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 public class ComboModule extends HudModule {
 
-    // No state needed here
+    // Last combo shown while > 0, so a fade-out keeps the last value instead of
+    // snapping to "0 Combo" the instant the streak resets.
+    private int lastCombo = 0;
+
+    @Override
+    public boolean supportsFade() {
+        return true;
+    }
 
     @Override
     public boolean isEnabled() {
@@ -123,29 +130,32 @@ public class ComboModule extends HudModule {
         // If SimpleCPSClient calls render, we render.
 
         int currentCombo = ComboTracker.getCombo();
-        String comboStr = currentCombo + " " + config.comboText;
-        
+        if (currentCombo > 0) lastCombo = currentCombo;
+        // While fading out (alpha < 1) the streak has already reset to 0; show the
+        // last real value so the module fades on "12 Combo", not "0 Combo".
+        int displayCombo = (currentCombo == 0 && renderAlpha < 1f) ? lastCombo : currentCombo;
+        String comboStr = displayCombo + " " + config.comboText;
+
         float scale = config.comboScale / 100f;
-        int textWidth = (int)(client.font.width(comboStr) * scale);
+        int textWidth = (int)(textWidth(comboStr) * scale);
         int textHeight = (int)(client.font.lineHeight * scale);
         int padding = 2;
 
         int color = config.comboColor; 
         if (config.comboHeatmap) {
-            int t1, t2, t3;
-            switch (config.comboHeatmapMode) {
-                case EASY -> { t1 = 3; t2 = 5; t3 = 7; }
-                case HARD -> { t1 = 10; t2 = 40; t3 = 60; }
-                default -> { t1 = 5; t2 = 8; t3 = 12; } // MEDIUM
-            }
-            
-            if (currentCombo < t1) {
+            com.eymistaken.simplecps.api.ComboHeatmap heatmap =
+                com.eymistaken.simplecps.api.ComboHeatmap.of(config.comboHeatmapMode);
+            int t1 = heatmap.tier1();
+            int t2 = heatmap.tier2();
+            int t3 = heatmap.tier3();
+
+            if (displayCombo < t1) {
                  color = config.comboColor;
-            } else if (currentCombo < t2) {
-                 float progress = (float)(currentCombo - t1) / (float)(t2 - t1);
+            } else if (displayCombo < t2) {
+                 float progress = (float)(displayCombo - t1) / (float)(t2 - t1);
                  color = interpolateColor(config.comboColor, 0xFFFF0000, progress);
             } else {
-                 float progress = Math.min((float)(currentCombo - t2) / (float)(t3 - t2), 1.0f);
+                 float progress = Math.min((float)(displayCombo - t2) / (float)(t3 - t2), 1.0f);
                  color = interpolateColor(0xFFFF0000, 0xFF550000, progress);
             }
         } else if (config.comboRainbow) {
@@ -157,21 +167,16 @@ public class ComboModule extends HudModule {
         context.pose().pushMatrix();
         context.pose().translate((float)x, (float)y);
         
-        // Shake Effect
-        int shakeThreshold = 12; // Default Medium
-        if (config.comboHeatmap) {
-             switch (config.comboHeatmapMode) {
-                case EASY -> shakeThreshold = 7;
-                case HARD -> shakeThreshold = 60;
-                default -> shakeThreshold = 12;
-            }
-        }
-        
-        if (config.comboHeatmap && currentCombo > shakeThreshold) {
+        // Shake Effect — starts at the top tier, i.e. the same threshold the heatmap
+        // uses for its darkest colour.
+        int shakeThreshold = com.eymistaken.simplecps.api.ComboHeatmap
+            .of(config.comboHeatmapMode).tier3();
+
+        if (config.comboHeatmap && displayCombo > shakeThreshold) {
              float shake = (float)(Math.random() - 0.5) * 2f; // +/- 1
              context.pose().translate(shake, shake);
         }
-        
+
         context.pose().scale(scale, scale);
 
         if (config.comboShowBackground) {
@@ -180,10 +185,10 @@ public class ComboModule extends HudModule {
             int bgW_local = (int)(textWidth / scale) + (padding * 2);
             int bgH_local = (int)(textHeight / scale) + (padding * 2);
             int bgAlphaColor = (config.comboBackgroundOpacity << 24) | (config.comboBackgroundColor & 0x00FFFFFF);
-            context.fill(bgX, bgY, bgX + bgW_local, bgY + bgH_local, bgAlphaColor);
+            context.fill(bgX, bgY, bgX + bgW_local, bgY + bgH_local, col(bgAlphaColor));
         }
 
-        context.text(client.font, comboStr, 0, 0, color);
+        drawText(context, comboStr, 0, 0, color);
         context.pose().popMatrix();
     }
 
@@ -193,7 +198,7 @@ public class ComboModule extends HudModule {
         int currentCombo = ComboTracker.getCombo();
         String comboStr = currentCombo + " " + config.comboText;
         float scale = config.comboScale / 100f;
-        int textWidth = (int)(client.font.width(comboStr) * scale);
+        int textWidth = (int)(textWidth(comboStr) * scale);
         int padding = 2;
         return config.comboShowBackground ? (int)(((textWidth / scale) + padding * 2) * scale) : textWidth;
     }

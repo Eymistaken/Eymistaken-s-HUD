@@ -13,6 +13,11 @@ public class ReachModule extends HudModule {
     }
 
     @Override
+    public boolean supportsFade() {
+        return true;
+    }
+
+    @Override
     public SimpleCPSConfig.Position getPositionType() {
         return SimpleCPSConfig.instance.reachPosition;
     }
@@ -93,7 +98,7 @@ public class ReachModule extends HudModule {
     private int measureWidth(String reachText) {
         SimpleCPSConfig config = SimpleCPSConfig.instance;
         float scale = config.reachScale / 100f;
-        int textWidth = (int)(client.font.width(reachText) * scale);
+        int textWidth = (int)(textWidth(reachText) * scale);
         int padding = 2;
         return config.reachShowBackground ? (int)(((textWidth / scale) + padding * 2) * scale) : textWidth;
     }
@@ -113,7 +118,7 @@ public class ReachModule extends HudModule {
 
         SimpleCPSConfig config = SimpleCPSConfig.instance;
         float scale = config.reachScale / 100f;
-        int textWidth = (int)(client.font.width(reachText) * scale);
+        int textWidth = (int)(textWidth(reachText) * scale);
         int textHeight = (int)(client.font.lineHeight * scale);
         int padding = 2;
         
@@ -130,10 +135,10 @@ public class ReachModule extends HudModule {
             int bgW_local = (int)(textWidth / scale) + (padding * 2);
             int bgH_local = (int)(textHeight / scale) + (padding * 2);
             int bgAlphaColor = (config.reachBackgroundOpacity << 24) | (config.reachBackgroundColor & 0x00FFFFFF);
-            context.fill(bgX, bgY, bgX + bgW_local, bgY + bgH_local, bgAlphaColor);
+            context.fill(bgX, bgY, bgX + bgW_local, bgY + bgH_local, col(bgAlphaColor));
         }
 
-        context.text(client.font, reachText, 0, 0, color);
+        drawText(context, reachText, 0, 0, color);
         context.pose().popMatrix();
     }
 

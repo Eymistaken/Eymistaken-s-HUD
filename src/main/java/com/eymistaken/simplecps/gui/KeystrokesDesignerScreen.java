@@ -18,7 +18,14 @@ import java.util.ArrayList;
 
 public class KeystrokesDesignerScreen extends Screen {
 
-    private final SimpleCPSConfig config;
+    /**
+     * Always read the config through this, never into a captured field: applying a
+     * preset or a share code replaces {@link SimpleCPSConfig#instance} wholesale, and
+     * a held reference would go on writing into the discarded object.
+     */
+    private static SimpleCPSConfig config() {
+        return SimpleCPSConfig.instance;
+    }
     
     // State Machine Vars
     private enum InteractionState {
@@ -75,7 +82,6 @@ public class KeystrokesDesignerScreen extends Screen {
     public KeystrokesDesignerScreen(Screen parent) {
         super(Component.nullToEmpty("Keystrokes Designer"));
         this.parent = parent;
-        this.config = SimpleCPSConfig.instance;
     }
     
     public KeystrokesDesignerScreen() {
@@ -138,7 +144,7 @@ public class KeystrokesDesignerScreen extends Screen {
         if (snapY != null) context.fill(0, snapY, width, snapY + 1, 0xFFFF00FF);
 
         // Draw Buttons
-        for (SimpleCPSConfig.KeyButtonData btn : config.keystrokesLayout) {
+        for (SimpleCPSConfig.KeyButtonData btn : config().keystrokesLayout) {
             int x = originX + btn.x;
             int y = originY + btn.y;
             boolean isSelected = selectedButtons.contains(btn);
@@ -165,7 +171,7 @@ public class KeystrokesDesignerScreen extends Screen {
             if (waitingForKeybind && isSelected) label = "...";
 
             net.minecraft.network.chat.MutableComponent text = net.minecraft.network.chat.Component.literal(label);
-            net.minecraft.network.chat.Style style = net.minecraft.network.chat.Style.EMPTY;
+            net.minecraft.network.chat.Style style = com.eymistaken.simplecps.util.EymHudFonts.activeStyle();
             if (btn.bold) style = style.withBold(true);
             if (btn.italic) style = style.withItalic(true);
             if (btn.underlined) style = style.withUnderlined(true);
@@ -188,12 +194,12 @@ public class KeystrokesDesignerScreen extends Screen {
             // Render CPS Preview
             if (btn.isMouse && btn.showCps) {
                 String cpsPreview = "0"; 
-                int cpsW = font.width(cpsPreview);
+                int cpsW = font.width(com.eymistaken.simplecps.util.EymHudFonts.text(cpsPreview));
                 // Center CPS horizontally
                 int cpsX = x + (btn.w - cpsW) / 2;
                 int cpsY = ly + labelH + 1; // Below label
                 
-                context.text(font, cpsPreview, cpsX, cpsY, 0xFFAAAAAA, btn.shadow);
+                context.text(font, com.eymistaken.simplecps.util.EymHudFonts.text(cpsPreview), cpsX, cpsY, 0xFFAAAAAA, btn.shadow);
             }
             
             // TEXT EDIT MODE VISUAL
@@ -208,8 +214,8 @@ public class KeystrokesDesignerScreen extends Screen {
             }
         }
         
-        context.text(font, "Click: Select | Ctrl+Click: Multi | Dbl Click: Text Mode | Scroll: resize", 10, 10, 0xFFFFFF, true);
-        context.text(font, "Right-Drag: Move Text | Left-Drag: Move Box", 10, 22, 0xAAAAAA, true);
+        context.text(font, com.eymistaken.simplecps.util.EymHudFonts.text("Click: Select | Ctrl+Click: Multi | Dbl Click: Text Mode | Scroll: resize"), 10, 10, 0xFFFFFF, true);
+        context.text(font, com.eymistaken.simplecps.util.EymHudFonts.text("Right-Drag: Move Text | Left-Drag: Move Box"), 10, 22, 0xAAAAAA, true);
 
         // Visual Aid for Centering (Red Lines)
         if (currentState == InteractionState.TEXT_DRAGGING && rightClickTarget != null) {
@@ -333,7 +339,7 @@ public class KeystrokesDesignerScreen extends Screen {
         
         // Find Hit
         SimpleCPSConfig.KeyButtonData hitBtn = null;
-        List<SimpleCPSConfig.KeyButtonData> layout = config.keystrokesLayout;
+        List<SimpleCPSConfig.KeyButtonData> layout = config().keystrokesLayout;
         for (int i = layout.size() - 1; i >= 0; i--) {
             SimpleCPSConfig.KeyButtonData btn = layout.get(i);
             if (mX >= originX + btn.x && mX <= originX + btn.x + btn.w && 
@@ -379,8 +385,8 @@ public class KeystrokesDesignerScreen extends Screen {
                     
                     // Bring to front
                     if (selectedButtons.contains(hitBtn)) {
-                         config.keystrokesLayout.remove(hitBtn);
-                         config.keystrokesLayout.add(hitBtn);
+                         config().keystrokesLayout.remove(hitBtn);
+                         config().keystrokesLayout.add(hitBtn);
                     }
                 }
                 
@@ -515,7 +521,7 @@ public class KeystrokesDesignerScreen extends Screen {
                     
                     // Update labelX
                     String label = rightClickTarget.label;
-                    int labelW = font.width(label);
+                    int labelW = font.width(com.eymistaken.simplecps.util.EymHudFonts.text(label));
                     int labelH = font.lineHeight;
                     
                     // Calculate Top-Left of label based on mouse being center of label?
@@ -666,7 +672,7 @@ public class KeystrokesDesignerScreen extends Screen {
             int step = shift ? 5 : 1;
             
             // Dynamic Size Calculation for smooth transition from Center (-1)
-            int textW = font.width(target.label);
+            int textW = font.width(com.eymistaken.simplecps.util.EymHudFonts.text(target.label));
             int textH = font.lineHeight;
             
             if (keyCode == GLFW.GLFW_KEY_UP) target.labelY = (target.labelY == -1 ? (target.h - textH)/2 : target.labelY) - step;
@@ -709,7 +715,7 @@ public class KeystrokesDesignerScreen extends Screen {
              
              if (keyCode == GLFW.GLFW_KEY_DELETE) {
                  saveUndo();
-                 config.keystrokesLayout.removeAll(selectedButtons);
+                 config().keystrokesLayout.removeAll(selectedButtons);
                  selectedButtons.clear();
                  currentState = InteractionState.IDLE;
                  return true;
@@ -819,7 +825,7 @@ public class KeystrokesDesignerScreen extends Screen {
         String displayHex = cpHexBoxActive ? cpHexInput + (((System.currentTimeMillis() / 500) % 2 == 0) ? "_" : "") : String.format("#%06X", getCurrentPickerColor() & 0xFFFFFF);
         context.fill(hexBoxX, hexBoxY, hexBoxX + hexBoxW, hexBoxY + hexBoxH, 0xFF000000);
         drawBorder(context, hexBoxX, hexBoxY, hexBoxW, hexBoxH, cpHexBoxActive ? 0xFF00FF00 : 0xFFFFFFFF);
-        context.text(this.font, displayHex, hexBoxX + 4, hexBoxY + 4, 0xFFFFFFFF, true);
+        context.text(this.font, com.eymistaken.simplecps.util.EymHudFonts.text(displayHex), hexBoxX + 4, hexBoxY + 4, 0xFFFFFFFF, true);
         
         int copyBtnX = hexBoxX + hexBoxW + 5;
         int copyBtnY = hexBoxY;
@@ -830,7 +836,7 @@ public class KeystrokesDesignerScreen extends Screen {
         drawBorder(context, copyBtnX, copyBtnY, copyBtnW, copyBtnH, 0xFFFFFFFF);
         boolean isCopied = System.currentTimeMillis() - cpCopiedTime < 2000;
         String copyText = isCopied ? "Copied!" : "Copy";
-        context.text(this.font, copyText, copyBtnX + 4, copyBtnY + 4, isCopied ? 0xFF55FF55 : 0xFFFFFFFF, true);
+        context.text(this.font, com.eymistaken.simplecps.util.EymHudFonts.text(copyText), copyBtnX + 4, copyBtnY + 4, isCopied ? 0xFF55FF55 : 0xFFFFFFFF, true);
 
         // Preview + Apply (Y=145, H=25)
         cy = py + 145;
@@ -841,12 +847,12 @@ public class KeystrokesDesignerScreen extends Screen {
         boolean applyHover = mouseX >= cx + 50 && mouseX <= cx + 93 && mouseY >= cy && mouseY <= cy + 25;
         context.fill(cx + 50, cy, cx + 93, cy + 25, applyHover ? 0xFF444444 : 0xFF333333);
         drawBorder(context, cx + 50, cy, 43, 25, 0xFFFFFFFF);
-        context.text(this.font, "Apply", cx + 59, cy + 8, 0xFFFFFFFF, true);
+        context.text(this.font, com.eymistaken.simplecps.util.EymHudFonts.text("Apply"), cx + 59, cy + 8, 0xFFFFFFFF, true);
 
         boolean resetHover = mouseX >= cx + 97 && mouseX <= cx + 140 && mouseY >= cy && mouseY <= cy + 25;
         context.fill(cx + 97, cy, cx + 140, cy + 25, resetHover ? 0xFF444444 : 0xFF333333);
         drawBorder(context, cx + 97, cy, 43, 25, 0xFFFFFFFF);
-        context.text(this.font, "Reset", cx + 105, cy + 8, 0xFFFFFFFF, true);
+        context.text(this.font, com.eymistaken.simplecps.util.EymHudFonts.text("Reset"), cx + 105, cy + 8, 0xFFFFFFFF, true);
     }
 
     private void tryApplyHexPicker() {
@@ -871,7 +877,7 @@ public class KeystrokesDesignerScreen extends Screen {
         if (contextMenuTarget != null) {
             h = 240; // 12 items * 20
         } else {
-            h = 160; // 8 items
+            h = 180; // 9 items (incl. Export/Import Layout)
         }
         
         // Position is already clamped in onMouseReleased/onMouseClicked
@@ -915,9 +921,11 @@ public class KeystrokesDesignerScreen extends Screen {
             drawContextMenuItem(context, "Add Modifier", x, y, mouseX, mouseY, 4);
             drawContextMenuItem(context, "Reset Layout", x, y, mouseX, mouseY, 5);
             
-            String effectName = config.keystrokesEffectMode == 0 ? "None" : config.keystrokesEffectMode == 1 ? "Squish" : config.keystrokesEffectMode == 2 ? "Ripple" : "Both";
+            String effectName = config().keystrokesEffectMode == 0 ? "None" : config().keystrokesEffectMode == 1 ? "Squish" : config().keystrokesEffectMode == 2 ? "Ripple" : "Both";
             String globalAnimLabel = "Effect: " + effectName;
             drawContextMenuItem(context, globalAnimLabel, x, y, mouseX, mouseY, 6);
+            drawContextMenuItem(context, "Export Layout", x, y, mouseX, mouseY, 7);
+            drawContextMenuItem(context, "Import Layout", x, y, mouseX, mouseY, 8);
         }
     }
     
@@ -928,7 +936,7 @@ public class KeystrokesDesignerScreen extends Screen {
         if (hovered) {
              context.fill(menuX + 1, y, menuX + 99, y + itemH, 0x44FFFFFF);
         }
-        context.text(font, text, menuX + 5, y + 6, 0xFFFFFFFF, false);
+        context.text(font, com.eymistaken.simplecps.util.EymHudFonts.text(text), menuX + 5, y + 6, 0xFFFFFFFF, false);
     }
 
     private void drawBorder(GuiGraphicsExtractor context, int x, int y, int w, int h, int color) {
@@ -939,7 +947,8 @@ public class KeystrokesDesignerScreen extends Screen {
     }
     
     private int getMenuHeight(boolean hasTarget) {
-        return hasTarget ? 240 : 160;
+        // Must match the heights used in renderContextMenu, or rows become unclickable.
+        return hasTarget ? 240 : 180;
     }
     
     private void handleMenuAction(int index) {
@@ -969,7 +978,7 @@ public class KeystrokesDesignerScreen extends Screen {
                         contextMenuTarget.showCps = !contextMenuTarget.showCps;
                     } else {
                         // Delete
-                        config.keystrokesLayout.remove(contextMenuTarget);
+                        config().keystrokesLayout.remove(contextMenuTarget);
                         selectedButtons.remove(contextMenuTarget);
                         contextMenuTarget = null;
                         currentState = InteractionState.IDLE;
@@ -979,7 +988,7 @@ public class KeystrokesDesignerScreen extends Screen {
                 case 7: // Variable
                 if (contextMenuTarget.isMouse) {
                     // Delete for Mouse
-                    config.keystrokesLayout.remove(contextMenuTarget);
+                    config().keystrokesLayout.remove(contextMenuTarget);
                     selectedButtons.remove(contextMenuTarget);
                     contextMenuTarget = null;
                     currentState = InteractionState.IDLE;
@@ -992,7 +1001,7 @@ public class KeystrokesDesignerScreen extends Screen {
                 colorPickerTargetPressed = false;
                 colorPickerTarget = contextMenuTarget;
                 int initColor = colorPickerTarget.btnColor;
-                if (initColor <= 0) initColor = config.keystrokesColor;
+                if (initColor <= 0) initColor = config().keystrokesColor;
                 float[] hsb = java.awt.Color.RGBtoHSB((initColor >> 16) & 0xFF, (initColor >> 8) & 0xFF, initColor & 0xFF, null);
                 cpHue = hsb[0]; cpSat = hsb[1]; cpVal = hsb[2];
                 contextMenuOpen = false;
@@ -1002,7 +1011,7 @@ public class KeystrokesDesignerScreen extends Screen {
                 colorPickerTargetPressed = true;
                 colorPickerTarget = contextMenuTarget;
                 int initPColor = colorPickerTarget.btnPressedColor;
-                if (initPColor <= 0) initPColor = config.keystrokesPressedColor;
+                if (initPColor <= 0) initPColor = config().keystrokesPressedColor;
                 float[] phsb = java.awt.Color.RGBtoHSB((initPColor >> 16) & 0xFF, (initPColor >> 8) & 0xFF, initPColor & 0xFF, null);
                 cpHue = phsb[0]; cpSat = phsb[1]; cpVal = phsb[2];
                 contextMenuOpen = false;
@@ -1026,7 +1035,7 @@ public class KeystrokesDesignerScreen extends Screen {
                 case 2: // Add LMB (Wide Style)
                     SimpleCPSConfig.KeyButtonData lmb = new SimpleCPSConfig.KeyButtonData("LMB", 0, 60, 33, 21, 0, true); // 33x21
                     lmb.showCps = true;
-                    config.keystrokesLayout.add(lmb);
+                    config().keystrokesLayout.add(lmb);
                     selectedButtons.clear();
                     selectedButtons.add(lmb);
                     currentState = InteractionState.BOX_SELECTED;
@@ -1034,7 +1043,7 @@ public class KeystrokesDesignerScreen extends Screen {
                 case 3: // Add RMB (Wide Style)
                     SimpleCPSConfig.KeyButtonData rmb = new SimpleCPSConfig.KeyButtonData("RMB", 33, 60, 33, 21, 1, true); // 33x21
                     rmb.showCps = true;
-                    config.keystrokesLayout.add(rmb);
+                    config().keystrokesLayout.add(rmb);
                     selectedButtons.clear();
                     selectedButtons.add(rmb);
                     currentState = InteractionState.BOX_SELECTED;
@@ -1043,15 +1052,31 @@ public class KeystrokesDesignerScreen extends Screen {
                     addNewButton("MOD", 0, 80, 33, 13, GLFW.GLFW_KEY_LEFT_CONTROL); // 33x13
                     break;
                 case 5: // Reset
-                    config.resetLayout();
+                    config().resetLayout();
                     SimpleCPSConfig.save();
                     selectedButtons.clear();
                     currentState = InteractionState.IDLE;
                     break;
                 case 6: // Toggle global animations
-                    config.keystrokesEffectMode = (config.keystrokesEffectMode + 1) % 4;
+                    config().keystrokesEffectMode = (config().keystrokesEffectMode + 1) % 4;
                     SimpleCPSConfig.save();
                     break;
+                case 7: { // Export Layout -> clipboard share code
+                    String code = com.eymistaken.simplecps.util.HudShareCodec.encodeKeystrokes();
+                    if (code != null) this.minecraft.keyboardHandler.setClipboard(code);
+                    break;
+                }
+                case 8: { // Import Layout from a clipboard share code (undo already snapshotted)
+                    var decoded = com.eymistaken.simplecps.util.HudShareCodec.decode(
+                        this.minecraft.keyboardHandler.getClipboard());
+                    if (decoded != null
+                        && com.eymistaken.simplecps.util.HudShareCodec.TYPE_KEYSTROKES.equals(decoded.type())
+                        && com.eymistaken.simplecps.util.HudShareCodec.apply(decoded)) {
+                        selectedButtons.clear();
+                        currentState = InteractionState.IDLE;
+                    }
+                    break;
+                }
             }
         }
     }
@@ -1066,7 +1091,7 @@ public class KeystrokesDesignerScreen extends Screen {
         }
         
         SimpleCPSConfig.KeyButtonData newBtn = new SimpleCPSConfig.KeyButtonData(label, x, y, w, h, key);
-        config.keystrokesLayout.add(newBtn);
+        config().keystrokesLayout.add(newBtn);
         selectedButtons.clear();
         selectedButtons.add(newBtn);
         currentState = InteractionState.BOX_SELECTED;
@@ -1116,7 +1141,7 @@ public class KeystrokesDesignerScreen extends Screen {
         int tCX = tLeft + target.w / 2;
         int tCY = tTop + target.h / 2;
         
-        for (SimpleCPSConfig.KeyButtonData other : config.keystrokesLayout) {
+        for (SimpleCPSConfig.KeyButtonData other : config().keystrokesLayout) {
             if (other == target) continue;
             // Ignore other selected buttons to prevent self-snapping within group
             if (selectedButtons.contains(other)) continue;
@@ -1161,20 +1186,20 @@ public class KeystrokesDesignerScreen extends Screen {
         }
     }
     private void saveUndo() {
-        String json = gson.toJson(config.keystrokesLayout);
+        String json = gson.toJson(config().keystrokesLayout);
         undoStack.push(json);
         redoStack.clear();
     }
     
     private void undo() {
         if (!undoStack.isEmpty()) {
-            String current = gson.toJson(config.keystrokesLayout);
+            String current = gson.toJson(config().keystrokesLayout);
             redoStack.push(current);
             
             String json = undoStack.pop();
             List<SimpleCPSConfig.KeyButtonData> list = gson.fromJson(json, new TypeToken<List<SimpleCPSConfig.KeyButtonData>>(){}.getType());
-            config.keystrokesLayout.clear();
-            config.keystrokesLayout.addAll(list);
+            config().keystrokesLayout.clear();
+            config().keystrokesLayout.addAll(list);
             
             // Clear selection to avoid ghost references
             selectedButtons.clear();
@@ -1184,13 +1209,13 @@ public class KeystrokesDesignerScreen extends Screen {
     
     private void redo() {
         if (!redoStack.isEmpty()) {
-            String current = gson.toJson(config.keystrokesLayout);
+            String current = gson.toJson(config().keystrokesLayout);
             undoStack.push(current);
             
             String json = redoStack.pop();
             List<SimpleCPSConfig.KeyButtonData> list = gson.fromJson(json, new TypeToken<List<SimpleCPSConfig.KeyButtonData>>(){}.getType());
-            config.keystrokesLayout.clear();
-            config.keystrokesLayout.addAll(list);
+            config().keystrokesLayout.clear();
+            config().keystrokesLayout.addAll(list);
             
             selectedButtons.clear();
             currentState = InteractionState.IDLE;

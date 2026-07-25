@@ -15,6 +15,52 @@ public abstract class HudModule implements IHudElement {
     protected int x, y;
     private static float hue = 0;
 
+    /**
+     * Opacity this module should draw with, in {@code [0,1]}. Set by
+     * {@link com.eymistaken.simplecps.HudModuleManager} each frame to drive
+     * fade-in / fade-out. Modules that opt into fading (see {@link #supportsFade()})
+     * should wrap their colours with {@link #col(int)}.
+     */
+    protected float renderAlpha = 1f;
+
+    public void setRenderAlpha(float alpha) {
+        this.renderAlpha = alpha;
+    }
+
+    /** Apply the current {@link #renderAlpha} to an ARGB colour. */
+    protected int col(int argb) {
+        return renderAlpha >= 1f ? argb : com.eymistaken.simplecps.util.RenderUtil.withAlpha(argb, renderAlpha);
+    }
+
+    /**
+     * Draw module text in the active HUD font, honouring both the current
+     * {@link #renderAlpha} and the global {@code textOutline} setting (thin black
+     * outline vs vanilla shadow). Modules should call this instead of
+     * {@code context.text(...)} directly.
+     */
+    protected void drawText(GuiGraphicsExtractor context, String text, int x, int y, int color) {
+        net.minecraft.network.chat.Component comp = com.eymistaken.simplecps.util.EymHudFonts.text(text);
+        if (com.eymistaken.simplecps.SimpleCPSConfig.instance.textOutline) {
+            com.eymistaken.simplecps.util.RenderUtil.outlinedText(context, client.font, comp, x, y, col(color), col(0xFF000000));
+        } else {
+            context.text(client.font, comp, x, y, col(color));
+        }
+    }
+
+    /** Width of {@code text} measured in the active HUD font. */
+    protected int textWidth(String text) {
+        return client.font.width(com.eymistaken.simplecps.util.EymHudFonts.text(text));
+    }
+
+    /**
+     * @return true if this module renders through {@link #col(int)} and can be
+     *         smoothly faded in/out. Defaults to false (module pops in/out as
+     *         before); the simple text modules override this to true.
+     */
+    public boolean supportsFade() {
+        return false;
+    }
+
     @Override
     public int getX() {
         return x;
@@ -71,6 +117,38 @@ public abstract class HudModule implements IHudElement {
             })
         );
     }
+
+    /**
+     * Serialize this module's own settings so they travel with the config: they are
+     * written into {@code simplecps.json}, saved into presets, packed into share
+     * codes and (later) into per-server configs, all for free.
+     *
+     * <p>Return {@code null} to store nothing — that is what every built-in module
+     * does, because their settings already live as fields on
+     * {@link com.eymistaken.simplecps.SimpleCPSConfig}. Third-party modules cannot
+     * add fields there, so this is their way in. Include everything you own:
+     * position, offsets, scale, enabled state, colours.
+     *
+     * <p>Do not put JSON nulls anywhere in the returned tree; the serializer drops
+     * them at every depth, so they will not survive a round trip. Omit the key
+     * instead. Called on every config save, so keep it cheap.
+     */
+    public com.google.gson.JsonElement saveState() {
+        return null;
+    }
+
+    /**
+     * Restore what {@link #saveState()} produced.
+     *
+     * <p>Never called with {@code null}: when no state was stored for this module the
+     * call is skipped entirely. That is deliberate — it means a config written by
+     * someone who does not have your module leaves your settings untouched instead of
+     * resetting them.
+     *
+     * <p>Called once at registration and again every time a preset, share code or
+     * server config is applied, so it can run at any point after startup.
+     */
+    public void loadState(com.google.gson.JsonElement state) {}
 
     /**
      * @return true if the module should be rendered

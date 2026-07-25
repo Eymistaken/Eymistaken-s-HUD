@@ -1,0 +1,11 @@
+{
+    "providers": [
+        {
+            "type": "ttf",
+            "file": "simplecps:inter.ttf",
+            "shift": [0.0, 0.0],
+            "size": 9.0,
+            "oversample": 4.0
+        }
+    ]
+}

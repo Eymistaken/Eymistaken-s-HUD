@@ -1,5 +1,8 @@
 package com.eymistaken.simplecps;
 
+import com.eymistaken.simplecps.api.ComboHeatmap;
+import com.eymistaken.simplecps.api.EymistakenHudEventBus;
+import com.eymistaken.simplecps.api.event.ComboStreakEvent;
 import java.util.UUID;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
@@ -49,7 +52,16 @@ public class ComboTracker {
         lastAttackerUuid = currentTargetUuid; // Update the attacker UUID
         lastHitTime = now;
         lastDecayTime = now + timeoutMs; // Reset decay timer
+
+        // Compared around the increment so plugins hear about a tier once, on the hit
+        // that reaches it. Independent of comboHeatmap: that only controls colouring.
+        ComboHeatmap heatmap = ComboHeatmap.of(config.comboHeatmapMode);
+        int previousLevel = heatmap.levelFor(combo);
         combo++;
+        int level = heatmap.levelFor(combo);
+        if (level > previousLevel) {
+            EymistakenHudEventBus.getInstance().emit(new ComboStreakEvent(combo, level, previousLevel, target));
+        }
     }
 
     public static void onTick(net.minecraft.client.Minecraft client) {
