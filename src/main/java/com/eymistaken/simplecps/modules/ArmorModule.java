@@ -16,6 +16,18 @@ public class ArmorModule extends HudModule {
 
     private static final net.minecraft.resources.Identifier SLOT_TEXTURE = net.minecraft.resources.Identifier.fromNamespaceAndPath("minecraft", "hud/hotbar");
 
+    /** One slot's edge length before scaling; the whole layout is built on this grid. */
+    private static final int SLOT = 20;
+
+    private static float scale() {
+        return SimpleCPSConfig.instance.armorScale / 100f;
+    }
+
+    /** Unscaled local length to on-screen pixels. */
+    private static int scaled(int local) {
+        return Math.round(local * scale());
+    }
+
     public enum ArmorSlot {
         HELMET("Helmet", () -> SimpleCPSConfig.instance.armorHelmetXOffset, v -> SimpleCPSConfig.instance.armorHelmetXOffset = v, () -> SimpleCPSConfig.instance.armorHelmetYOffset, v -> SimpleCPSConfig.instance.armorHelmetYOffset = v),
         CHESTPLATE("Chestplate", () -> SimpleCPSConfig.instance.armorChestXOffset, v -> SimpleCPSConfig.instance.armorChestXOffset = v, () -> SimpleCPSConfig.instance.armorChestYOffset, v -> SimpleCPSConfig.instance.armorChestYOffset = v),
@@ -41,7 +53,10 @@ public class ArmorModule extends HudModule {
 
     public class ArmorElement implements IHudElement {
         private final ArmorSlot slot;
+        /** On-screen position, for the editor's hit testing and selection borders. */
         private int cachedX, cachedY;
+        /** The same spot in the module's own unscaled grid, which is what we draw in. */
+        private int localX, localY;
 
         public ArmorElement(ArmorSlot slot) {
             this.slot = slot;
@@ -59,7 +74,7 @@ public class ArmorModule extends HudModule {
 
         @Override
         public int getWidth() {
-            return 20;
+            return Math.max(1, scaled(SLOT));
         }
 
         @Override
@@ -68,9 +83,9 @@ public class ArmorModule extends HudModule {
             ItemStack stack = getItemStack();
             if (stack != null && !stack.isEmpty() && showText && stack.isDamageableItem()) {
                 boolean vertical = SimpleCPSConfig.instance.armorVertical;
-                if (!vertical) return 30;
+                if (!vertical) return Math.max(1, scaled(30));
             }
-            return 20;
+            return Math.max(1, scaled(SLOT));
         }
 
         @Override
@@ -147,59 +162,34 @@ public class ArmorModule extends HudModule {
                     int index = ordered.indexOf(this);
                     if (index != -1) {
                         boolean vertical = SimpleCPSConfig.instance.armorVertical;
+                        int step = scaled(index * SLOT);
                         int newParentX, newParentY;
                         if (vertical) {
                             newParentX = this.getX();
-                            newParentY = this.getY() - index * 20;
+                            newParentY = this.getY() - step;
                         } else {
-                            newParentX = this.getX() - index * 20;
+                            newParentX = this.getX() - step;
                             newParentY = this.getY();
                         }
-                        
+
                         SimpleCPSConfig.Position anchor = getPositionType();
                         net.minecraft.client.gui.screens.Screen screen = client.gui.screen();
                         int screenW = screen != null ? screen.width : 400;
                         int screenH = screen != null ? screen.height : 300;
-                        
+
                         int baseX = 0;
                         int baseY = 0;
                         int gap = 5;
-                        
-                        // Calculate grouped dimensions directly to avoid 0-width/height issues
-                        int activeCount = ordered.size();
+
+                        // Grouped size, in screen pixels. Computed here rather than through
+                        // getWidth()/getHeight() because those still see the detached layout.
                         int finalW = 0;
                         int finalH = 0;
-                        if (activeCount > 0) {
-                            if (vertical) {
-                                finalW = 20;
-                                boolean showText = SimpleCPSConfig.instance.armorDurabilityText;
-                                if (showText) {
-                                    int maxText = 0;
-                                    for (ArmorElement sub : ordered) {
-                                        ItemStack stack = sub.getItemStack();
-                                        if (stack.isDamageableItem()) {
-                                            int durability = stack.getMaxDamage() - stack.getDamageValue();
-                                            maxText = Math.max(maxText, client.font.width(com.eymistaken.simplecps.util.EymHudFonts.text(String.valueOf(durability))));
-                                        }
-                                    }
-                                    if (maxText > 0) {
-                                        finalW += maxText + 2;
-                                    }
-                                }
-                                finalH = activeCount * 20;
-                            } else {
-                                finalW = activeCount * 20;
-                                finalH = 20;
-                                boolean showText = SimpleCPSConfig.instance.armorDurabilityText;
-                                if (showText) {
-                                    boolean anyDmg = ordered.stream().anyMatch(sub -> sub.getItemStack().isDamageableItem());
-                                    if (anyDmg) {
-                                        finalH += 10;
-                                    }
-                                }
-                            }
+                        if (!ordered.isEmpty()) {
+                            finalW = scaled(localWidth());
+                            finalH = scaled(localHeight());
                         }
-                        
+
                         switch (anchor) {
                             case TOP_LEFT -> { baseX = gap; baseY = gap; }
                             case TOP_RIGHT -> { baseX = screenW - finalW - gap; baseY = gap; }
@@ -309,14 +299,24 @@ public class ArmorModule extends HudModule {
 
     @Override
     public int getWidth() {
+        return Math.max(1, scaled(localWidth()));
+    }
+
+    @Override
+    public int getHeight() {
+        return Math.max(1, scaled(localHeight()));
+    }
+
+    /** Width on the unscaled grid. Kept separate so Group can reuse it. */
+    private int localWidth() {
         List<ArmorElement> items = getOrderedElements();
-        if (items.isEmpty()) return 20;
-        
+        if (items.isEmpty()) return SLOT;
+
         boolean vertical = SimpleCPSConfig.instance.armorVertical;
         boolean showText = SimpleCPSConfig.instance.armorDurabilityText;
-        
+
         if (vertical) {
-            int w = 20;
+            int w = SLOT;
             if (showText) {
                 int maxText = 0;
                 for (ArmorElement sub : items) {
@@ -330,24 +330,24 @@ public class ArmorModule extends HudModule {
                     w += maxText + 2;
                 }
             }
-            return w; 
+            return w;
         } else {
-            return items.size() * 20;
+            return items.size() * SLOT;
         }
     }
 
-    @Override
-    public int getHeight() {
+    /** Height on the unscaled grid. */
+    private int localHeight() {
         List<ArmorElement> items = getOrderedElements();
-        if (items.isEmpty()) return 20;
-        
+        if (items.isEmpty()) return SLOT;
+
         boolean vertical = SimpleCPSConfig.instance.armorVertical;
         boolean showText = SimpleCPSConfig.instance.armorDurabilityText;
-        
+
         if (vertical) {
-            return items.size() * 20;
+            return items.size() * SLOT;
         } else {
-            int h = 20;
+            int h = SLOT;
             if (showText) {
                 boolean anyDmg = items.stream().anyMatch(sub -> sub.getItemStack().isDamageableItem());
                 if (anyDmg) {
@@ -358,9 +358,10 @@ public class ArmorModule extends HudModule {
         }
     }
 
+    /** {@code slotX/slotY} are local grid coordinates; the caller has already scaled. */
     private void drawSlotBackground(GuiGraphicsExtractor context, List<ArmorElement> ordered, ArmorElement el, int slotX, int slotY) {
-        boolean hasLeft = ordered.stream().anyMatch(other -> other != el && Math.abs(other.getX() - (slotX - 20)) <= 1 && Math.abs(other.getY() - slotY) <= 1);
-        boolean hasRight = ordered.stream().anyMatch(other -> other != el && Math.abs(other.getX() - (slotX + 20)) <= 1 && Math.abs(other.getY() - slotY) <= 1);
+        boolean hasLeft = ordered.stream().anyMatch(other -> other != el && Math.abs(other.localX - (slotX - SLOT)) <= 1 && Math.abs(other.localY - slotY) <= 1);
+        boolean hasRight = ordered.stream().anyMatch(other -> other != el && Math.abs(other.localX - (slotX + SLOT)) <= 1 && Math.abs(other.localY - slotY) <= 1);
         
         if (!hasLeft && !hasRight) {
             // Isolated Slot
@@ -426,44 +427,56 @@ public class ArmorModule extends HudModule {
         boolean damageFlash = SimpleCPSConfig.instance.armorDamageFlash;
         
         long now = System.currentTimeMillis();
-        
-        // Pre-calculate and cache positions for all ordered elements so neighbor checks are 100% correct in the current frame
-        int stackX = this.x;
-        int stackY = this.y;
+        float s = scale();
+
+        // Everything below is drawn in the module's own unscaled grid and scaled as a
+        // whole, so the slot textures, dividers and durability text keep lining up at
+        // any size. Only cachedX/cachedY are converted to screen pixels, because that
+        // is what the editor hit-tests and draws selection borders against.
+        int stackX = 0;
+        int stackY = 0;
         for (int i = 0; i < ordered.size(); i++) {
             ArmorElement el = ordered.get(i);
             int elX, elY;
             if (el.getXOffset() != 0 || el.getYOffset() != 0) {
-                elX = this.x + el.getXOffset();
-                elY = this.y + el.getYOffset();
+                // Offsets are stored in screen pixels (that is what the editor drags),
+                // so undo the scale to get back onto the local grid.
+                elX = Math.round(el.getXOffset() / s);
+                elY = Math.round(el.getYOffset() / s);
             } else {
                 elX = stackX;
                 elY = stackY;
                 if (vertical) {
-                    stackY += 20;
+                    stackY += SLOT;
                 } else {
-                    stackX += 20;
+                    stackX += SLOT;
                 }
             }
-            el.cachedX = elX;
-            el.cachedY = elY;
+            el.localX = elX;
+            el.localY = elY;
+            el.cachedX = this.x + Math.round(elX * s);
+            el.cachedY = this.y + Math.round(elY * s);
         }
-        
+
+        context.pose().pushMatrix();
+        context.pose().translate((float) this.x, (float) this.y);
+        context.pose().scale(s, s);
+
         // Pass 1: Background drawing
         if (showBg) {
             for (ArmorElement el : ordered) {
-                drawSlotBackground(context, ordered, el, el.getX(), el.getY());
+                drawSlotBackground(context, ordered, el, el.localX, el.localY);
             }
         }
-        
+
         // Pass 2: Draw Horizontal Dividers between vertically stacked touching slots
         if (showBg) {
             for (ArmorElement el : ordered) {
-                int slotX = el.getX();
-                int slotY = el.getY();
-                
-                boolean hasBottom = ordered.stream().anyMatch(other -> other != el && Math.abs(other.getX() - slotX) <= 1 && Math.abs(other.getY() - (slotY + 20)) <= 1);
-                
+                int slotX = el.localX;
+                int slotY = el.localY;
+
+                boolean hasBottom = ordered.stream().anyMatch(other -> other != el && Math.abs(other.localX - slotX) <= 1 && Math.abs(other.localY - (slotY + SLOT)) <= 1);
+
                 if (hasBottom) {
                     // Draw horizontal divider to cover the adjacent black borders
                     // Dark shadow on the top side of divider, light highlight on the bottom side
@@ -472,14 +485,14 @@ public class ArmorModule extends HudModule {
                 }
             }
         }
-        
+
         // Pass 3: Draw Items and Durability text
         for (int i = 0; i < ordered.size(); i++) {
             ArmorElement el = ordered.get(i);
             ItemStack stack = el.getItemStack();
-            int elX = el.getX();
-            int elY = el.getY();
-            
+            int elX = el.localX;
+            int elY = el.localY;
+
             // Damage Flash Logic
             int damageIndex = el.slot.ordinal();
             if (damageFlash && stack.isDamageableItem()) {
@@ -517,6 +530,8 @@ public class ArmorModule extends HudModule {
                 }
             }
         }
+
+        context.pose().popMatrix();
     }
 
     private int getDurabilityColor(int durability, int max) {
@@ -535,10 +550,14 @@ public class ArmorModule extends HudModule {
     @Override public void setXOffset(int x) { SimpleCPSConfig.instance.armorXOffset = x; }
     @Override public void setYOffset(int y) { SimpleCPSConfig.instance.armorYOffset = y; }
     
+    @Override public void setScale(int scale) { SimpleCPSConfig.instance.armorScale = scale; }
+    @Override public int getScale() { return SimpleCPSConfig.instance.armorScale; }
+
     @Override public void resetToDefaults() {
         SimpleCPSConfig.instance.armorPosition = SimpleCPSConfig.Position.BOTTOM_LEFT;
         SimpleCPSConfig.instance.armorXOffset = 0;
         SimpleCPSConfig.instance.armorYOffset = 0;
+        SimpleCPSConfig.instance.armorScale = 100;
         for (ArmorElement el : subElements) {
             el.resetToDefaults();
         }
@@ -576,11 +595,14 @@ public class ArmorModule extends HudModule {
                 
                 for (int i = 0; i < ordered.size(); i++) {
                     ArmorElement el = ordered.get(i);
+                    // Offsets are screen pixels, so the stack has to be laid out scaled
+                    // or ungrouping would visibly bunch the slots together.
+                    int step = scaled(i * SLOT);
                     if (vertical) {
                         el.setXOffset(0);
-                        el.setYOffset(i * 20);
+                        el.setYOffset(step);
                     } else {
-                        el.setXOffset(i * 20);
+                        el.setXOffset(step);
                         el.setYOffset(0);
                     }
                 }
@@ -590,6 +612,7 @@ public class ArmorModule extends HudModule {
 
         settings.addAll(java.util.List.of(
             new com.eymistaken.simplecps.api.BooleanSetting("Enable Armor", () -> config.showArmor, v -> config.showArmor = v),
+            new com.eymistaken.simplecps.api.SliderSetting("Scale %", 50, 300, 100, () -> config.armorScale, v -> config.armorScale = v),
             new com.eymistaken.simplecps.api.BooleanSetting("Vertical", () -> config.armorVertical, v -> config.armorVertical = v),
             new com.eymistaken.simplecps.api.BooleanSetting("Show Background", () -> config.armorShowBackgroundSlots, v -> config.armorShowBackgroundSlots = v),
             new com.eymistaken.simplecps.api.BooleanSetting("Durability Text", () -> config.armorDurabilityText, v -> config.armorDurabilityText = v),

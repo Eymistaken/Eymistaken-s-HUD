@@ -44,13 +44,15 @@ public class PingModule extends HudModule {
     @Override public void setPositionType(SimpleCPSConfig.Position pos) { SimpleCPSConfig.instance.pingPosition = pos; }
     @Override public void setXOffset(int x) { SimpleCPSConfig.instance.pingXOffset = x; }
     @Override public void setYOffset(int y) { SimpleCPSConfig.instance.pingYOffset = y; }
-    // Ping has no scale config, so keep default.
+    @Override public void setScale(int scale) { SimpleCPSConfig.instance.pingScale = scale; }
+    @Override public int getScale() { return SimpleCPSConfig.instance.pingScale; }
     @Override public void resetToDefaults() {
         SimpleCPSConfig.instance.pingPosition = SimpleCPSConfig.Position.TOP_LEFT;
         SimpleCPSConfig.instance.pingXOffset = 0;
         SimpleCPSConfig.instance.pingYOffset = 0;
+        SimpleCPSConfig.instance.pingScale = 100;
     }
-    
+
     @Override
     public void resetVisualDefaults() {
         SimpleCPSConfig config = SimpleCPSConfig.instance;
@@ -66,6 +68,7 @@ public class PingModule extends HudModule {
         java.util.List<com.eymistaken.simplecps.api.HudModuleSetting> settings = new java.util.ArrayList<>(super.getContextMenuSettings());
         settings.addAll(java.util.List.of(
             new com.eymistaken.simplecps.api.BooleanSetting("Enable Ping", () -> config.showPing, v -> config.showPing = v),
+            new com.eymistaken.simplecps.api.SliderSetting("Scale %", 50, 300, 100, () -> config.pingScale, v -> config.pingScale = v),
             new com.eymistaken.simplecps.api.ColorSetting("Text Color", () -> config.pingColor, v -> config.pingColor = v)
         ));
         return settings;
@@ -97,7 +100,7 @@ public class PingModule extends HudModule {
         if (cachedEntry != null) latency = cachedEntry.getLatency();
         String pingText = (latency < 0) ? "? ms" : (latency + " ms");
         
-        float scale = 1.0f; 
+        float scale = config.pingScale / 100f; 
         int textWidth = (int)(textWidth(pingText) * scale);
         int textHeight = (int)(client.font.lineHeight * scale);
         int padding = 2;
@@ -127,7 +130,7 @@ public class PingModule extends HudModule {
         int latency = cachedPing;
         if (cachedEntry != null) latency = cachedEntry.getLatency();
         String pingText = (latency < 0) ? "? ms" : (latency + " ms");
-        float scale = 1.0f;
+        float scale = config.pingScale / 100f;
         int textWidth = (int)(textWidth(pingText) * scale);
         int padding = 2;
         return config.pingShowBackground ? (int)(((textWidth / scale) + padding * 2) * scale) : textWidth;
@@ -136,7 +139,7 @@ public class PingModule extends HudModule {
     @Override
     public int getHeight() {
         SimpleCPSConfig config = SimpleCPSConfig.instance;
-        float scale = 1.0f;
+        float scale = config.pingScale / 100f;
         int textHeight = (int)(client.font.lineHeight * scale);
         int padding = 2;
         return config.pingShowBackground ? (int)(((textHeight / scale) + padding * 2) * scale) : textHeight;

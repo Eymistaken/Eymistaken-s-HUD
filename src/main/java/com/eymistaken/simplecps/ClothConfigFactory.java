@@ -159,6 +159,11 @@ public class ClothConfigFactory {
                 .setTooltip(Component.literal("Vertical offset from anchor"))
                 .setSaveConsumer(val -> config.pingYOffset = val)
                 .build());
+        ping.addEntry(entryBuilder.startIntSlider(Component.literal("Scale %"), config.pingScale, 50, 300)
+                .setDefaultValue(100)
+                .setTooltip(Component.literal("Size of the ping display"))
+                .setSaveConsumer(val -> config.pingScale = val)
+                .build());
         ping.addEntry(entryBuilder.startColorField(Component.literal("Text Color"), config.pingColor)
                 .setDefaultValue(0xFFFFFF)
                 .setTooltip(Component.literal("Color of the text"))
@@ -291,7 +296,7 @@ public class ClothConfigFactory {
                 .build());
         
         // Open Designer Button
-        keys.addEntry(entryBuilder.startBooleanToggle(Component.literal("Designer (Experimental)"), false)
+        keys.addEntry(entryBuilder.startBooleanToggle(Component.literal("Designer"), false)
                 .setDefaultValue(false)
                 .setTooltip(Component.literal("To open Designer, Enable the toggle and click \"Save & Quit\""))
                 .setSaveConsumer(val -> {
@@ -635,6 +640,11 @@ public class ClothConfigFactory {
                 .setDefaultValue(true)
                 .setTooltip(Component.literal("Stack items vertically instead of horizontally"))
                 .setSaveConsumer(val -> config.armorVertical = val)
+                .build());
+        armor.addEntry(entryBuilder.startIntSlider(Component.literal("Scale %"), config.armorScale, 50, 300)
+                .setDefaultValue(100)
+                .setTooltip(Component.literal("Size of the armor slots"))
+                .setSaveConsumer(val -> config.armorScale = val)
                 .build());
         armor.addEntry(entryBuilder.startBooleanToggle(Component.literal("Show Background Slots"), config.armorShowBackgroundSlots)
                 .setDefaultValue(false)

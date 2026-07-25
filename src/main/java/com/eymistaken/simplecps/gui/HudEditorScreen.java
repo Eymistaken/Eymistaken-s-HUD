@@ -99,6 +99,15 @@ public class HudEditorScreen extends Screen {
     private final Anim submenuAnim = new Anim(0f);
     private final Anim serverSubmenuAnim = new Anim(0f);
     private static final float MENU_ANIM_DURATION = 0.16f;
+    /** Below this alpha a closing menu is invisible anyway, so stop drawing it. */
+    private static final float FADE_OUT_CUTOFF = 0.01f;
+
+    /**
+     * The context menu's target, held past the moment it closes. Without it a menu
+     * whose target is cleared on close (or a config swap) would change shape or vanish
+     * halfway through its own fade-out.
+     */
+    private com.eymistaken.simplecps.api.IHudElement contextMenuRenderTarget = null;
 
     /** Scale an ARGB colour's alpha by menu-open progress {@code p}. */
     private static int fade(int argb, float p) {
@@ -323,22 +332,28 @@ public class HudEditorScreen extends Screen {
             context.text(this.font, "Restore Font", bx + 8, by + 4, 0xFFFFFFFF, false);
         }
 
-        if (contextMenuOpen && contextMenuTarget != null) {
-            float p = contextMenuAnim.update(1f, MENU_ANIM_DURATION, Easings::expoOut);
-            renderContextMenu(context, mouseX, mouseY, p);
+        // Every menu animation is advanced every frame, open or not: the target is 1
+        // while open and 0 once closed, so the same tween that fades a menu in also
+        // fades it back out. Each menu keeps drawing until its alpha reaches zero.
+        if (contextMenuOpen) contextMenuRenderTarget = contextMenuTarget;
+        float contextP = contextMenuAnim.update(contextMenuOpen ? 1f : 0f, MENU_ANIM_DURATION, Easings::expoOut);
+        if (contextMenuRenderTarget != null && (contextMenuOpen || contextP > FADE_OUT_CUTOFF)) {
+            renderContextMenu(context, mouseX, mouseY, contextP, contextMenuRenderTarget);
         }
-        if (globalMenuOpen) {
-            float p = globalMenuAnim.update(1f, MENU_ANIM_DURATION, Easings::expoOut);
-            renderGlobalMenu(context, mouseX, mouseY, p);
+
+        float globalP = globalMenuAnim.update(globalMenuOpen ? 1f : 0f, MENU_ANIM_DURATION, Easings::expoOut);
+        if (globalMenuOpen || globalP > FADE_OUT_CUTOFF) {
+            renderGlobalMenu(context, mouseX, mouseY, globalP);
         }
+
         updateSubmenuHover(mouseX, mouseY);
-        if (configsSubmenuOpen) {
-            float p = submenuAnim.update(1f, MENU_ANIM_DURATION, Easings::expoOut);
-            renderConfigsSubmenu(context, mouseX, mouseY, p);
+        float configsP = submenuAnim.update(configsSubmenuOpen ? 1f : 0f, MENU_ANIM_DURATION, Easings::expoOut);
+        if (configsSubmenuOpen || configsP > FADE_OUT_CUTOFF) {
+            renderConfigsSubmenu(context, mouseX, mouseY, configsP);
         }
-        if (serverSubmenuOpen) {
-            float p = serverSubmenuAnim.update(1f, MENU_ANIM_DURATION, Easings::expoOut);
-            renderServerSubmenu(context, mouseX, mouseY, p);
+        float serverP = serverSubmenuAnim.update(serverSubmenuOpen ? 1f : 0f, MENU_ANIM_DURATION, Easings::expoOut);
+        if (serverSubmenuOpen || serverP > FADE_OUT_CUTOFF) {
+            renderServerSubmenu(context, mouseX, mouseY, serverP);
         }
 
         if (textEditTarget != null || textPromptActive) {
@@ -1178,9 +1193,12 @@ public class HudEditorScreen extends Screen {
         }
     }
 
-    private void renderContextMenu(GuiGraphicsExtractor context, int mouseX, int mouseY, float p) {
+    private void renderContextMenu(
+        GuiGraphicsExtractor context, int mouseX, int mouseY, float p,
+        com.eymistaken.simplecps.api.IHudElement target
+    ) {
         int w = CONTEXT_MENU_WIDTH;
-        int h = getMenuHeight(contextMenuTarget);
+        int h = getMenuHeight(target);
         int x = contextMenuX;
         int y = contextMenuY;
 
@@ -1198,7 +1216,7 @@ public class HudEditorScreen extends Screen {
         if (hoverReset) context.fill(x, y, x + w, y + 20, fade(0xFF444444, p));
         context.text(this.font, EymHudFonts.text("Reset Position"), x + 5, y + 6, fade(0xFFFFFFFF, p), true);
 
-        java.util.List<com.eymistaken.simplecps.api.HudModuleSetting> settings = contextMenuTarget.getContextMenuSettings();
+        java.util.List<com.eymistaken.simplecps.api.HudModuleSetting> settings = target.getContextMenuSettings();
         int currentY = y + 20;
 
         for (int i = 0; i < settings.size(); i++) {
@@ -1358,7 +1376,8 @@ public class HudEditorScreen extends Screen {
     private void openConfigsSubmenu() {
         cachedPresetNames = ConfigPresetManager.listPresets();
         configsSubmenuOpen = true;
-        submenuAnim.snap(0f);
+        // No snap to 0 here: hovering back onto the row mid-fade should pick the
+        // animation up where it is, not restart it from invisible.
         int h = getConfigsSubmenuHeight();
         configsSubmenuX = placeSubmenuX(SUBMENU_WIDTH);
         configsSubmenuY = clampMenuY(globalMenuY + 20 + GLOBAL_ROW_CONFIGS * 20, h);
@@ -1409,7 +1428,6 @@ public class HudEditorScreen extends Screen {
     private void openServerSubmenu() {
         cachedServerKeys = ServerConfigManager.listKeys();
         serverSubmenuOpen = true;
-        serverSubmenuAnim.snap(0f);
         int h = getServerSubmenuHeight();
         serverSubmenuX = placeSubmenuX(SUBMENU_WIDTH);
         serverSubmenuY = clampMenuY(globalMenuY + 20 + GLOBAL_ROW_SERVER_CONFIGS * 20, h);

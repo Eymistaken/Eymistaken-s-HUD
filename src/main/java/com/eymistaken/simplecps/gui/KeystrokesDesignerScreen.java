@@ -114,6 +114,89 @@ public class KeystrokesDesignerScreen extends Screen {
     private boolean contextMenuOpen = false;
     private int contextMenuX, contextMenuY;
     private SimpleCPSConfig.KeyButtonData contextMenuTarget = null;
+    private static final int CONTEXT_MENU_WIDTH = 140;
+    /** Gap kept between a menu and the screen edge. */
+    private static final int MENU_MARGIN = 2;
+    private final com.eymistaken.simplecps.util.Anim contextMenuAnim = new com.eymistaken.simplecps.util.Anim(0f);
+    private static final float MENU_ANIM_DURATION = 0.16f;
+    /** Below this alpha a closing menu is invisible anyway, so stop drawing it. */
+    private static final float FADE_OUT_CUTOFF = 0.01f;
+    /**
+     * The target the menu was opened on, held past the moment it closes. Deleting a
+     * button clears {@code contextMenuTarget}, which would otherwise switch the menu to
+     * its shorter empty-space form halfway through its own fade-out.
+     */
+    private SimpleCPSConfig.KeyButtonData contextMenuRenderTarget = null;
+
+    /** Scale an ARGB colour's alpha by menu-open progress {@code p}. */
+    private static int fade(int argb, float p) {
+        return com.eymistaken.simplecps.util.RenderUtil.withAlpha(argb, p);
+    }
+
+    // --- Smooth movement ---
+    //
+    // Same idea as the HUD editor: the button's stored x/y jumps straight to where it
+    // belongs, and only the leftover — the magnet pulling it onto a guide, an arrow-key
+    // step — is drawn as an offset that eases back to zero. Cursor-following therefore
+    // stays exactly 1:1.
+
+    private static final float GLIDE_DURATION = 0.16f;
+
+    private static final class Glide {
+        final com.eymistaken.simplecps.util.Anim x = new com.eymistaken.simplecps.util.Anim(0f);
+        final com.eymistaken.simplecps.util.Anim y = new com.eymistaken.simplecps.util.Anim(0f);
+
+        Glide() {
+            // snap() marks the Anim initialized; without it the first update() would
+            // jump straight to zero and there would be no animation at all.
+            x.snap(0f);
+            y.snap(0f);
+        }
+    }
+
+    private final java.util.Map<SimpleCPSConfig.KeyButtonData, Glide> glides = new java.util.HashMap<>();
+    /** Magnet correction carried by the previous drag frame, to spot changes in it. */
+    private int prevSnapCorrX = 0;
+    private int prevSnapCorrY = 0;
+
+    /** Draw a button {@code dx,dy} away from where it now is, then ease that away. */
+    private void addGlideOffset(SimpleCPSConfig.KeyButtonData btn, int dx, int dy) {
+        if (dx == 0 && dy == 0) return;
+        Glide glide = glides.computeIfAbsent(btn, k -> new Glide());
+        glide.x.snap(glide.x.get() + dx);
+        glide.y.snap(glide.y.get() + dy);
+    }
+
+    private int glideX(SimpleCPSConfig.KeyButtonData btn) {
+        Glide glide = glides.get(btn);
+        return glide == null ? 0 : Math.round(glide.x.get());
+    }
+
+    private int glideY(SimpleCPSConfig.KeyButtonData btn) {
+        Glide glide = glides.get(btn);
+        return glide == null ? 0 : Math.round(glide.y.get());
+    }
+
+    /** Step every offset one frame toward zero, dropping the ones that got there. */
+    private void advanceGlides() {
+        if (glides.isEmpty()) return;
+        glides.values().removeIf(glide -> {
+            int rx = Math.round(glide.x.update(0f, GLIDE_DURATION, com.eymistaken.simplecps.util.Easings::backOut));
+            int ry = Math.round(glide.y.update(0f, GLIDE_DURATION, com.eymistaken.simplecps.util.Easings::backOut));
+            return rx == 0 && ry == 0;
+        });
+    }
+
+    /** Open at the cursor, flipping to its other side when that would run off screen. */
+    private int placeMenuX(int mouseX, int w) {
+        int x = (mouseX + w + MENU_MARGIN > this.width) ? mouseX - w : mouseX;
+        return Math.max(MENU_MARGIN, Math.min(x, this.width - w - MENU_MARGIN));
+    }
+
+    private int placeMenuY(int mouseY, int h) {
+        int y = (mouseY + h + MENU_MARGIN > this.height) ? mouseY - h : mouseY;
+        return Math.max(MENU_MARGIN, Math.min(y, this.height - h - MENU_MARGIN));
+    }
     
     // Editing
     private boolean waitingForKeybind = false;
@@ -121,8 +204,10 @@ public class KeystrokesDesignerScreen extends Screen {
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
+        advanceGlides();
+
         // Gradient Background (matching HudEditorScreen)
-        context.fillGradient(0, 0, this.width, this.height, 0xC0000000, 0xD0000000); 
+        context.fillGradient(0, 0, this.width, this.height, 0xC0000000, 0xD0000000);
         
         // Polling Input removed
 
@@ -145,8 +230,10 @@ public class KeystrokesDesignerScreen extends Screen {
 
         // Draw Buttons
         for (SimpleCPSConfig.KeyButtonData btn : config().keystrokesLayout) {
-            int x = originX + btn.x;
-            int y = originY + btn.y;
+            // The glide offset is purely visual — btn.x/y are already final, so nothing
+            // else in the designer has to know this animation exists.
+            int x = originX + btn.x + glideX(btn);
+            int y = originY + btn.y + glideY(btn);
             boolean isSelected = selectedButtons.contains(btn);
             
             int bgColor = 0xAA000000;
@@ -232,8 +319,13 @@ public class KeystrokesDesignerScreen extends Screen {
             }
         }
 
-         if (contextMenuOpen) {
-            renderContextMenu(context, mouseX, mouseY);
+        // Target 1 while open, 0 once closed, advanced every frame: the same tween
+        // that fades the menu in also fades it back out.
+        if (contextMenuOpen) contextMenuRenderTarget = contextMenuTarget;
+        float menuP = contextMenuAnim.update(contextMenuOpen ? 1f : 0f, MENU_ANIM_DURATION,
+            com.eymistaken.simplecps.util.Easings::expoOut);
+        if (contextMenuOpen || menuP > FADE_OUT_CUTOFF) {
+            renderContextMenu(context, mouseX, mouseY, menuP, contextMenuRenderTarget);
         }
         
         if (colorPickerOpen && colorPickerTarget != null) {
@@ -317,7 +409,7 @@ public class KeystrokesDesignerScreen extends Screen {
         
         if (contextMenuOpen) {
              // Handle Menu Clicks
-             int w = 140; 
+             int w = CONTEXT_MENU_WIDTH;
              int menuY = contextMenuY;
              int fullH = getMenuHeight(contextMenuTarget != null);
              
@@ -398,6 +490,8 @@ public class KeystrokesDesignerScreen extends Screen {
                     dragStartX = mouseX;
                     dragStartY = mouseY;
                     dragSnapshots.clear();
+                    prevSnapCorrX = 0;
+                    prevSnapCorrY = 0;
                     for (SimpleCPSConfig.KeyButtonData b : selectedButtons) {
                         dragSnapshots.add(new ButtonSnapshot(b));
                     }
@@ -426,8 +520,11 @@ public class KeystrokesDesignerScreen extends Screen {
                 // Right click on empty space -> Immediate Context Menu
                 contextMenuTarget = null;
                 contextMenuOpen = true;
-                contextMenuX = mX;
-                contextMenuY = mY;
+                contextMenuAnim.snap(0f);
+                // This path used to place the menu at the raw cursor with no clamping
+                // at all, so it ran straight off the right and bottom edges.
+                contextMenuX = placeMenuX(mX, CONTEXT_MENU_WIDTH);
+                contextMenuY = placeMenuY(mY, getMenuHeight(false));
                 return true;
             }
         }
@@ -471,15 +568,30 @@ public class KeystrokesDesignerScreen extends Screen {
             }
             
             SimpleCPSConfig.KeyButtonData leader = selectedButtons.get(0);
+            int freeX = dragSnapshots.get(0).x + (int) rawDx;
+            int freeY = dragSnapshots.get(0).y + (int) rawDy;
             applySnapping(leader, true); // Snap Leader
-            
+
             int finalDx = leader.x - dragSnapshots.get(0).x;
             int finalDy = leader.y - dragSnapshots.get(0).y;
-            
+
             for (int i = 1; i < dragSnapshots.size(); i++) {
                 ButtonSnapshot snap = dragSnapshots.get(i);
                 snap.btn.x = snap.x + finalDx;
                 snap.btn.y = snap.y + finalDy;
+            }
+
+            // How far the magnet is holding the button away from the cursor. A change
+            // in that — engaging, releasing, jumping to another guide — is the only
+            // discontinuity in the drag, so it is the only part worth easing.
+            int corrX = leader.x - freeX;
+            int corrY = leader.y - freeY;
+            int jumpX = corrX - prevSnapCorrX;
+            int jumpY = corrY - prevSnapCorrY;
+            prevSnapCorrX = corrX;
+            prevSnapCorrY = corrY;
+            for (ButtonSnapshot snap : dragSnapshots) {
+                addGlideOffset(snap.btn, -jumpX, -jumpY);
             }
             return true;
         } 
@@ -568,44 +680,30 @@ public class KeystrokesDesignerScreen extends Screen {
                 isRightClickDrag = false;
                 rightClickTarget = null;
                 currentState = InteractionState.BOX_SELECTED; // Return to normal state
-            } else {
-                // Was a click! Open Menu
-                if (rightClickTarget != null) {
-                    contextMenuTarget = rightClickTarget;
-                    if (!selectedButtons.contains(rightClickTarget)) {
-                         selectedButtons.clear();
-                         selectedButtons.add(rightClickTarget);
-                         currentState = InteractionState.BOX_SELECTED;
-                    }
-                } else {
-                    contextMenuTarget = null;
+            } else if (rightClickTarget != null) {
+                // A click on a button, not a drag. Opening is deferred to the release so
+                // that holding and dragging moves the label instead.
+                //
+                // Only this case belongs here: a right-click on empty space never sets
+                // rightClickTarget and already opened its menu on press. Reaching this
+                // code for it too would re-snap the animation to zero part-way through,
+                // which is visible as a flicker.
+                contextMenuTarget = rightClickTarget;
+                if (!selectedButtons.contains(rightClickTarget)) {
+                     selectedButtons.clear();
+                     selectedButtons.add(rightClickTarget);
+                     currentState = InteractionState.BOX_SELECTED;
                 }
-                
+
                 contextMenuOpen = true;
-                contextMenuX = (int)mouseX;
-                
-                // Smart Positioning (Clamp to Screen)
-                int h = getMenuHeight(contextMenuTarget != null);
-                int y = (int)mouseY;
-                
-                // 1. If it hits bottom, flip up
-                if (y + h > this.height) {
-                    y = y - h;
-                }
-                
-                // 2. If flipped up and hits top, clamp to 0
-                if (y < 0) {
-                    y = 0;
-                }
-                
-                // 3. If standard down hits bottom (and wasn't flipped? or just general clamp)
-                // actually if y was adjusted, we just check bounds.
-                if (y + h > this.height) {
-                     y = this.height - h;
-                }
-                
-                contextMenuY = y;
-                
+                contextMenuAnim.snap(0f);
+
+                // Flip to whichever side of the cursor fits, then clamp — the old code
+                // only handled the vertical case and let the menu run off the right edge.
+                int h = getMenuHeight(true);
+                contextMenuX = placeMenuX((int) mouseX, CONTEXT_MENU_WIDTH);
+                contextMenuY = placeMenuY((int) mouseY, h);
+
                 rightClickTarget = null;
             }
         }
@@ -708,10 +806,12 @@ public class KeystrokesDesignerScreen extends Screen {
                  saveUndo();
              }
 
-             if (keyCode == GLFW.GLFW_KEY_UP) { for (SimpleCPSConfig.KeyButtonData b : selectedButtons) b.y -= step; return true; }
-             if (keyCode == GLFW.GLFW_KEY_DOWN) { for (SimpleCPSConfig.KeyButtonData b : selectedButtons) b.y += step; return true; }
-             if (keyCode == GLFW.GLFW_KEY_LEFT) { for (SimpleCPSConfig.KeyButtonData b : selectedButtons) b.x -= step; return true; }
-             if (keyCode == GLFW.GLFW_KEY_RIGHT) { for (SimpleCPSConfig.KeyButtonData b : selectedButtons) b.x += step; return true; }
+             // The glide offset is the opposite of the step, so the button starts drawn
+             // where it was and eases into its new spot.
+             if (keyCode == GLFW.GLFW_KEY_UP) { for (SimpleCPSConfig.KeyButtonData b : selectedButtons) { b.y -= step; addGlideOffset(b, 0, step); } return true; }
+             if (keyCode == GLFW.GLFW_KEY_DOWN) { for (SimpleCPSConfig.KeyButtonData b : selectedButtons) { b.y += step; addGlideOffset(b, 0, -step); } return true; }
+             if (keyCode == GLFW.GLFW_KEY_LEFT) { for (SimpleCPSConfig.KeyButtonData b : selectedButtons) { b.x -= step; addGlideOffset(b, step, 0); } return true; }
+             if (keyCode == GLFW.GLFW_KEY_RIGHT) { for (SimpleCPSConfig.KeyButtonData b : selectedButtons) { b.x += step; addGlideOffset(b, -step, 0); } return true; }
              
              if (keyCode == GLFW.GLFW_KEY_DELETE) {
                  saveUndo();
@@ -869,28 +969,24 @@ public class KeystrokesDesignerScreen extends Screen {
         }
     }
 
-    private void renderContextMenu(GuiGraphicsExtractor context, int mouseX, int mouseY) {
-        int w = 140; // Slightly wider for new options
-        int h = 0;
-        
-        // Calculate height based on items
-        if (contextMenuTarget != null) {
-            h = 240; // 12 items * 20
-        } else {
-            h = 180; // 9 items (incl. Export/Import Layout)
-        }
-        
-        // Position is already clamped in onMouseReleased/onMouseClicked
+    private void renderContextMenu(
+        GuiGraphicsExtractor context, int mouseX, int mouseY, float p,
+        SimpleCPSConfig.KeyButtonData target
+    ) {
+        int w = CONTEXT_MENU_WIDTH;
+        int h = getMenuHeight(target != null);
+
+        // Position is already clamped where the menu is opened.
         int x = contextMenuX;
         int y = contextMenuY;
-        
-        // Ensure strictly inside?
-        // It should be. But let's just render at stored pos.
-        
-        context.fill(x, y, x + w, y + h, 0xFF222222);
-        drawBorder(context, x, y, w, h, 0xFFFFFFFF);
-        
-        if (contextMenuTarget != null) {
+
+        context.pose().pushMatrix();
+        context.pose().translate(0f, (1f - p) * 8f);
+
+        context.fill(x, y, x + w, y + h, fade(0xFF222222, p));
+        drawBorder(context, x, y, w, h, fade(0xFFFFFFFF, p));
+
+        if (target != null) {
             drawContextMenuItem(context, "Set Keybind", x, y, mouseX, mouseY, 0);
             drawContextMenuItem(context, "Edit Label", x, y, mouseX, mouseY, 1);
             drawContextMenuItem(context, "Center Label", x, y, mouseX, mouseY, 2);
@@ -898,7 +994,7 @@ public class KeystrokesDesignerScreen extends Screen {
             drawContextMenuItem(context, "Toggle Italic", x, y, mouseX, mouseY, 4);
             drawContextMenuItem(context, "Toggle Underline", x, y, mouseX, mouseY, 5);
             
-            if (contextMenuTarget.isMouse) {
+            if (target.isMouse) {
                  drawContextMenuItem(context, "Toggle CPS", x, y, mouseX, mouseY, 6);
                  drawContextMenuItem(context, "Delete", x, y, mouseX, mouseY, 7);
                  drawContextMenuItem(context, "Change Color", x, y, mouseX, mouseY, 8);
@@ -909,7 +1005,7 @@ public class KeystrokesDesignerScreen extends Screen {
                  drawContextMenuItem(context, "Change Color", x, y, mouseX, mouseY, 8);
                  drawContextMenuItem(context, "Change Pressed Color", x, y, mouseX, mouseY, 9);
             }
-            boolean animOn = contextMenuTarget.animationEnabled == null || contextMenuTarget.animationEnabled;
+            boolean animOn = target.animationEnabled == null || target.animationEnabled;
             String animLabel = "Animation [" + (animOn ? "ON" : "OFF") + "]";
             drawContextMenuItem(context, animLabel, x, y, mouseX, mouseY, 10);
         } else {
@@ -927,16 +1023,21 @@ public class KeystrokesDesignerScreen extends Screen {
             drawContextMenuItem(context, "Export Layout", x, y, mouseX, mouseY, 7);
             drawContextMenuItem(context, "Import Layout", x, y, mouseX, mouseY, 8);
         }
+
+        context.pose().popMatrix();
     }
-    
+
     private void drawContextMenuItem(GuiGraphicsExtractor context, String text, int menuX, int menuY, int mouseX, int mouseY, int index) {
         int itemH = 20;
         int y = menuY + (index * itemH);
-        boolean hovered = mouseX >= menuX && mouseX < menuX + 100 && mouseY >= y && mouseY < y + itemH;
+        float p = contextMenuAnim.get();
+        // Full menu width: the highlight used to stop at 100px while clicks were
+        // accepted across all 140, so the right third looked dead but wasn't.
+        boolean hovered = mouseX >= menuX && mouseX < menuX + CONTEXT_MENU_WIDTH && mouseY >= y && mouseY < y + itemH;
         if (hovered) {
-             context.fill(menuX + 1, y, menuX + 99, y + itemH, 0x44FFFFFF);
+             context.fill(menuX + 1, y, menuX + CONTEXT_MENU_WIDTH - 1, y + itemH, fade(0x44FFFFFF, p));
         }
-        context.text(font, com.eymistaken.simplecps.util.EymHudFonts.text(text), menuX + 5, y + 6, 0xFFFFFFFF, false);
+        context.text(font, com.eymistaken.simplecps.util.EymHudFonts.text(text), menuX + 5, y + 6, fade(0xFFFFFFFF, p), false);
     }
 
     private void drawBorder(GuiGraphicsExtractor context, int x, int y, int w, int h, int color) {
@@ -947,8 +1048,9 @@ public class KeystrokesDesignerScreen extends Screen {
     }
     
     private int getMenuHeight(boolean hasTarget) {
-        // Must match the heights used in renderContextMenu, or rows become unclickable.
-        return hasTarget ? 240 : 180;
+        // Must match the rows drawn in renderContextMenu, or rows become unclickable.
+        // 11 with a target (the last being Animation), 9 without.
+        return (hasTarget ? 11 : 9) * 20;
     }
     
     private void handleMenuAction(int index) {

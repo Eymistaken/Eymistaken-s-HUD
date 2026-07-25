@@ -159,6 +159,8 @@ public class SimpleCPSConfig {
         // Scales and opacities match the sliders in ClothConfigFactory and the editor.
         scale = clamp(scale, 50, 300);
         fpsScale = clamp(fpsScale, 50, 300);
+        pingScale = clamp(pingScale, 50, 300);
+        armorScale = clamp(armorScale, 50, 300);
         keystrokesScale = clamp(keystrokesScale, 50, 300);
         comboScale = clamp(comboScale, 50, 300);
         reachScale = clamp(reachScale, 50, 300);
@@ -388,6 +390,7 @@ public class SimpleCPSConfig {
     public Position pingPosition = Position.TOP_LEFT;
     public int pingXOffset = 0;
     public int pingYOffset = 0;
+    public int pingScale = 100;
     public int pingColor = 0xFFFFFF;
     public boolean pingShowBackground = false;
     public int pingBackgroundColor = 0x000000;
@@ -548,6 +551,7 @@ public class SimpleCPSConfig {
     public Position armorPosition = Position.BOTTOM_LEFT;
     public int armorXOffset = 0;
     public int armorYOffset = 0;
+    public int armorScale = 100;
     public boolean armorVertical = true; // Orientation
     public boolean armorShowBackgroundSlots = false; // Render Style
     public boolean armorShowMainHand = true; // Main Hand toggle
