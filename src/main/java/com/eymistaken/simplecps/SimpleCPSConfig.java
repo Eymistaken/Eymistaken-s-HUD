@@ -156,7 +156,7 @@ public class SimpleCPSConfig {
     }
 
     private void clampRanges() {
-        // Scales and opacities match the sliders in ClothConfigFactory and the editor.
+        // Scales and opacities match the sliders in the settings screen and the editor.
         scale = clamp(scale, 50, 300);
         fpsScale = clamp(fpsScale, 50, 300);
         pingScale = clamp(pingScale, 50, 300);
@@ -173,6 +173,7 @@ public class SimpleCPSConfig {
         reachBackgroundOpacity = clamp(reachBackgroundOpacity, 0, 255);
 
         keystrokesEffectMode = clamp(keystrokesEffectMode, 0, 3);
+        settingsMenuScale = clamp(settingsMenuScale, 50, 200);
         // A grid of 0 or 1 would draw a line per pixel across the whole screen.
         editorGridSize = clamp(editorGridSize, 2, 64);
         comboTimeout = clamp(comboTimeout, 0.1, 60.0);
@@ -367,6 +368,10 @@ public class SimpleCPSConfig {
     // Remember the HUD per server: joining a server you have configured swaps to its
     // config silently, and edits made there are bound back to it. See ServerConfigManager.
     public boolean serverConfigsEnabled = true;
+    // Size of the settings screen, as a percentage. The screen already cancels out
+    // Minecraft's GUI Scale so it stays the same size at any of them; this nudges
+    // that baseline for people who want it bigger or smaller.
+    public int settingsMenuScale = 100;
 
     // --- CPS ---
     public boolean enabled = true;

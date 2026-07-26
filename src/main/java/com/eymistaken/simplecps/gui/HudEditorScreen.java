@@ -40,20 +40,25 @@ public class HudEditorScreen extends Screen {
     private static final int GLOBAL_MENU_WIDTH = 180;
     private static final int CONTEXT_MENU_WIDTH = 220;
 
+    /** Context-menu rows that are not one of the element's own settings. */
+    private static final int MENU_ROW_RESET_POSITION = -1;
+    private static final int MENU_ROW_OPEN_SETTINGS = -2;
+
     /**
      * Gap kept between a menu and the screen edge. Every menu paints a 1px border
      * one pixel <em>outside</em> its own rect, so clamping to 0 still clips it.
      */
     private static final int MENU_MARGIN = 2;
-    private static final int GLOBAL_ROW_PREVENT_OVERLAP = 0;
-    private static final int GLOBAL_ROW_GRID = 1;
-    private static final int GLOBAL_ROW_SAVE_CONFIG = 2;
-    private static final int GLOBAL_ROW_CONFIGS = 3;
-    private static final int GLOBAL_ROW_SERVER_CONFIGS = 4;
-    private static final int GLOBAL_ROW_EXPORT_CODE = 5;
-    private static final int GLOBAL_ROW_IMPORT_CODE = 6;
-    private static final int GLOBAL_ROW_RESET_HUD = 7;
-    private static final int GLOBAL_ROW_COUNT = 8;
+    private static final int GLOBAL_ROW_SETTINGS = 0;
+    private static final int GLOBAL_ROW_PREVENT_OVERLAP = 1;
+    private static final int GLOBAL_ROW_GRID = 2;
+    private static final int GLOBAL_ROW_SAVE_CONFIG = 3;
+    private static final int GLOBAL_ROW_CONFIGS = 4;
+    private static final int GLOBAL_ROW_SERVER_CONFIGS = 5;
+    private static final int GLOBAL_ROW_EXPORT_CODE = 6;
+    private static final int GLOBAL_ROW_IMPORT_CODE = 7;
+    private static final int GLOBAL_ROW_RESET_HUD = 8;
+    private static final int GLOBAL_ROW_COUNT = 9;
 
     /** Grid steps the editor's Grid row cycles through on right-click. */
     private static final int[] GRID_SIZES = { 4, 8, 16, 32 };
@@ -485,6 +490,14 @@ public class HudEditorScreen extends Screen {
                 if (mouseY >= rowsTop) {
                     int row = (int) ((mouseY - rowsTop) / 20);
                     switch (row) {
+                        case GLOBAL_ROW_SETTINGS -> {
+                            // Pass our own parent through: closing the settings screen
+                            // should land where the editor would have, not back here.
+                            SimpleCPSConfig.save();
+                            this.minecraft.gui.setScreen(
+                                new com.eymistaken.simplecps.gui.settings.HudSettingsScreen(parent));
+                            return true;
+                        }
                         case GLOBAL_ROW_PREVENT_OVERLAP -> {
                             SimpleCPSConfig.instance.preventOverlap = !SimpleCPSConfig.instance.preventOverlap;
                             SimpleCPSConfig.save();
@@ -532,7 +545,7 @@ public class HudEditorScreen extends Screen {
                 java.util.List<com.eymistaken.simplecps.api.HudModuleSetting> settings = contextMenuTarget.getContextMenuSettings();
                 
                 if (mouseY < currentY) {
-                    handleMenuClick(-1, mouseX, mouseY); // Reset Position
+                    handleMenuClick(MENU_ROW_RESET_POSITION, mouseX, mouseY);
                     return true;
                 }
                 
@@ -544,6 +557,9 @@ public class HudEditorScreen extends Screen {
                         return true;
                     }
                     currentY += itemHeight;
+                }
+                if (mouseY >= currentY && mouseY < currentY + 20) {
+                    handleMenuClick(MENU_ROW_OPEN_SETTINGS, mouseX, mouseY);
                 }
                 return true;
             } else {
@@ -967,7 +983,8 @@ public class HudEditorScreen extends Screen {
     }
 
     private int getMenuHeight(com.eymistaken.simplecps.api.IHudElement element) {
-        int height = 20;
+        // Title row + one row per setting + the "Open Settings" row at the bottom.
+        int height = 40;
         for (com.eymistaken.simplecps.api.HudModuleSetting setting : element.getContextMenuSettings()) {
             if (setting instanceof com.eymistaken.simplecps.api.SliderSetting) height += 24;
             else height += 20;
@@ -1056,13 +1073,7 @@ public class HudEditorScreen extends Screen {
 
     /** Copy the whole current config to the clipboard as an EYMHUD1- share code. */
     private void exportShareCode() {
-        String code = com.eymistaken.simplecps.util.HudShareCodec.encodeConfig();
-        if (code == null) {
-            setShareStatus("Export failed");
-            return;
-        }
-        this.minecraft.keyboardHandler.setClipboard(code);
-        setShareStatus("Copied to clipboard!");
+        setShareStatus(com.eymistaken.simplecps.util.HudActions.exportShareCode().message());
     }
 
     /**
@@ -1070,74 +1081,33 @@ public class HudEditorScreen extends Screen {
      * backed up to a preset first so an unwanted import can be undone.
      */
     private void importShareCode() {
-        String clip = this.minecraft.keyboardHandler.getClipboard();
-        var decoded = com.eymistaken.simplecps.util.HudShareCodec.decode(clip);
-        if (decoded == null) {
-            setShareStatus("No valid code in clipboard");
-            return;
-        }
-        if (!com.eymistaken.simplecps.util.HudShareCodec.TYPE_CONFIG.equals(decoded.type())) {
-            // A keystrokes code would apply only the layout yet still report success
-            // here — and burn a backup slot doing it. Send them to the designer.
-            setShareStatus("That's a keystrokes code - use the Keystrokes designer");
-            return;
-        }
-
-        // Timestamped: a fixed name would overwrite the previous backup, so a second
-        // import would destroy the only copy of the original config.
-        String backupName = ConfigPresetManager.uniqueName(
-            "Backup " + java.time.LocalDateTime.now()
-                .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH.mm.ss")));
-        ConfigPresetManager.savePreset(backupName);
-
-        if (com.eymistaken.simplecps.util.HudShareCodec.apply(decoded)) {
+        com.eymistaken.simplecps.util.HudActions.Result result =
+            com.eymistaken.simplecps.util.HudActions.importShareCode();
+        if (result.ok()) {
             onConfigReplaced();
             cachedPresetNames = ConfigPresetManager.listPresets();
-            if (com.eymistaken.simplecps.util.HudShareCodec.isFromOtherVersion(decoded)) {
-                setShareStatus("Imported from v" + decoded.modVersion() + " (backup saved)");
-            } else {
-                setShareStatus("Imported! (backup saved)");
-            }
-        } else {
-            setShareStatus("Import failed");
         }
+        setShareStatus(result.message());
     }
 
     private void resetHudLayout() {
-        // resetToDefaults() writes offsets straight to the config, so any in-flight
-        // move would overwrite the reset on the next frame.
+        // The shared reset writes offsets straight to the config, so any in-flight
+        // move has to be dropped first or it would overwrite the reset next frame.
         glides.clear();
         glideMoved = false;
-        java.util.List<com.eymistaken.simplecps.api.HudModule> modules = HudModuleManager.getInstance().getModules();
-        for (com.eymistaken.simplecps.api.HudModule module : modules) {
-            clearManualLayout(module, modules);
-            for (com.eymistaken.simplecps.api.IHudElement subElement : module.getSubElements()) {
-                clearManualLayout(subElement, modules);
-                subElement.resetToDefaults();
-            }
-            module.resetToDefaults();
-            for (com.eymistaken.simplecps.api.IHudElement subElement : module.getSubElements()) {
-                clearManualLayout(subElement, modules);
-                subElement.resetToDefaults();
-            }
-        }
-        SimpleCPSConfig.instance.preventOverlap = true;
         selectedElements.clear();
         draggingElement = null;
         snapLineX = null;
         snapLineY = null;
-        SimpleCPSConfig.save();
-    }
-
-    private void clearManualLayout(
-        com.eymistaken.simplecps.api.IHudElement element,
-        java.util.List<com.eymistaken.simplecps.api.HudModule> modules
-    ) {
-        HudPlacementResolver.setManualLayout(element, modules, false);
+        com.eymistaken.simplecps.util.HudActions.resetHudLayout();
     }
 
     private void handleMenuClick(int index, double mouseX, double mouseY) {
-        if (index == -1) {
+        if (index == MENU_ROW_OPEN_SETTINGS) {
+            openSettingsFor(contextMenuTarget);
+            return;
+        }
+        if (index == MENU_ROW_RESET_POSITION) {
             // Same reason as resetHudLayout: this writes the config directly, so an
             // in-flight move for this element has to be dropped, not finished.
             glides.remove(contextMenuTarget);
@@ -1276,6 +1246,11 @@ public class HudEditorScreen extends Screen {
             currentY += itemHeight;
         }
 
+        // Bottom row: hand off to the full settings screen for this module.
+        boolean hoverSettings = mouseX >= x && mouseX <= x + w && mouseY >= currentY && mouseY < currentY + 20;
+        if (hoverSettings) context.fill(x, currentY, x + w, currentY + 20, fade(0xFF444444, p));
+        context.text(this.font, EymHudFonts.text("Open Settings..."), x + 5, currentY + 6, fade(0xFF55FFFF, p), true);
+
         context.pose().popMatrix();
     }
 
@@ -1300,7 +1275,12 @@ public class HudEditorScreen extends Screen {
 
         context.text(this.font, EymHudFonts.text("HUD Settings"), x + 5, y + 6, fade(0xFFFFFFFF, p), true);
 
-        // Row 0: Prevent Overlap toggle
+        // Row 0: Settings (opens the full settings screen)
+        int rSet = y + 20 + GLOBAL_ROW_SETTINGS * 20;
+        if (hoverRow(mouseX, mouseY, x, rSet, w)) context.fill(x, rSet, x + w, rSet + 20, fade(0xFF444444, p));
+        context.text(this.font, EymHudFonts.text("Settings..."), x + 5, rSet + 6, fade(0xFF55FFFF, p), true);
+
+        // Row 1: Prevent Overlap toggle
         int r0 = y + 20 + GLOBAL_ROW_PREVENT_OVERLAP * 20;
         if (hoverRow(mouseX, mouseY, x, r0, w)) context.fill(x, r0, x + w, r0 + 20, fade(0xFF444444, p));
         context.text(this.font, EymHudFonts.text("Prevent Overlap"), x + 5, r0 + 6, fade(0xFFFFFFFF, p), true);
@@ -1844,6 +1824,26 @@ public class HudEditorScreen extends Screen {
                 el.setYOffset(targetY);
             }
         }
+    }
+
+    /**
+     * Jump to this element's page in the settings screen.
+     *
+     * <p>Sub-elements (an armor slot, say) have no page of their own, so they resolve
+     * to the module that owns them. The settings screen is handed our own parent, so
+     * closing it lands where leaving the editor would have.
+     */
+    private void openSettingsFor(com.eymistaken.simplecps.api.IHudElement element) {
+        contextMenuOpen = false;
+        if (element == null || this.minecraft == null) return;
+
+        com.eymistaken.simplecps.api.HudModule module =
+            element instanceof com.eymistaken.simplecps.api.HudModule m ? m : findParentModule(element);
+        if (module == null) return;
+
+        SimpleCPSConfig.save();
+        this.minecraft.gui.setScreen(new com.eymistaken.simplecps.gui.settings.HudSettingsScreen(
+            parent, com.eymistaken.simplecps.gui.settings.SettingsSchema.pageIdFor(module)));
     }
 
     private com.eymistaken.simplecps.api.HudModule findParentModule(com.eymistaken.simplecps.api.IHudElement el) {

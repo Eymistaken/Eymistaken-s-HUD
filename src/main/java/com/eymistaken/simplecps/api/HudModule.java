@@ -107,6 +107,13 @@ public abstract class HudModule implements IHudElement {
     public void resetVisualDefaults() {}
 
     /**
+     * Settings offered on the right-click menu in the drag-and-drop editor.
+     *
+     * <p>This menu is meant to be short — the handful of things worth reaching for
+     * without leaving the editor. Everything returned here <em>also</em> appears on
+     * this module's page in the settings screen, so there is no need to repeat it in
+     * {@link #getSettingsScreenSettings()}.
+     *
      * @return the context menu settings for this module
      */
     public java.util.List<HudModuleSetting> getContextMenuSettings() {
@@ -116,6 +123,23 @@ public abstract class HudModule implements IHudElement {
                 com.eymistaken.simplecps.SimpleCPSConfig.save();
             })
         );
+    }
+
+    /**
+     * Extra settings shown only on this module's page in the settings screen.
+     *
+     * <p>Use this for everything that belongs in the full settings screen but would
+     * clutter the editor's right-click menu. The two lists are concatenated in
+     * order: whatever {@link #getContextMenuSettings()} returns comes first, then
+     * these.
+     *
+     * <p>Nothing is de-duplicated, so put each setting in one list or the other —
+     * a setting named in both simply shows up twice.
+     *
+     * @return additional settings-screen-only settings; empty by default
+     */
+    public java.util.List<HudModuleSetting> getSettingsScreenSettings() {
+        return java.util.List.of();
     }
 
     /**
