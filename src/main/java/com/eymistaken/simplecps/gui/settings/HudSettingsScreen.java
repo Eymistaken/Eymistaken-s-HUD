@@ -260,12 +260,19 @@ public class HudSettingsScreen extends Screen implements SettingsSchema.Host {
             jumpToSettingsTab = false;
             Page opened = page(selectedPageId);
             if (opened != null) {
+                String target = null;
                 for (Tab tab : opened.tabs) {
                     if (tab.id().equals("settings")) {
-                        selectedTab.put(opened.id, tab.id());
+                        target = tab.id();
                         break;
                     }
+                    // A plugin that declares its own tabs may have no "settings" tab at
+                    // all; its first non-placement tab is the equivalent landing spot.
+                    if (target == null && opened.plugin && !tab.id().equals("pos")) {
+                        target = tab.id();
+                    }
                 }
+                if (target != null) selectedTab.put(opened.id, target);
             }
         }
 

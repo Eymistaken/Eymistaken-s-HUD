@@ -136,9 +136,37 @@ public abstract class HudModule implements IHudElement {
      * <p>Nothing is de-duplicated, so put each setting in one list or the other —
      * a setting named in both simply shows up twice.
      *
+     * <p>Once {@link #getSettingsTabs()} returns tabs these are not concatenated onto
+     * the end any more; they get a trailing SETTINGS tab of their own.
+     *
      * @return additional settings-screen-only settings; empty by default
      */
     public java.util.List<HudModuleSetting> getSettingsScreenSettings() {
+        return java.util.List.of();
+    }
+
+    /**
+     * Tabs this module opens on its page in the settings screen.
+     *
+     * <p>Empty by default, which keeps the original layout exactly: one flat SETTINGS
+     * tab holding everything from {@link #getContextMenuSettings()} followed by
+     * everything from {@link #getSettingsScreenSettings()}. Return tabs once that list
+     * has grown long enough to stop being readable.
+     *
+     * <p>Returning tabs does not throw the two flat lists away. The context menu
+     * settings lead the first tab — the contract that everything on the editor's
+     * right-click menu also appears on the page still holds — and the
+     * settings-screen-only ones become a trailing SETTINGS tab.
+     *
+     * <p>The POSITION tab is always added for you, so do not declare placement rows
+     * here. A tab whose settings are all empty or of an unrecognised type is dropped
+     * rather than shown blank, and two tabs sharing an id are renumbered rather than
+     * one going missing. Keep to a handful of short names: the tab strip does not
+     * scroll, so tabs past the panel's width are not drawn.
+     *
+     * @return the tabs for this module's settings page; empty by default
+     */
+    public java.util.List<SettingsTab> getSettingsTabs() {
         return java.util.List.of();
     }
 

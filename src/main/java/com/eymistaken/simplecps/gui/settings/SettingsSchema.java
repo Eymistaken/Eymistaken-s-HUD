@@ -10,6 +10,7 @@ import com.eymistaken.simplecps.api.ColorSetting;
 import com.eymistaken.simplecps.api.CycleSetting;
 import com.eymistaken.simplecps.api.HudModule;
 import com.eymistaken.simplecps.api.HudModuleSetting;
+import com.eymistaken.simplecps.api.SettingsTab;
 import com.eymistaken.simplecps.api.SliderSetting;
 import com.eymistaken.simplecps.api.TextSetting;
 import com.eymistaken.simplecps.modules.ArmorModule;
@@ -22,7 +23,9 @@ import com.eymistaken.simplecps.modules.ReachModule;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -766,6 +769,10 @@ public final class SettingsSchema {
         KeystrokesModule.class, ArmorModule.class, ReachModule.class
     );
 
+    /** Tab ids this schema hands out itself: placement first, screen-only extras last. */
+    private static final String POSITION_TAB_ID = "pos";
+    private static final String SETTINGS_TAB_ID = "settings";
+
     /**
      * Build a page for a module registered through {@code EymistakenHudPlugin}.
      *
@@ -774,6 +781,10 @@ public final class SettingsSchema {
      * settings carry plain suppliers with no notion of a default, so their reset
      * button stays inert — {@link SliderSetting} is the one exception, since it
      * declares one.
+     *
+     * <p>A module that declares {@link HudModule#getSettingsTabs() tabs} gets one tab
+     * each instead of the single SETTINGS tab; see there for how the two flat setting
+     * lists fold in.
      */
     private static Page pluginPage(HudModule module) {
         String name = module.getName();
@@ -795,24 +806,49 @@ public final class SettingsSchema {
             IntRow.Style.SLIDER, 50, 300,
             module::getScale, module::setScale, 100));
 
-        // The editor's right-click entries first, then anything the module keeps for
-        // the settings screen alone. Concatenated as-is: a module that lists the same
-        // setting twice gets it twice, which is the documented contract.
-        List<Row> settings = new ArrayList<>();
-        int index = 0;
-        for (HudModuleSetting setting : exposedSettings(module, false)) {
-            Row row = adapt(name, setting, index++);
-            if (row != null) settings.add(row);
-        }
-        for (HudModuleSetting setting : exposedSettings(module, true)) {
-            Row row = adapt(name, setting, index++);
-            if (row != null) settings.add(row);
-        }
-
         List<Tab> tabs = new ArrayList<>();
-        tabs.add(new Tab("pos", "POSITION", placement));
-        if (!settings.isEmpty()) {
-            tabs.add(new Tab("settings", "SETTINGS", settings));
+        tabs.add(new Tab(POSITION_TAB_ID, "POSITION", placement));
+
+        // One counter for the whole page, not one per tab: the screen keys per-row UI
+        // state (the open colour picker, the focused field) off the row id, so two tabs
+        // must never mint the same one.
+        int[] counter = { 0 };
+        Set<String> usedTabIds = new HashSet<>();
+        usedTabIds.add(POSITION_TAB_ID);
+
+        List<SettingsTab> declared = declaredTabs(module);
+        if (declared.isEmpty()) {
+            // The editor's right-click entries first, then anything the module keeps for
+            // the settings screen alone. Concatenated as-is: a module that lists the same
+            // setting twice gets it twice, which is the documented contract.
+            List<Row> settings = adaptAll(name, exposedSettings(module, false), counter);
+            settings.addAll(adaptAll(name, exposedSettings(module, true), counter));
+            if (!settings.isEmpty()) {
+                tabs.add(new Tab(SETTINGS_TAB_ID, "SETTINGS", settings));
+            }
+        } else {
+            // The context menu keeps its contract — everything on it also shows up on the
+            // page — so those rows lead the first tab the module declared.
+            List<Row> lead = adaptAll(name, exposedSettings(module, false), counter);
+            boolean first = true;
+            for (SettingsTab tab : declared) {
+                List<Row> rows = new ArrayList<>();
+                if (first) {
+                    // Spending the flag on a tab that may be dropped just below is safe:
+                    // a non-empty lead is what keeps that tab from being empty.
+                    rows.addAll(lead);
+                    first = false;
+                }
+                rows.addAll(adaptAll(name, tab.settings(), counter));
+                if (rows.isEmpty()) continue;
+                tabs.add(new Tab(uniqueTabId(usedTabIds, tab.id(), tab.name()), tabLabel(tab), rows));
+            }
+            // Declaring tabs does not discard the settings-screen-only list; it lands at
+            // the end, where it would have been anyway.
+            List<Row> extra = adaptAll(name, exposedSettings(module, true), counter);
+            if (!extra.isEmpty()) {
+                tabs.add(new Tab(uniqueTabId(usedTabIds, SETTINGS_TAB_ID, null), "SETTINGS", extra));
+            }
         }
 
         return new Page("plugin:" + name, SettingsTheme.up(name),
@@ -833,6 +869,76 @@ public final class SettingsSchema {
             return List.of();
         }
         return list == null ? List.of() : list;
+    }
+
+    /**
+     * The tabs a module declared, with the same tolerance {@link #exposedSettings} gives
+     * the flat lists: a module that throws loses its tabs, not the whole screen, and a
+     * null list or a null entry is skipped rather than fatal. Coming back empty is the
+     * signal to fall back to the single SETTINGS tab.
+     */
+    private static List<SettingsTab> declaredTabs(HudModule module) {
+        List<SettingsTab> list;
+        try {
+            list = module.getSettingsTabs();
+        } catch (Exception e) {
+            return List.of();
+        }
+        if (list == null) return List.of();
+        List<SettingsTab> tabs = new ArrayList<>(list.size());
+        for (SettingsTab tab : list) {
+            if (tab != null) tabs.add(tab);
+        }
+        return tabs;
+    }
+
+    /**
+     * Adapt a whole setting list to rows, dropping nulls and unknown types.
+     *
+     * <p>{@code counter} is shared across every list on one page so row ids stay unique
+     * however the settings are split up. For a null-free list it hands out the same ids
+     * the flat single-tab layout always did.
+     */
+    private static List<Row> adaptAll(String moduleName, List<HudModuleSetting> settings, int[] counter) {
+        List<Row> rows = new ArrayList<>();
+        if (settings == null) return rows;
+        for (HudModuleSetting setting : settings) {
+            if (setting == null) continue;
+            Row row = adapt(moduleName, setting, counter[0]++);
+            if (row != null) rows.add(row);
+        }
+        return rows;
+    }
+
+    /** A declared tab's strip label: its name, or its id when the name is blank. */
+    private static String tabLabel(SettingsTab tab) {
+        if (tab.name() != null && !tab.name().isBlank()) return SettingsTheme.up(tab.name());
+        if (tab.id() != null && !tab.id().isBlank()) return SettingsTheme.up(tab.id());
+        return "SETTINGS";
+    }
+
+    /**
+     * A tab id no other tab on this page has claimed.
+     *
+     * <p>Ids key the screen's memory of which tab you were on, and its lookup takes the
+     * first match — so a plugin repeating an id, or claiming {@code "pos"}, would leave
+     * the duplicate impossible to select. Numbering the clashes keeps every tab
+     * reachable. Deterministic on purpose: the page is rebuilt on every {@code init()}
+     * and the selected tab has to survive that.
+     */
+    private static String uniqueTabId(Set<String> used, String preferred, String fallbackName) {
+        String base = preferred != null && !preferred.isBlank() ? preferred.trim() : null;
+        if (base == null) {
+            base = fallbackName != null && !fallbackName.isBlank()
+                ? fallbackName.trim().toLowerCase(Locale.ROOT).replace(' ', '-')
+                : "tab";
+        }
+        String id = base;
+        int n = 2;
+        while (!used.add(id)) {
+            id = base + n++;
+        }
+        return id;
     }
 
     /**
