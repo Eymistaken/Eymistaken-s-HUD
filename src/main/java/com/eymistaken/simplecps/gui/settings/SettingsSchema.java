@@ -222,7 +222,7 @@ public final class SettingsSchema {
         }
     }
 
-    /** An RGB colour, stored without an alpha byte the way the config does. */
+    /** An RGB color, stored without an alpha byte the way the config does. */
     public static final class ColorRow extends Row {
         private final Supplier<Integer> getter;
         private final Consumer<Integer> setter;
@@ -400,7 +400,7 @@ public final class SettingsSchema {
             get.apply(DEFAULTS));
     }
 
-    /** Cycle over a Java enum, labelled with the constant names. */
+    /** Cycle over a Java enum, labeled with the constant names. */
     private static <E extends Enum<E>> ChoiceRow enumRow(String id, String label, String desc, Class<E> type,
                                                          Function<SimpleCPSConfig, E> get,
                                                          BiConsumer<SimpleCPSConfig, E> set) {
@@ -452,10 +452,10 @@ public final class SettingsSchema {
     }
 
     private static final String BG_SHOW_DESC = "Show the background box behind the text.";
-    private static final String BG_COLOR_DESC = "Colour of the background box.";
+    private static final String BG_COLOR_DESC = "Color of the background box.";
     private static final String BG_OPACITY_DESC = "Transparency of the background box.";
-    private static final String RAINBOW_DESC = "Enable the rainbow text effect. Overrides Text Colour.";
-    private static final String TEXT_COLOR_DESC = "Colour of the text.";
+    private static final String RAINBOW_DESC = "Enable the rainbow text effect. Overrides Text Color.";
+    private static final String TEXT_COLOR_DESC = "Color of the text.";
 
     // --- Built-in pages ----------------------------------------------------
 
@@ -559,9 +559,9 @@ public final class SettingsSchema {
                     c -> c.keystrokesYOffset, (c, v) -> c.keystrokesYOffset = v,
                     c -> c.keystrokesScale, (c, v) -> c.keystrokesScale = v)),
                 new Tab("style", "STYLE", List.of(
-                    color("keys.textColor", "Text Color", "Colour of the key text.",
+                    color("keys.textColor", "Text Color", "Color of the key text.",
                         c -> c.keystrokesColor, (c, v) -> c.keystrokesColor = v),
-                    color("keys.pressedColor", "Pressed Color", "Colour used while a key is held down.",
+                    color("keys.pressedColor", "Pressed Color", "Color used while a key is held down.",
                         c -> c.keystrokesPressedColor, (c, v) -> c.keystrokesPressedColor = v),
                     bool("keys.rainbow", "Rainbow", "Enable the rainbow effect.",
                         c -> c.keystrokesRainbow, (c, v) -> c.keystrokesRainbow = v),
@@ -574,7 +574,7 @@ public final class SettingsSchema {
                         List.of("NONE", "SQUISH", "RIPPLE", "BOTH"),
                         c -> c.keystrokesEffectMode, (c, v) -> c.keystrokesEffectMode = v))),
                 new Tab("bg", "BACKGROUND", List.of(
-                    color("keys.bgColor", "Background Color", "Colour of the key backgrounds.",
+                    color("keys.bgColor", "Background Color", "Color of the key backgrounds.",
                         c -> c.keystrokesBackgroundColor, (c, v) -> c.keystrokesBackgroundColor = v),
                     slider("keys.bgOpacity", "Background Opacity", "Transparency of the key backgrounds.", 0, 255,
                         c -> c.keystrokesBackgroundOpacity, (c, v) -> c.keystrokesBackgroundOpacity = v))),
@@ -590,7 +590,7 @@ public final class SettingsSchema {
 
     private static Page combo() {
         return new Page("combo", "COMBO",
-            "Hit combo counter with optional heatmap colouring.",
+            "Hit combo counter with optional heatmap coloring.",
             List.of(
                 new Tab("pos", "POSITION", placement("combo", "Combo",
                     c -> c.comboPosition, (c, v) -> c.comboPosition = v,
@@ -623,10 +623,10 @@ public final class SettingsSchema {
                     text("combo.suffix", "Suffix Text", "Text displayed after the combo count.",
                         c -> c.comboText, (c, v) -> c.comboText = v),
                     bool("combo.heatmap", "Heatmap Mode",
-                        "Dynamic colour (blue to red to black) plus shake. Overrides Rainbow.",
+                        "Dynamic color (blue to red to black) plus shake. Overrides Rainbow.",
                         c -> c.comboHeatmap, (c, v) -> c.comboHeatmap = v),
                     enumRow("combo.heatmapMode", "Heatmap Difficulty",
-                        "Difficulty scaling for the heatmap colours and shake. Resets the combo on change.",
+                        "Difficulty scaling for the heatmap colors and shake. Resets the combo on change.",
                         SimpleCPSConfig.HeatmapMode.class,
                         c -> c.comboHeatmapMode,
                         (c, v) -> {
@@ -751,7 +751,7 @@ public final class SettingsSchema {
                         "OPEN EDITOR", true, host::openHudEditor),
                     action("gen.resetLayout", "Reset HUD Layout",
                         "Send every module back to its default anchor, offset and scale. "
-                            + "Colours and behaviour are left alone.",
+                            + "Colors and behavior are left alone.",
                         "RESET LAYOUT", false, host::resetHudLayout))),
                 new Tab("data", "DATA", List.of(
                     bool("gen.serverConfigs", "Server Configs",
@@ -810,7 +810,7 @@ public final class SettingsSchema {
         tabs.add(new Tab(POSITION_TAB_ID, "POSITION", placement));
 
         // One counter for the whole page, not one per tab: the screen keys per-row UI
-        // state (the open colour picker, the focused field) off the row id, so two tabs
+        // state (the open color picker, the focused field) off the row id, so two tabs
         // must never mint the same one.
         int[] counter = { 0 };
         Set<String> usedTabIds = new HashSet<>();
@@ -946,7 +946,7 @@ public final class SettingsSchema {
      *
      * <p>{@code index} keeps the row id unique. Labels cannot: duplicates across the
      * two lists are allowed by design, and the screen keys per-row UI state (the open
-     * colour picker, the focused field) off the id.
+     * color picker, the focused field) off the id.
      */
     private static Row adapt(String moduleName, HudModuleSetting setting, int index) {
         String id = "plugin." + moduleName + "." + index + "." + setting.label;

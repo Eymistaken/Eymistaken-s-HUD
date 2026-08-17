@@ -30,7 +30,7 @@ public abstract class HudModule implements IHudElement {
      * Opacity this module should draw with, in {@code [0,1]}. Set by
      * {@link com.eymistaken.simplecps.HudModuleManager} each frame to drive
      * fade-in / fade-out. Modules that opt into fading (see {@link #supportsFade()})
-     * should wrap their colours with {@link #col(int)}.
+     * should wrap their colors with {@link #col(int)}.
      */
     protected float renderAlpha = 1f;
 
@@ -38,7 +38,7 @@ public abstract class HudModule implements IHudElement {
         this.renderAlpha = alpha;
     }
 
-    /** Apply the current {@link #renderAlpha} to an ARGB colour. */
+    /** Apply the current {@link #renderAlpha} to an ARGB color. */
     protected int col(int argb) {
         return renderAlpha >= 1f ? argb : com.eymistaken.simplecps.util.RenderUtil.withAlpha(argb, renderAlpha);
     }
@@ -170,7 +170,7 @@ public abstract class HudModule implements IHudElement {
      * settings-screen-only ones become a trailing SETTINGS tab.
      *
      * <p>The POSITION tab is always added for you, so do not declare placement rows
-     * here. A tab whose settings are all empty or of an unrecognised type is dropped
+     * here. A tab whose settings are all empty or of an unrecognized type is dropped
      * rather than shown blank, and two tabs sharing an id are renumbered rather than
      * one going missing. Keep to a handful of short names: the tab strip does not
      * scroll, so tabs past the panel's width are not drawn.
@@ -248,7 +248,7 @@ public abstract class HudModule implements IHudElement {
      * does, because their settings already live as fields on
      * {@link com.eymistaken.simplecps.SimpleCPSConfig}. Third-party modules cannot
      * add fields there, so this is their way in. Include everything you own:
-     * position, offsets, scale, enabled state, colours.
+     * position, offsets, scale, enabled state, colors.
      *
      * <p>Do not put JSON nulls anywhere in the returned tree; the serializer drops
      * them at every depth, so they will not survive a round trip. Omit the key

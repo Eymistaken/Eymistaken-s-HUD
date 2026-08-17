@@ -27,7 +27,7 @@ public final class HudActions {
     /**
      * Send every module and sub-element back to its default anchor, offset and
      * scale, and clear the manual-placement flags so auto-stacking takes over again.
-     * Visual and behavioural settings are untouched.
+     * Visual and behavioral settings are untouched.
      *
      * <p>Callers with in-flight animation state must clear it first: this writes
      * offsets straight to the config, so a running move would overwrite the reset

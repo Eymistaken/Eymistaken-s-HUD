@@ -128,7 +128,7 @@ public class ComboModule extends HudModule {
     /**
      * Streak the preview shows. Taken from the active heatmap rather than a fixed number
      * so it lands in the same tier whatever the difficulty is set to: high enough that the
-     * heatmap colouring is visible, below the top tier so the preview does not shake.
+     * heatmap coloring is visible, below the top tier so the preview does not shake.
      */
     private int displayCombo() {
         SimpleCPSConfig config = SimpleCPSConfig.instance;
@@ -181,7 +181,7 @@ public class ComboModule extends HudModule {
         context.pose().translate((float)x, (float)y);
         
         // Shake Effect — starts at the top tier, i.e. the same threshold the heatmap
-        // uses for its darkest colour.
+        // uses for its darkest color.
         int shakeThreshold = com.eymistaken.simplecps.api.ComboHeatmap
             .of(config.comboHeatmapMode).tier3();
 

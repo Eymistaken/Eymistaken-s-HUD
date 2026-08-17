@@ -54,7 +54,7 @@ public class ComboTracker {
         lastDecayTime = now + timeoutMs; // Reset decay timer
 
         // Compared around the increment so plugins hear about a tier once, on the hit
-        // that reaches it. Independent of comboHeatmap: that only controls colouring.
+        // that reaches it. Independent of comboHeatmap: that only controls coloring.
         ComboHeatmap heatmap = ComboHeatmap.of(config.comboHeatmapMode);
         int previousLevel = heatmap.levelFor(combo);
         combo++;

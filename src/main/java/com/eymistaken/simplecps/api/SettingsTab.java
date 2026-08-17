@@ -13,7 +13,7 @@ import java.util.List;
  * <p>Deliberately a plain record with no validation: a compact constructor that rejected
  * nulls would throw inside the plugin's own {@code getSettingsTabs()} call, and the
  * screen would then lose every tab instead of the one bad entry. Tolerance lives in
- * {@code SettingsSchema} instead, where the rest of the plugin-page defences already are.
+ * {@code SettingsSchema} instead, where the rest of the plugin-page defenses already are.
  *
  * @param id       stable key for the tab. The settings screen remembers which tab you
  *                 were on by it, so keep it constant across calls. Made unique per page,

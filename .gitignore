@@ -40,3 +40,7 @@ GEMINI.md
 .idea/
 # -------------------------
 CLAUDE.md
+# --- Docs Staging (Siteye Aktarılacak Taslaklar) ---
+# Changelog ve API yazıları buraya yazılıp api-guide.html'e / release notuna
+# aktarılıyor; kalıcı yeri site deposu, burada durmalarına gerek yok.
+docs/

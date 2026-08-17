@@ -114,7 +114,7 @@ public class HudEditorScreen extends Screen {
      */
     private com.eymistaken.simplecps.api.IHudElement contextMenuRenderTarget = null;
 
-    /** Scale an ARGB colour's alpha by menu-open progress {@code p}. */
+    /** Scale an ARGB color's alpha by menu-open progress {@code p}. */
     private static int fade(int argb, float p) {
         return RenderUtil.withAlpha(argb, p);
     }
@@ -230,7 +230,7 @@ public class HudEditorScreen extends Screen {
         // Gradient Background
         context.fillGradient(0, 0, this.width, this.height, 0xC0000000, 0xD0000000);
 
-        // Grid, drawn first so the brighter centre lines stay on top of it.
+        // Grid, drawn first so the brighter center lines stay on top of it.
         if (SimpleCPSConfig.instance.editorGridEnabled) {
             int grid = gridSize();
             int gridColor = 0x22FFFFFF;
@@ -1976,7 +1976,7 @@ public class HudEditorScreen extends Screen {
         }
     }
 
-    /** {@code mode}: 0 left, 1 same centre X, 2 right, 3 top, 4 same centre Y, 5 bottom. */
+    /** {@code mode}: 0 left, 1 same center X, 2 right, 3 top, 4 same center Y, 5 bottom. */
     private void alignSelection(int mode) {
         if (selectedElements.size() < 2) return;
 

@@ -8,7 +8,7 @@ import net.minecraft.world.entity.Entity;
  * {@link com.eymistaken.simplecps.api.ComboHeatmap} and follow the user's chosen
  * heatmap mode.
  *
- * <p>Fired whether or not the heatmap colouring is switched on: that setting decides
+ * <p>Fired whether or not the heatmap coloring is switched on: that setting decides
  * how the counter looks, not whether the streak happened.
  *
  * @param combo         the combo count after this hit

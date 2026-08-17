@@ -11,7 +11,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
  * {@link SettingsTab}, {@link IHudElement} — lives in its own file.
  *
  * <p><b>The host owns the geometry.</b> It measures you with {@link #width()} and
- * {@link #height()}, sizes the card, centres you in it, applies the transform that makes
+ * {@link #height()}, sizes the card, centers you in it, applies the transform that makes
  * one of your pixels one real screen pixel, and clips you to the card. So
  * {@link #render} draws from {@code (0,0)} in plain screen pixels and does not translate
  * or scale itself. Anything wider than the card is clipped rather than shrunk — that is

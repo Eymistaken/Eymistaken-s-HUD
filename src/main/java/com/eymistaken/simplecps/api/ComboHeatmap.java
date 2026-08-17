@@ -3,7 +3,7 @@ package com.eymistaken.simplecps.api;
 import com.eymistaken.simplecps.SimpleCPSConfig;
 
 /**
- * The combo thresholds behind the heatmap colouring, shared so the display and the
+ * The combo thresholds behind the heatmap coloring, shared so the display and the
  * {@link com.eymistaken.simplecps.api.event.ComboStreakEvent} can never disagree
  * about what "level 2" means.
  *

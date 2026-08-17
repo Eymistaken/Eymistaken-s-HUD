@@ -158,7 +158,7 @@ public class KeystrokesModule extends HudModule {
 
         long handle = client.getWindow().handle();
 
-        // No key is faked as held. Forcing one showed the pressed colour, but which key got
+        // No key is faked as held. Forcing one showed the pressed color, but which key got
         // it was arbitrary — the layout is user-defined — and it left a single key wearing
         // a background none of its neighbours had, which read as a rendering fault rather
         // than a pressed state. Real presses still register while the menu is open.
