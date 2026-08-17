@@ -2,6 +2,8 @@ package com.eymistaken.simplecps.gui.settings;
 
 import com.eymistaken.simplecps.ConfigPresetManager;
 import com.eymistaken.simplecps.SimpleCPSConfig;
+import com.eymistaken.simplecps.api.HudModule;
+import com.eymistaken.simplecps.api.HudPreview;
 import com.eymistaken.simplecps.gui.HudEditorScreen;
 import com.eymistaken.simplecps.gui.KeystrokesDesignerScreen;
 import com.eymistaken.simplecps.gui.settings.SettingsSchema.ActionRow;
@@ -37,6 +39,10 @@ import net.minecraft.network.chat.Component;
 /**
  * The mod's settings screen: a module list on the left, tabbed settings in the
  * middle, and info / presets / share code on the right.
+ *
+ * <p>The right column leads with a live PREVIEW of the selected module, drawn at true
+ * screen scale so colour and size edits can be judged without leaving the menu. See
+ * {@link HudPreview}.
  *
  * <p>Replaces the old Cloth Config screen. Everything is drawn with
  * {@code fill} and {@code text} the same way {@link HudEditorScreen} and
@@ -166,6 +172,15 @@ public class HudSettingsScreen extends Screen implements SettingsSchema.Host {
     /** Last row the cursor was over; drives the INFO panel and stays put on exit. */
     private Row infoRow;
 
+    /**
+     * Module the PREVIEW card draws, resolved when the page changes rather than every
+     * frame. Null on GENERAL and on any page whose module is gone, which hides the card.
+     */
+    private HudModule previewModule;
+
+    /** Whether the preview is blown up over the rest of the screen. */
+    private boolean previewFocused;
+
     private String openColorRowId;
 
     /**
@@ -279,6 +294,7 @@ public class HudSettingsScreen extends Screen implements SettingsSchema.Host {
         searchInput.setMaxLength(48);
         shareInput.setMaxLength(4096);
 
+        resolvePreviewModule();
         presetNames = ConfigPresetManager.listPresets();
         takeSnapshot();
         layout();
@@ -347,6 +363,8 @@ public class HudSettingsScreen extends Screen implements SettingsSchema.Host {
         int contentRight = rightCollapsed ? innerX + innerW : rightX - 1;
         contentX = sidebarX + sidebarW + 1;
         contentW = Math.max(40, contentRight - contentX);
+
+        refreshPreview();
     }
 
     /** Derive every control size from the panel we were given. */
@@ -608,7 +626,13 @@ public class HudSettingsScreen extends Screen implements SettingsSchema.Host {
         renderSidebar(ctx, mx, my);
         renderContent(ctx, mx, my);
         if (!rightCollapsed || drawerOpen) {
-            renderRightPanel(ctx, mx, my);
+            renderRightPanel(ctx, mx, my, delta);
+        }
+        // Outside the right panel's scissor, so the focus overlay can cover the settings
+        // rows. The normal card is still drawn underneath it: nothing below reflows when
+        // focus opens, which is what stops the layout jumping when it closes again.
+        if (previewFocused) {
+            renderPreviewFocus(ctx, mx, my, delta);
         }
         renderFooter(ctx, mx, my);
 
@@ -1591,7 +1615,7 @@ public class HudSettingsScreen extends Screen implements SettingsSchema.Host {
         return rightCollapsed ? innerX + innerW - rightW : rightX;
     }
 
-    private void renderRightPanel(GuiGraphicsExtractor ctx, int mouseX, int mouseY) {
+    private void renderRightPanel(GuiGraphicsExtractor ctx, int mouseX, int mouseY, float delta) {
         int x = rightPanelX();
         int w = rightW;
         SettingsTheme.rect(ctx, x, bodyY, w, bodyH, SettingsTheme.SIDE_BG);
@@ -1613,6 +1637,11 @@ public class HudSettingsScreen extends Screen implements SettingsSchema.Host {
         int cw = w - gap * 2;
         int cx = x + gap;
 
+        int previewH = previewCardHeight(cw);
+        if (previewH > 0) {
+            renderPreviewCard(ctx, cx, y, cw, previewH, mx, my, delta);
+            y += previewH + gap;
+        }
         y = renderInfoCard(ctx, cx, y, cw) + gap;
         y = renderPresetCard(ctx, cx, y, cw, mx, my) + gap;
         y = renderShareCard(ctx, cx, y, cw, mx, my) + gap;
@@ -1625,8 +1654,297 @@ public class HudSettingsScreen extends Screen implements SettingsSchema.Host {
 
     private int rightContentHeight(int w) {
         int cw = w - gap * 2;
-        return gap + infoCardHeight(cw) + gap + presetCardHeight(cw) + gap
+        int preview = previewCardHeight(cw);
+        return gap + (preview > 0 ? preview + gap : 0) + infoCardHeight(cw) + gap + presetCardHeight(cw) + gap
             + shareCardHeight(cw) + gap + dangerButtonH() + gap;
+    }
+
+    // --- Preview ---------------------------------------------------------------
+    //
+    // The card draws the selected module at true screen scale: the whole screen sits
+    // under pose().scale(renderScale, renderScale), so scaling by its reciprocal puts
+    // one module pixel back on one screen pixel. That is the point of the panel —
+    // anything scaled to fit would answer the wrong question about how big a module is.
+    //
+    // Consequences: the card grows downward to fit, but never sideways. A module wider
+    // than the card is clipped, so it can never bleed left into the settings rows, and
+    // FOCUS is the way to see the rest of it.
+
+    /**
+     * This frame's preview. Fetched once in {@link #layout()} rather than at each of the
+     * half-dozen places that need it, because a module is free to build one per call —
+     * {@link HudPreview#ofModule} does — and the size feeds card heights, the scroll
+     * extent, the preset list's top and hit testing alike.
+     */
+    private HudPreview previewCache;
+
+    private void refreshPreview() {
+        if (previewModule == null) {
+            previewCache = null;
+            return;
+        }
+        try {
+            previewCache = previewModule.getPreview();
+        } catch (Exception e) {
+            previewCache = null;
+        }
+    }
+
+    /** Live preview of the selected module, or null when the page has none. */
+    private HudPreview activePreview() {
+        return previewModule == null ? null : previewCache;
+    }
+
+    /** Floor on the card, sized so the body is always worth looking at. */
+    private int previewMinH() {
+        return cardHeadH + gap * 2 + d(56, 20);
+    }
+
+    /**
+     * How tall the preview may grow before the cards under it would be pushed off the
+     * bottom of the panel.
+     *
+     * <p>INFO is reserved at a fixed three lines rather than measured with
+     * {@link #infoCardHeight}: that height changes with whichever row the cursor happens
+     * to be over, and feeding it in here would make the preview box resize every time the
+     * mouse moved between rows.
+     */
+    private int previewMaxH() {
+        int cw = rightW - gap * 2;
+        int infoReserve = cardHeadH + gap + this.font.lineHeight + gap
+            + 3 * (this.font.lineHeight + 1) + this.font.lineHeight + gap + gap;
+        int below = infoReserve + gap + presetCardHeight(cw) + gap + shareCardHeight(cw)
+            + gap + dangerButtonH() + gap;
+        return Math.max(previewMinH(), bodyH - gap * 2 - below);
+    }
+
+    /** Height of the whole card including its header, or 0 when there is no preview. */
+    private int previewCardHeight(int w) {
+        HudPreview preview = activePreview();
+        if (preview == null) return 0;
+        int natural = cardHeadH + gap * 2 + previewVirtual(previewHeightOf(preview));
+        return Math.max(previewMinH(), Math.min(natural, previewMaxH()));
+    }
+
+    /** Screen pixels to the virtual units everything in this screen is laid out in. */
+    private int previewVirtual(int screenPx) {
+        return Math.max(0, Math.round(screenPx / renderScale));
+    }
+
+    private int previewWidthOf(HudPreview preview) {
+        try {
+            previewModule.setPreviewing(true);
+            return Math.max(0, preview.width());
+        } catch (Exception e) {
+            return 0;
+        } finally {
+            previewModule.setPreviewing(false);
+        }
+    }
+
+    private int previewHeightOf(HudPreview preview) {
+        try {
+            previewModule.setPreviewing(true);
+            return Math.max(0, preview.height());
+        } catch (Exception e) {
+            return 0;
+        } finally {
+            previewModule.setPreviewing(false);
+        }
+    }
+
+    private int previewButtonSize() {
+        return Math.min(resetW, cardHeadH - 2);
+    }
+
+    /** The FOCUS button's rect, given the card's own top-left corner. */
+    private int previewButtonX(int cardX, int cardW) {
+        return cardX + cardW - gap - previewButtonSize();
+    }
+
+    private int previewButtonY(int cardY) {
+        return cardY + (cardHeadH - previewButtonSize()) / 2;
+    }
+
+    private void renderPreviewCard(GuiGraphicsExtractor ctx, int x, int y, int w, int h,
+                                   int mouseX, int mouseY, float delta) {
+        SettingsTheme.card(ctx, x, y, w, h);
+        SettingsTheme.rect(ctx, x + 1, y + cardHeadH, w - 2, 1, SettingsTheme.BORDER);
+        SettingsTheme.text(ctx, this.font, "PREVIEW", x + gap, centerTextY(y, cardHeadH),
+            SettingsTheme.TEXT_MUTED);
+        renderPreviewButton(ctx, x, y, w, mouseX, mouseY);
+        // While focus mode is up the overlay shows the module instead. Drawing it here as
+        // well rendered it twice a frame, which double-stepped its own animations and left
+        // a clipped copy underneath for text to punch through.
+        renderPreviewBody(ctx, x + gap, y + cardHeadH + gap,
+            w - gap * 2, h - cardHeadH - gap * 2, delta, !previewFocused);
+    }
+
+    private void renderPreviewButton(GuiGraphicsExtractor ctx, int cardX, int cardY, int cardW,
+                                     int mouseX, int mouseY) {
+        int size = previewButtonSize();
+        int bx = previewButtonX(cardX, cardW);
+        int by = previewButtonY(cardY);
+        boolean hovered = SettingsTheme.inside(mouseX, mouseY, bx, by, size, size);
+        SettingsTheme.button(ctx, bx, by, size, size, hovered || previewFocused);
+        int ix = bx + (size - 7) / 2;
+        int iy = by + (size - 7) / 2;
+        int color = hovered || previewFocused ? SettingsTheme.TEXT_STRONG : SettingsTheme.TEXT_MUTED;
+        if (previewFocused) {
+            SettingsTheme.collapseIcon(ctx, ix, iy, color);
+        } else {
+            SettingsTheme.expandIcon(ctx, ix, iy, color);
+        }
+    }
+
+    /**
+     * Checkerboard cell size: big enough to read as a pattern at any UI scale, and coarse
+     * enough that a wide box does not cost thousands of fills a frame. The cap only bites
+     * in focus mode, where the box can be most of the screen.
+     */
+    private int previewCheckerCell(int boxW) {
+        return Math.max(d(9, 3), (boxW + CHECKER_MAX_COLUMNS - 1) / CHECKER_MAX_COLUMNS);
+    }
+
+    private static final int CHECKER_MAX_COLUMNS = 48;
+
+    /**
+     * The checkerboard the module is drawn on. HUD modules live over gameplay, so a flat
+     * dark card would flatter every light-coloured setting and hide a low background
+     * opacity entirely; alternating tones show transparency and both contrast cases at once.
+     */
+    private void renderPreviewBody(GuiGraphicsExtractor ctx, int x, int y, int w, int h,
+                                   float delta, boolean drawModule) {
+        if (w <= 0 || h <= 0) return;
+        SettingsTheme.rect(ctx, x, y, w, h, SettingsTheme.CHECKER_DARK);
+
+        ctx.enableScissor(x, y, x + w, y + h);
+        int cell = previewCheckerCell(w);
+        for (int row = 0; row * cell < h; row++) {
+            for (int col = row % 2; col * cell < w; col += 2) {
+                SettingsTheme.rect(ctx, x + col * cell, y + row * cell,
+                    Math.min(cell, w - col * cell), Math.min(cell, h - row * cell),
+                    SettingsTheme.CHECKER_LIGHT);
+            }
+        }
+        if (drawModule) drawPreviewModule(ctx, x, y, w, h, delta);
+        // After the module, so a preview that fills the box cannot draw over its own edge.
+        SettingsTheme.frame(ctx, x, y, w, h, SettingsTheme.BORDER);
+        ctx.disableScissor();
+    }
+
+    /** Centre the module in the given box and draw it one-for-one with screen pixels. */
+    private void drawPreviewModule(GuiGraphicsExtractor ctx, int x, int y, int w, int h, float delta) {
+        HudPreview preview = activePreview();
+        if (preview == null) return;
+
+        int vmw = previewVirtual(previewWidthOf(preview));
+        int vmh = previewVirtual(previewHeightOf(preview));
+        if (vmw <= 0 || vmh <= 0) return;
+
+        ctx.pose().pushMatrix();
+        ctx.pose().translate(x + (w - vmw) / 2f, y + (h - vmh) / 2f);
+        ctx.pose().scale(1f / renderScale, 1f / renderScale);
+        previewModule.setPreviewing(true);
+        previewModule.setRenderAlpha(1f);
+        try {
+            preview.render(ctx, delta);
+        } catch (Exception e) {
+            // A third-party preview that throws loses its drawing for this frame, not
+            // the screen. Silent because this runs every frame; a log line would flood.
+        } finally {
+            previewModule.setPreviewing(false);
+            ctx.pose().popMatrix();
+        }
+    }
+
+    // --- Preview focus mode ----------------------------------------------------
+    //
+    // An overlay, not a bigger card. The right column keeps rendering the normal-size
+    // card underneath at its usual place, so the cards below it never move — closing
+    // focus cannot leave the layout somewhere it was not before.
+    //
+    // The rect is anchored to the card's top-right corner and grows left and down until
+    // the module fits, then clamps to the panel. Anchoring ignores rightScroll on purpose:
+    // scrolling the column while focused would otherwise drag the overlay off the screen.
+
+    /** Breathing room left around the module in focus mode. */
+    private int previewFocusPad() {
+        return d(20, 6);
+    }
+
+    /** {x, y, w, h} of the focus overlay, or null when there is nothing to show. */
+    private int[] previewFocusRect() {
+        HudPreview preview = activePreview();
+        if (preview == null) return null;
+
+        // The card's own inset plus the extra breathing room focus mode adds around the
+        // module, so it is not pressed against its own border at full size.
+        int inset = gap * 2 + previewFocusPad() * 2;
+        int maxW = innerW - gap * 2;
+        int maxH = bodyH - gap * 2;
+
+        int w = Math.min(maxW, Math.max(rightW - gap * 2,
+            previewVirtual(previewWidthOf(preview)) + inset));
+        int h = Math.min(maxH, Math.max(previewMinH(),
+            cardHeadH + previewVirtual(previewHeightOf(preview)) + inset));
+
+        // Top-right of the card, unscrolled.
+        int anchorRight = rightPanelX() + rightW - gap;
+        int y = bodyY + gap;
+        int x = Math.max(innerX + gap, anchorRight - w);
+        if (y + h > bodyY + bodyH - gap) y = Math.max(bodyY + gap, bodyY + bodyH - gap - h);
+        return new int[] {x, y, w, h};
+    }
+
+    private void renderPreviewFocus(GuiGraphicsExtractor ctx, int mouseX, int mouseY, float delta) {
+        int[] r = previewFocusRect();
+        if (r == null) {
+            previewFocused = false;
+            return;
+        }
+        int x = r[0], y = r[1], w = r[2], h = r[3];
+
+        // Text is batched separately from fills and drawn after all of them, so an opaque
+        // rectangle alone does not hide what is behind this overlay — preset names and the
+        // settings rows came through it. nextStratum is the hard barrier: everything from
+        // here on draws above everything already submitted this frame.
+        ctx.nextStratum();
+
+        // Opaque ground first. PANEL_BG and CARD_BG are thin white glazes designed to sit
+        // on the panel, so on their own they left the overlay see-through.
+        SettingsTheme.rect(ctx, x, y, w, h, SettingsTheme.FOCUS_BG);
+        SettingsTheme.card(ctx, x, y, w, h);
+        SettingsTheme.rect(ctx, x + 1, y + cardHeadH, w - 2, 1, SettingsTheme.BORDER);
+        SettingsTheme.text(ctx, this.font, "PREVIEW", x + gap, centerTextY(y, cardHeadH),
+            SettingsTheme.TEXT_STRONG);
+
+        // Only when it fits whole: truncating this would leave a bare ellipsis, which
+        // reads as a broken label rather than a shortened hint.
+        String hint = "ESC TO EXIT";
+        int hintX = x + gap + SettingsTheme.textWidth(this.font, "PREVIEW") + gap * 2;
+        if (previewButtonX(x, w) - gap - hintX >= SettingsTheme.textWidth(this.font, hint)) {
+            SettingsTheme.text(ctx, this.font, hint, hintX, centerTextY(y, cardHeadH),
+                SettingsTheme.TEXT_GHOST);
+        }
+        renderPreviewButton(ctx, x, y, w, mouseX, mouseY);
+        renderPreviewBody(ctx, x + gap, y + cardHeadH + gap,
+            w - gap * 2, h - cardHeadH - gap * 2, delta, true);
+    }
+
+    /** Route a click while focus mode is up; it covers the columns beneath it. */
+    private boolean handlePreviewFocusClick(double mouseX, double mouseY) {
+        int[] r = previewFocusRect();
+        if (r == null) return false;
+        int size = previewButtonSize();
+        if (SettingsTheme.inside(mouseX, mouseY,
+            previewButtonX(r[0], r[2]), previewButtonY(r[1]), size, size)) {
+            previewFocused = false;
+            return true;
+        }
+        // Swallow the rest of the overlay so a press does not land on a settings row
+        // that happens to sit behind it.
+        return SettingsTheme.inside(mouseX, mouseY, r[0], r[1], r[2], r[3]);
     }
 
 
@@ -1701,7 +2019,9 @@ public class HudSettingsScreen extends Screen implements SettingsSchema.Host {
     /** Top of the preset list, in right-panel content space. */
     private int presetListTop() {
         int cw = rightW - gap * 2;
-        return bodyY + gap + infoCardHeight(cw) + gap + cardHeadH + gap;
+        int preview = previewCardHeight(cw);
+        return bodyY + gap + (preview > 0 ? preview + gap : 0)
+            + infoCardHeight(cw) + gap + cardHeadH + gap;
     }
 
     private int presetCardHeight(int w) {
@@ -2134,6 +2454,13 @@ public class HudSettingsScreen extends Screen implements SettingsSchema.Host {
         double mouseX = screenX / renderScale;
         double mouseY = screenY / renderScale;
 
+        // Nothing inside the focus overlay scrolls, but the lists behind it must not
+        // either — the wheel would move a column the cursor is not really over.
+        if (previewFocused) {
+            int[] r = previewFocusRect();
+            if (r != null && SettingsTheme.inside(mouseX, mouseY, r[0], r[1], r[2], r[3])) return true;
+        }
+
         if (mouseX >= sidebarX && mouseX < sidebarX + sidebarW
             && mouseY >= sidebarListY() && mouseY < sidebarListY() + sidebarListH()) {
             sidebarScroll = clampScroll(sidebarScroll - step, sidebarContentHeight(), sidebarListH());
@@ -2198,6 +2525,10 @@ public class HudSettingsScreen extends Screen implements SettingsSchema.Host {
 
     private boolean routeClick(double mouseX, double mouseY, int button) {
         int headerY = headerControlY();
+
+        // Focus mode is drawn over both columns, so it gets the click before anything
+        // it happens to be covering.
+        if (previewFocused && handlePreviewFocusClick(mouseX, mouseY)) return true;
 
         // Header
         if (SettingsTheme.inside(mouseX, mouseY, headerSearchX(), headerY, headerSearchW(), ctrlH)) {
@@ -2321,6 +2652,18 @@ public class HudSettingsScreen extends Screen implements SettingsSchema.Host {
         openColorRowId = null;
         infoRow = null;
         searchInput.setValue("");
+        resolvePreviewModule();
+    }
+
+    /**
+     * Bind the preview to the selected page. Done here rather than per frame because the
+     * lookup walks the module registry, and because leaving focus mode on across a page
+     * change would blow up a module the player did not ask to see.
+     */
+    private void resolvePreviewModule() {
+        previewModule = SettingsSchema.moduleForPage(selectedPageId);
+        previewFocused = false;
+        refreshPreview();
     }
 
     private boolean handleTabClick(double mouseX, double mouseY) {
@@ -2622,7 +2965,22 @@ public class HudSettingsScreen extends Screen implements SettingsSchema.Host {
         int cw = w - gap * 2;
         int cx = x + gap;
 
-        int y = bodyY + gap + infoCardHeight(cw) + gap;
+        int y = bodyY + gap;
+
+        // Preview: only the FOCUS button is live, so bound X as well as Y — the rest of
+        // the card is inert and must not swallow the press as a button hit.
+        int previewH = previewCardHeight(cw);
+        if (previewH > 0) {
+            int size = previewButtonSize();
+            if (SettingsTheme.inside(mouseX, virtualY,
+                previewButtonX(cx, cw), previewButtonY(y), size, size)) {
+                previewFocused = !previewFocused;
+                return true;
+            }
+            y += previewH + gap;
+        }
+
+        y += infoCardHeight(cw) + gap;
 
         // Presets
         int presetTop = y;
@@ -2756,6 +3114,13 @@ public class HudSettingsScreen extends Screen implements SettingsSchema.Host {
                 commitFocus();
                 return true;
             }
+        }
+
+        // After the field handling above, so ESC finishes an edit first, and before
+        // super, which would take it as a request to close the screen.
+        if (previewFocused && event.isEscape()) {
+            previewFocused = false;
+            return true;
         }
 
         return super.keyPressed(event);

@@ -1374,6 +1374,21 @@ public class HudEditorScreen extends Screen {
             serverSubmenuOpen = false;
             return;
         }
+        // An open fly-out owns the cursor, tested before the rows underneath it. When
+        // neither side of the parent menu has room, placeSubmenuX clamps the fly-out on
+        // screen and lets it overlap the parent — and then every point inside the fly-out
+        // is also inside a parent row. Testing the rows first read that as "hovering
+        // Server Configs" and closed the very list being pointed at. This mirrors
+        // mouseClicked, which has always given the fly-out first refusal.
+        if (configsSubmenuOpen && insideSubmenuRect(mouseX, mouseY)) {
+            serverSubmenuOpen = false;
+            return;
+        }
+        if (serverSubmenuOpen && insideServerSubmenuRect(mouseX, mouseY)) {
+            configsSubmenuOpen = false;
+            return;
+        }
+
         int configsRowY = globalMenuY + 20 + GLOBAL_ROW_CONFIGS * 20;
         int serverRowY = globalMenuY + 20 + GLOBAL_ROW_SERVER_CONFIGS * 20;
         boolean overConfigsRow = hoverRow(mouseX, mouseY, globalMenuX, configsRowY, GLOBAL_MENU_WIDTH);

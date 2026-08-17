@@ -121,19 +121,32 @@ public class ComboModule extends HudModule {
     }
 
     @Override
-    public void extractRenderState(GuiGraphicsExtractor context, float tickDelta) {
-        SimpleCPSConfig config = SimpleCPSConfig.instance;
-        
-        // Safety check if we got here but shouldn't render (double check)
-        boolean shouldRenderCombo = (ComboTracker.getCombo() > 0 || !config.comboHideWhenInactive);
-        // Note: We don't have 'isEditor' context here. If HudModule assumes In-Game rendering, this is fine.
-        // If SimpleCPSClient calls render, we render.
+    public com.eymistaken.simplecps.api.HudPreview getPreview() {
+        return com.eymistaken.simplecps.api.HudPreview.ofModule(this);
+    }
 
+    /**
+     * Streak the preview shows. Taken from the active heatmap rather than a fixed number
+     * so it lands in the same tier whatever the difficulty is set to: high enough that the
+     * heatmap colouring is visible, below the top tier so the preview does not shake.
+     */
+    private int displayCombo() {
+        SimpleCPSConfig config = SimpleCPSConfig.instance;
+        if (isPreviewing()) {
+            return com.eymistaken.simplecps.api.ComboHeatmap.of(config.comboHeatmapMode).tier2();
+        }
         int currentCombo = ComboTracker.getCombo();
         if (currentCombo > 0) lastCombo = currentCombo;
         // While fading out (alpha < 1) the streak has already reset to 0; show the
         // last real value so the module fades on "12 Combo", not "0 Combo".
-        int displayCombo = (currentCombo == 0 && renderAlpha < 1f) ? lastCombo : currentCombo;
+        return (currentCombo == 0 && renderAlpha < 1f) ? lastCombo : currentCombo;
+    }
+
+    @Override
+    public void extractRenderState(GuiGraphicsExtractor context, float tickDelta) {
+        SimpleCPSConfig config = SimpleCPSConfig.instance;
+
+        int displayCombo = displayCombo();
         String comboStr = displayCombo + " " + config.comboText;
 
         float scale = config.comboScale / 100f;
@@ -195,8 +208,7 @@ public class ComboModule extends HudModule {
     @Override
     public int getWidth() {
         SimpleCPSConfig config = SimpleCPSConfig.instance;
-        int currentCombo = ComboTracker.getCombo();
-        String comboStr = currentCombo + " " + config.comboText;
+        String comboStr = displayCombo() + " " + config.comboText;
         float scale = config.comboScale / 100f;
         int textWidth = (int)(textWidth(comboStr) * scale);
         int padding = 2;

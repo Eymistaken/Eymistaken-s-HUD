@@ -990,6 +990,24 @@ public final class SettingsSchema {
         return "plugin:" + module.getName();
     }
 
+    /**
+     * The registered module a page belongs to — the inverse of {@link #pageIdFor}, used by
+     * the preview card to find what it should draw.
+     *
+     * <p>Walks the registry and compares against {@code pageIdFor} rather than keeping a
+     * second table, so the two can never disagree about a module.
+     *
+     * @return the module, or null for GENERAL, an unknown id, or a page whose module has
+     *         since been unregistered
+     */
+    public static HudModule moduleForPage(String pageId) {
+        if (pageId == null || pageId.isEmpty()) return null;
+        for (HudModule module : HudModuleManager.getInstance().getModules()) {
+            if (pageId.equals(pageIdFor(module))) return module;
+        }
+        return null;
+    }
+
     // --- Assembly ----------------------------------------------------------
 
     /** Every built-in page, in the order the sidebar lists them. */

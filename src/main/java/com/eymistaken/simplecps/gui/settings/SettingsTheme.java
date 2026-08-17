@@ -152,6 +152,22 @@ public final class SettingsTheme {
     public static final int CARD_BG       = glow(0x0E);
     public static final int CARD_LIGHT    = glow(0x22);
 
+    /**
+     * Checkerboard behind the module preview. Fully opaque and deliberately far apart:
+     * HUD modules are drawn over gameplay, so a preview on one flat tone would flatter
+     * light text and hide a low background opacity completely. The two tones show
+     * transparency and both contrast cases at the same time.
+     */
+    public static final int CHECKER_DARK  = 0xFF1B1B20;
+    public static final int CHECKER_LIGHT = 0xFF4E4E58;
+
+    /**
+     * Ground for the preview's focus overlay. Fully opaque, unlike {@link #PANEL_BG} and
+     * {@link #CARD_BG}, which are thin white glazes meant to sit <em>on</em> the panel —
+     * painting a floating overlay with those leaves the settings rows showing through it.
+     */
+    public static final int FOCUS_BG      = surface(0x1B1B1F, 0xFF);
+
     public static final int OK_TEXT       = 0xFFA9E2A9;
 
     public static final int DANGER_BG     = 0xE6401E24;
@@ -411,6 +427,39 @@ public final class SettingsTheme {
 
     public static void trashIcon(GuiGraphicsExtractor ctx, int x, int y, int color) {
         drawGlyph(ctx, TRASH_GLYPH, x, y, color);
+    }
+
+    /**
+     * 7x7 corner brackets for the preview's FOCUS button. The pair reads as one box
+     * growing and shrinking: the corners sit on the outside to expand, and pull a pixel
+     * in to collapse.
+     */
+    private static final String[] EXPAND_GLYPH = {
+        "##   ##",
+        "#     #",
+        "       ",
+        "       ",
+        "       ",
+        "#     #",
+        "##   ##",
+    };
+
+    private static final String[] COLLAPSE_GLYPH = {
+        "       ",
+        " ## ## ",
+        " #   # ",
+        "       ",
+        " #   # ",
+        " ## ## ",
+        "       ",
+    };
+
+    public static void expandIcon(GuiGraphicsExtractor ctx, int x, int y, int color) {
+        drawGlyph(ctx, EXPAND_GLYPH, x, y, color);
+    }
+
+    public static void collapseIcon(GuiGraphicsExtractor ctx, int x, int y, int color) {
+        drawGlyph(ctx, COLLAPSE_GLYPH, x, y, color);
     }
 
     private static void drawGlyph(GuiGraphicsExtractor ctx, String[] glyph, int x, int y, int color) {

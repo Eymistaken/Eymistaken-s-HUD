@@ -17,6 +17,30 @@ public class KeystrokesModule extends HudModule {
     private final Map<Integer, float[]> fillRadii = new HashMap<>();
     private final Map<Integer, Boolean> prevPressed = new HashMap<>();
 
+    // The squish and ripple effects are stepped once per draw with no delta time, so the
+    // preview cannot share them: the settings screen renders over a live HUD, and both
+    // passes stepping the same maps would run the real keystrokes at double speed.
+    private final Map<Integer, Float> previewKeyScales = new HashMap<>();
+    private final Map<Integer, float[]> previewFillRadii = new HashMap<>();
+    private final Map<Integer, Boolean> previewPrevPressed = new HashMap<>();
+
+    private Map<Integer, Float> keyScales() {
+        return isPreviewing() ? previewKeyScales : keyScales;
+    }
+
+    private Map<Integer, float[]> fillRadii() {
+        return isPreviewing() ? previewFillRadii : fillRadii;
+    }
+
+    private Map<Integer, Boolean> prevPressed() {
+        return isPreviewing() ? previewPrevPressed : prevPressed;
+    }
+
+    @Override
+    public com.eymistaken.simplecps.api.HudPreview getPreview() {
+        return com.eymistaken.simplecps.api.HudPreview.ofModule(this);
+    }
+
     @Override
     public boolean isEnabled() {
         return SimpleCPSConfig.instance.showKeystrokes;
@@ -134,17 +158,22 @@ public class KeystrokesModule extends HudModule {
 
         long handle = client.getWindow().handle();
 
+        // No key is faked as held. Forcing one showed the pressed colour, but which key got
+        // it was arbitrary — the layout is user-defined — and it left a single key wearing
+        // a background none of its neighbours had, which read as a rendering fault rather
+        // than a pressed state. Real presses still register while the menu is open.
+
         for (SimpleCPSConfig.KeyButtonData btn : config.keystrokesLayout) {
              boolean isPressed = false;
-             
+
              if (btn.isMouse) {
                  isPressed = pressedKeys.contains(btn.keyCode + 1000);
              } else {
                  isPressed = pressedKeys.contains(btn.keyCode);
              }
-             
+
              // Animation
-             float currentAnim = keyScales.getOrDefault(btn.keyCode + (btn.isMouse ? 1000 : 0), 1.0f);
+             float currentAnim = keyScales().getOrDefault(btn.keyCode + (btn.isMouse ? 1000 : 0), 1.0f);
              float newAnim;
              boolean animOn = btn.animationEnabled == null || btn.animationEnabled;
              boolean squishActive = config.keystrokesEffectMode == 1 || config.keystrokesEffectMode == 3;
@@ -153,11 +182,11 @@ public class KeystrokesModule extends HudModule {
              } else {
                  newAnim = updateAnimation(currentAnim, isPressed);
              }
-             keyScales.put(btn.keyCode + (btn.isMouse ? 1000 : 0), newAnim);
-             
+             keyScales().put(btn.keyCode + (btn.isMouse ? 1000 : 0), newAnim);
+
              int fillKey = btn.keyCode + (btn.isMouse ? 1000 : 0);
-             boolean wasPressedBefore = prevPressed.getOrDefault(fillKey, false);
-             prevPressed.put(fillKey, isPressed);
+             boolean wasPressedBefore = prevPressed().getOrDefault(fillKey, false);
+             prevPressed().put(fillKey, isPressed);
              
              boolean rippleActive = config.keystrokesEffectMode == 2 || config.keystrokesEffectMode == 3;
              float maxFillRadius = (float) Math.sqrt(btn.w * btn.w + btn.h * btn.h) / 2f * 1.05f;
@@ -165,7 +194,7 @@ public class KeystrokesModule extends HudModule {
              float innerRadius = 0f;
              
              if (rippleActive) {
-                 float[] state = fillRadii.getOrDefault(fillKey, new float[]{0f, 0f});
+                 float[] state = fillRadii().getOrDefault(fillKey, new float[]{0f, 0f});
                  if (isPressed) {
                      // Filling: outer grows to max, inner stays 0
                      state[0] = Math.min(state[0] + maxFillRadius * 0.18f, maxFillRadius);
@@ -178,16 +207,16 @@ public class KeystrokesModule extends HudModule {
                      }
                  }
                  if (state[0] > 0f && state[1] < maxFillRadius) {
-                     fillRadii.put(fillKey, state);
+                     fillRadii().put(fillKey, state);
                  } else {
-                     fillRadii.remove(fillKey);
+                     fillRadii().remove(fillKey);
                      state[0] = 0f;
                      state[1] = 0f;
                  }
                  outerRadius = state[0];
                  innerRadius = state[1];
              } else {
-                 fillRadii.remove(fillKey);
+                 fillRadii().remove(fillKey);
              }
              
              drawAnimatedKey(drawContext, client, btn, isPressed ? pressedColor : normalColor, baseBgColor, newAnim, isPressed, outerRadius, innerRadius);

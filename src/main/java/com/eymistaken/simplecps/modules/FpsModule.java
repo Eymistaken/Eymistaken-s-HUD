@@ -72,6 +72,13 @@ public class FpsModule extends HudModule {
     }
 
     @Override
+    public com.eymistaken.simplecps.api.HudPreview getPreview() {
+        // No sample data needed: getFps() is valid on the main menu too, so the preview
+        // shows the real reading.
+        return com.eymistaken.simplecps.api.HudPreview.ofModule(this);
+    }
+
+    @Override
     public void extractRenderState(GuiGraphicsExtractor context, float tickDelta) {
         SimpleCPSConfig config = SimpleCPSConfig.instance;
         String fpsStr = client.getFps() + " " + config.fpsText;

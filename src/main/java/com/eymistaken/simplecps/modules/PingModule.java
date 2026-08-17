@@ -94,11 +94,25 @@ public class PingModule extends HudModule {
     }
 
     @Override
-    public void extractRenderState(GuiGraphicsExtractor context, float tickDelta) {
-        SimpleCPSConfig config = SimpleCPSConfig.instance;
+    public com.eymistaken.simplecps.api.HudPreview getPreview() {
+        return com.eymistaken.simplecps.api.HudPreview.ofModule(this);
+    }
+
+    /** Stand-in latency for the preview, which is usually opened off-server. */
+    private static final int PREVIEW_PING = 42;
+
+    /** Built in one place so the preview is measured with the same text it draws. */
+    private String displayText() {
+        if (isPreviewing()) return PREVIEW_PING + " ms";
         int latency = cachedPing;
         if (cachedEntry != null) latency = cachedEntry.getLatency();
-        String pingText = (latency < 0) ? "? ms" : (latency + " ms");
+        return (latency < 0) ? "? ms" : (latency + " ms");
+    }
+
+    @Override
+    public void extractRenderState(GuiGraphicsExtractor context, float tickDelta) {
+        SimpleCPSConfig config = SimpleCPSConfig.instance;
+        String pingText = displayText();
         
         float scale = config.pingScale / 100f; 
         int textWidth = (int)(textWidth(pingText) * scale);
@@ -127,9 +141,7 @@ public class PingModule extends HudModule {
     @Override
     public int getWidth() {
         SimpleCPSConfig config = SimpleCPSConfig.instance;
-        int latency = cachedPing;
-        if (cachedEntry != null) latency = cachedEntry.getLatency();
-        String pingText = (latency < 0) ? "? ms" : (latency + " ms");
+        String pingText = displayText();
         float scale = config.pingScale / 100f;
         int textWidth = (int)(textWidth(pingText) * scale);
         int padding = 2;
