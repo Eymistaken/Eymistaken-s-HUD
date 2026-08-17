@@ -453,7 +453,7 @@ public class SimpleCPSConfig {
         /**
          * Required by GSON. Without a no-arg constructor it allocates through Unsafe
          * and the field initializers above never run — silently turning {@code shadow}
-         * off and the {@code -1} sentinels ("use the global colour", "centre the label")
+         * off and the {@code -1} sentinels ("use the global color", "center the label")
          * into 0 for any key whose JSON omits them.
          */
         public KeyButtonData() {}

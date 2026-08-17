@@ -9,7 +9,7 @@ import net.minecraft.network.chat.Component;
 /**
  * Palette and pixel-art drawing primitives for {@link HudSettingsScreen}.
  *
- * <p>Colours come straight from the design mock, which is a 1600x900 desktop
+ * <p>Colors come straight from the design mock, which is a 1600x900 desktop
  * canvas. The screen itself is laid out in Minecraft GUI pixels (roughly a third
  * of that), so the mock's 2px borders and bevels become 1px here — the look is
  * preserved because it was pixel art to begin with.
@@ -199,7 +199,7 @@ public final class SettingsTheme {
 
     public static final int SELECTION_HL  = 0x804444FF;
 
-    /** The ten quick-pick colours offered by the inline colour editor. */
+    /** The ten quick-pick colors offered by the inline color editor. */
     public static final int[] SWATCHES = {
         0xFFFFFF, 0xAAAAAA, 0x555555, 0x000000, 0xFF5555,
         0xFFAA00, 0xFFFF55, 0x55FF55, 0x55FFFF, 0x5555FF
@@ -345,7 +345,7 @@ public final class SettingsTheme {
         return mx >= x && mx < x + w && my >= y && my < y + h;
     }
 
-    /** Blend two ARGB colours, {@code t} in {@code [0,1]} moving from a to b. */
+    /** Blend two ARGB colors, {@code t} in {@code [0,1]} moving from a to b. */
     public static int lerpColor(int a, int b, float t) {
         t = Math.max(0f, Math.min(1f, t));
         int out = 0;

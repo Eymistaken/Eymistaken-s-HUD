@@ -21,7 +21,7 @@ public class ArmorModule extends HudModule {
      * settings list alone.
      *
      * <p>Wear is set as a fraction of each item's own max damage rather than a raw number,
-     * so the spread across the durability colours survives any rebalance, and it is spread
+     * so the spread across the durability colors survives any rebalance, and it is spread
      * on purpose: green, yellow and red all on show at once.
      */
     private static ItemStack[] previewStacks;

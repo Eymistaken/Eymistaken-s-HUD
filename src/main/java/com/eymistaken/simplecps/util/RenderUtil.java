@@ -5,7 +5,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
 
 /**
- * Shared rendering helpers. Colours are packed ARGB ints ({@code 0xAARRGGBB}),
+ * Shared rendering helpers. Colors are packed ARGB ints ({@code 0xAARRGGBB}),
  * matching what {@code GuiGraphicsExtractor.fill/text} expect.
  */
 public final class RenderUtil {
@@ -28,9 +28,9 @@ public final class RenderUtil {
     }
 
     /**
-     * Scale an ARGB colour's alpha channel by {@code factor} (clamped to
+     * Scale an ARGB color's alpha channel by {@code factor} (clamped to
      * {@code [0,1]}). Used to fade elements/menus in and out without touching
-     * their RGB. {@code factor >= 1} returns the colour unchanged.
+     * their RGB. {@code factor >= 1} returns the color unchanged.
      */
     public static int withAlpha(int argb, float factor) {
         factor = Easings.clamp01(factor);
@@ -40,10 +40,10 @@ public final class RenderUtil {
     }
 
     /**
-     * Pack a background box colour the way the text modules do inline today:
+     * Pack a background box color the way the text modules do inline today:
      * {@code (opacity << 24) | (rgb & 0x00FFFFFF)}.
      *
-     * @param color   RGB colour (upper alpha byte ignored)
+     * @param color   RGB color (upper alpha byte ignored)
      * @param opacity 0..255 alpha
      */
     public static int packBg(int color, int opacity) {

@@ -41,7 +41,7 @@ import net.minecraft.network.chat.Component;
  * middle, and info / presets / share code on the right.
  *
  * <p>The right column leads with a live PREVIEW of the selected module, drawn at true
- * screen scale so colour and size edits can be judged without leaving the menu. See
+ * screen scale so color and size edits can be judged without leaving the menu. See
  * {@link HudPreview}.
  *
  * <p>Replaces the old Cloth Config screen. Everything is drawn with
@@ -184,7 +184,7 @@ public class HudSettingsScreen extends Screen implements SettingsSchema.Host {
     private String openColorRowId;
 
     /**
-     * HSV of the open colour picker. Held here rather than derived from the row
+     * HSV of the open color picker. Held here rather than derived from the row
      * every frame because hue and saturation are undefined at black and at white
      * — reading them back would make the cursor jump the moment you drag into a
      * corner of the square.
@@ -203,7 +203,7 @@ public class HudSettingsScreen extends Screen implements SettingsSchema.Host {
     private final TextInput rowInput = new TextInput();
     private final TextInput shareInput = new TextInput();
 
-    /** A control claiming the cursor between press and release (sliders, the colour field). */
+    /** A control claiming the cursor between press and release (sliders, the color field). */
     @FunctionalInterface
     private interface DragHandler {
         void apply(double mouseX, double mouseY);
@@ -431,7 +431,7 @@ public class HudSettingsScreen extends Screen implements SettingsSchema.Host {
         indicatorSize = d(20, 9);
     }
 
-    /** Vertically centre one line of text in a box of height {@code h}. */
+    /** Vertically center one line of text in a box of height {@code h}. */
     private int centerTextY(int y, int h) {
         return y + (h - this.font.lineHeight) / 2 + 1;
     }
@@ -877,7 +877,7 @@ public class HudSettingsScreen extends Screen implements SettingsSchema.Host {
         boolean hovered = SettingsTheme.inside(mouseX, mouseY, x, y, w, moduleRowH);
 
         // GENERAL is not a module you switch on and off, so it drops the indicator
-        // and centres its label. It still sits in the list rather than standing
+        // and centers its label. It still sits in the list rather than standing
         // apart as a button — a thin outline is enough to mark it as different.
         if (p.global) {
             int bg = selected ? SettingsTheme.SEL_BG : (hovered ? SettingsTheme.IDLE_BG : 0);
@@ -990,7 +990,7 @@ public class HudSettingsScreen extends Screen implements SettingsSchema.Host {
         int badgeW = badge.isEmpty() ? 0 : enableButtonW(page);
         int titleRoom = contentW - pad * 2 - (badgeW > 0 ? badgeW + gap : 0);
 
-        // Title and description share the header, stacked and vertically centred.
+        // Title and description share the header, stacked and vertically centered.
         int blockH = this.font.lineHeight * 2 + gap;
         int titleY = bodyY + (contentHeadH - blockH) / 2;
         SettingsTheme.text(ctx, this.font, SettingsTheme.truncate(this.font, title, titleRoom),
@@ -1471,7 +1471,7 @@ public class HudSettingsScreen extends Screen implements SettingsSchema.Host {
         }
     }
 
-    // --- Inline colour picker --------------------------------------------------
+    // --- Inline color picker --------------------------------------------------
     //
     // A saturation/value square over a hue bar, the same model the standalone
     // ColorPickerScreen uses, restyled to this menu and folded into the row.
@@ -1499,7 +1499,7 @@ public class HudSettingsScreen extends Screen implements SettingsSchema.Host {
         return SettingsTheme.SWATCHES.length * (swatch + 1) - 1;
     }
 
-    /** Adopt a row's colour into the picker's HSV state. */
+    /** Adopt a row's color into the picker's HSV state. */
     private void syncPickerFrom(ColorRow row) {
         int rgb = row.get();
         float[] hsb = java.awt.Color.RGBtoHSB((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF, null);
@@ -1810,7 +1810,7 @@ public class HudSettingsScreen extends Screen implements SettingsSchema.Host {
 
     /**
      * The checkerboard the module is drawn on. HUD modules live over gameplay, so a flat
-     * dark card would flatter every light-coloured setting and hide a low background
+     * dark card would flatter every light-colored setting and hide a low background
      * opacity entirely; alternating tones show transparency and both contrast cases at once.
      */
     private void renderPreviewBody(GuiGraphicsExtractor ctx, int x, int y, int w, int h,
@@ -1833,7 +1833,7 @@ public class HudSettingsScreen extends Screen implements SettingsSchema.Host {
         ctx.disableScissor();
     }
 
-    /** Centre the module in the given box and draw it one-for-one with screen pixels. */
+    /** Center the module in the given box and draw it one-for-one with screen pixels. */
     private void drawPreviewModule(GuiGraphicsExtractor ctx, int x, int y, int w, int h, float delta) {
         HudPreview preview = activePreview();
         if (preview == null) return;
@@ -2229,7 +2229,7 @@ public class HudSettingsScreen extends Screen implements SettingsSchema.Host {
     // --- Confirmations --------------------------------------------------------------
 
     private static final String RESET_BODY =
-        "EVERY MODULE RETURNS TO ITS DEFAULT POSITION, COLOUR AND SCALE. "
+        "EVERY MODULE RETURNS TO ITS DEFAULT POSITION, COLOR AND SCALE. "
             + "SAVED PRESETS AND PLUGIN MODULE DATA ARE KEPT.";
 
     private static final String DISCARD_BODY =
@@ -2369,7 +2369,7 @@ public class HudSettingsScreen extends Screen implements SettingsSchema.Host {
     }
 
     /**
-     * Scroll offset that puts the thumb's centre under {@code mouseY}.
+     * Scroll offset that puts the thumb's center under {@code mouseY}.
      *
      * @param barY top of the bar, in the same space as {@code mouseY}
      */
@@ -3181,7 +3181,7 @@ public class HudSettingsScreen extends Screen implements SettingsSchema.Host {
         }
     }
 
-    /** Finish editing: normalise whatever half-typed value is in the field. */
+    /** Finish editing: normalize whatever half-typed value is in the field. */
     private void commitFocus() {
         switch (focus) {
             case ROW_NUMBER -> {

@@ -128,7 +128,7 @@ public class KeystrokesDesignerScreen extends Screen {
      */
     private SimpleCPSConfig.KeyButtonData contextMenuRenderTarget = null;
 
-    /** Scale an ARGB colour's alpha by menu-open progress {@code p}. */
+    /** Scale an ARGB color's alpha by menu-open progress {@code p}. */
     private static int fade(int argb, float p) {
         return com.eymistaken.simplecps.util.RenderUtil.withAlpha(argb, p);
     }
