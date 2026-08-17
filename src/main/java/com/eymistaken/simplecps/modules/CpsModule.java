@@ -97,17 +97,36 @@ public class CpsModule extends HudModule {
     }
 
     @Override
-    public void extractRenderState(GuiGraphicsExtractor context, float tickDelta) {
-        SimpleCPSConfig config = SimpleCPSConfig.instance;
+    public com.eymistaken.simplecps.api.HudPreview getPreview() {
+        return com.eymistaken.simplecps.api.HudPreview.ofModule(this);
+    }
 
-        // Rendering
-        String leftCps = String.valueOf(leftClicks.size());
-        String rightCps = String.valueOf(rightClicks.size());
-        
+    /** Stand-in click rates for the preview; nobody is clicking while the menu is open. */
+    private static final int PREVIEW_LEFT = 12;
+    private static final int PREVIEW_RIGHT = 4;
+
+    /**
+     * The string this module draws, built in one place because render, {@link #getWidth()}
+     * and {@link #getHeight()} all need it to agree — the preview would otherwise be
+     * measured for live clicks and drawn with sample ones.
+     */
+    private String displayText() {
+        SimpleCPSConfig config = SimpleCPSConfig.instance;
+        String leftCps = String.valueOf(isPreviewing() ? PREVIEW_LEFT : leftClicks.size());
+        String rightCps = String.valueOf(isPreviewing() ? PREVIEW_RIGHT : rightClicks.size());
+
         String cpsText = config.cpsLeftText + leftCps;
         if (config.rightClickCps) {
             cpsText += config.cpsSeparator + rightCps + config.cpsRightText;
         }
+        return cpsText;
+    }
+
+    @Override
+    public void extractRenderState(GuiGraphicsExtractor context, float tickDelta) {
+        SimpleCPSConfig config = SimpleCPSConfig.instance;
+
+        String cpsText = displayText();
 
         int color = config.rainbow ? getRainbowColor() : config.textColor;
         if ((color & 0xFF000000) == 0) color |= 0xFF000000;
@@ -137,12 +156,7 @@ public class CpsModule extends HudModule {
     @Override
     public int getWidth() {
         SimpleCPSConfig config = SimpleCPSConfig.instance;
-        String leftCps = String.valueOf(leftClicks.size());
-        String rightCps = String.valueOf(rightClicks.size());
-        String cpsText = config.cpsLeftText + leftCps;
-        if (config.rightClickCps) {
-            cpsText += config.cpsSeparator + rightCps + config.cpsRightText;
-        }
+        String cpsText = displayText();
         float scale = config.scale / 100f;
         int textWidth = (int)(textWidth(cpsText) * scale);
         int padding = 2;

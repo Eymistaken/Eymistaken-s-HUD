@@ -77,14 +77,22 @@ public class ReachModule extends HudModule {
         return settings;
     }
 
+    @Override
+    public com.eymistaken.simplecps.api.HudPreview getPreview() {
+        return com.eymistaken.simplecps.api.HudPreview.ofModule(this);
+    }
+
     private String getDisplayText() {
         SimpleCPSConfig config = SimpleCPSConfig.instance;
         String text = ReachTracker.getReachDisplay();
-        
-        boolean isEditor = client.gui.screen() instanceof com.eymistaken.simplecps.gui.HudEditorScreen;
-        
+
+        // The settings preview wants the same stand-in the editor gets: without a recent
+        // hit there is no reach to report, and an empty box shows nothing to configure.
+        boolean placeholder = isPreviewing()
+            || client.gui.screen() instanceof com.eymistaken.simplecps.gui.HudEditorScreen;
+
         if (text == null) {
-            if (isEditor) {
+            if (placeholder) {
                 return "3.00 blocks"; // Dummy text for HUD Editor
             } else if (config.reachAlwaysShow) {
                 return config.reachNoHitText;

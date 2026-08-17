@@ -14,6 +14,41 @@ public class ArmorModule extends HudModule {
     private final int[] lastDamages = new int[6];
     private final long[] flashEndTimes = new long[6];
 
+    /**
+     * Gear the preview wears. This module is the one built-in that draws nothing at all
+     * without a player — no equipment, no slots, no box — so the settings preview has to
+     * bring its own, and it is the module whose look is hardest to picture from the
+     * settings list alone.
+     *
+     * <p>Wear is set as a fraction of each item's own max damage rather than a raw number,
+     * so the spread across the durability colours survives any rebalance, and it is spread
+     * on purpose: green, yellow and red all on show at once.
+     */
+    private static ItemStack[] previewStacks;
+
+    private static ItemStack previewStack(net.minecraft.world.item.Item item, float worn) {
+        ItemStack stack = new ItemStack(item);
+        if (stack.isDamageableItem()) {
+            stack.setDamageValue(Math.round(stack.getMaxDamage() * worn));
+        }
+        return stack;
+    }
+
+    /** Built on first use, not in a static initialiser, so item registries are up. */
+    private static ItemStack previewStackFor(ArmorSlot slot) {
+        if (previewStacks == null) {
+            previewStacks = new ItemStack[] {
+                previewStack(net.minecraft.world.item.Items.DIAMOND_HELMET, 0.20f),
+                previewStack(net.minecraft.world.item.Items.DIAMOND_CHESTPLATE, 0.55f),
+                previewStack(net.minecraft.world.item.Items.DIAMOND_LEGGINGS, 0.45f),
+                previewStack(net.minecraft.world.item.Items.DIAMOND_BOOTS, 0.85f),
+                previewStack(net.minecraft.world.item.Items.DIAMOND_SWORD, 0.30f),
+                previewStack(net.minecraft.world.item.Items.SHIELD, 0.10f),
+            };
+        }
+        return previewStacks[slot.ordinal()];
+    }
+
     private static final net.minecraft.resources.Identifier SLOT_TEXTURE = net.minecraft.resources.Identifier.fromNamespaceAndPath("minecraft", "hud/hotbar");
 
     /** One slot's edge length before scaling; the whole layout is built on this grid. */
@@ -120,6 +155,7 @@ public class ArmorModule extends HudModule {
         }
 
         public ItemStack getItemStack() {
+            if (ArmorModule.this.isPreviewing()) return previewStackFor(slot);
             if (client.player == null) return ItemStack.EMPTY;
             switch (slot) {
                 case HELMET: return client.player.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.HEAD);
@@ -133,7 +169,7 @@ public class ArmorModule extends HudModule {
         }
 
         public boolean isEnabled() {
-            if (client.player == null) return false;
+            if (client.player == null && !ArmorModule.this.isPreviewing()) return false;
             if (slot == ArmorSlot.MAIN_HAND && !SimpleCPSConfig.instance.armorShowMainHand) return false;
             if (slot == ArmorSlot.OFF_HAND && !SimpleCPSConfig.instance.armorShowOffHand) return false;
             ItemStack stack = getItemStack();
@@ -224,8 +260,11 @@ public class ArmorModule extends HudModule {
 
     private List<ArmorElement> getOrderedElements() {
         List<ArmorElement> ordered = new ArrayList<>();
-        if (client.player == null) return ordered;
-        boolean isRightHanded = client.player.getMainArm() == net.minecraft.world.entity.HumanoidArm.RIGHT;
+        if (client.player == null && !isPreviewing()) return ordered;
+        // The preview can run from the main menu, where there is no player to ask which
+        // hand is which; right is the vanilla default.
+        boolean isRightHanded = client.player == null
+            || client.player.getMainArm() == net.minecraft.world.entity.HumanoidArm.RIGHT;
 
         ArmorElement helmet = subElements.get(0);
         ArmorElement chest = subElements.get(1);
@@ -415,9 +454,14 @@ public class ArmorModule extends HudModule {
     }
 
     @Override
+    public com.eymistaken.simplecps.api.HudPreview getPreview() {
+        return com.eymistaken.simplecps.api.HudPreview.ofModule(this);
+    }
+
+    @Override
     public void extractRenderState(GuiGraphicsExtractor context, float tickDelta) {
-        if (client.player == null) return;
-        
+        if (client.player == null && !isPreviewing()) return;
+
         List<ArmorElement> ordered = getOrderedElements();
         if (ordered.isEmpty()) return;
         
@@ -493,9 +537,13 @@ public class ArmorModule extends HudModule {
             int elX = el.localX;
             int elY = el.localY;
 
-            // Damage Flash Logic
+            // Damage Flash Logic. Skipped while previewing: the preview's stacks are not
+            // the player's, so recording their wear here would overwrite the real
+            // baseline and swallow the next genuine hit's flash.
             int damageIndex = el.slot.ordinal();
-            if (damageFlash && stack.isDamageableItem()) {
+            if (isPreviewing()) {
+                // nothing to track
+            } else if (damageFlash && stack.isDamageableItem()) {
                 int currentDamage = stack.getDamageValue();
                 if (currentDamage > lastDamages[damageIndex]) {
                     if (lastDamages[damageIndex] != 0) {
@@ -506,13 +554,13 @@ public class ArmorModule extends HudModule {
             } else {
                 lastDamages[damageIndex] = 0;
             }
-            
+
             // Draw Item
             context.item(stack, elX + 1, elY + 1);
             context.itemDecorations(client.font, stack, elX + 1, elY + 1);
-            
+
             // Damage Flash Overlay
-            if (damageFlash && flashEndTimes[damageIndex] > now) {
+            if (damageFlash && !isPreviewing() && flashEndTimes[damageIndex] > now) {
                 context.fill(elX + 1, elY + 1, elX + 17, elY + 17, 0x66FF0000); // Red tint
             }
             

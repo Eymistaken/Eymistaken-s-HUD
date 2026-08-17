@@ -13,7 +13,18 @@ public abstract class HudModule implements IHudElement {
     }
 
     protected int x, y;
+
+    /**
+     * Rainbow phase, advanced half a degree per call to {@link #getRainbowColor()}.
+     *
+     * <p>Previews keep their own: the settings screen draws over a running HUD, so a single
+     * shared phase would be stepped twice a frame and the real HUD's rainbow would visibly
+     * speed up whenever the menu was open.
+     */
     private static float hue = 0;
+    private static float previewHue = 0;
+
+    private boolean previewing;
 
     /**
      * Opacity this module should draw with, in {@code [0,1]}. Set by
@@ -171,6 +182,64 @@ public abstract class HudModule implements IHudElement {
     }
 
     /**
+     * A live sample of this module, shown in the PREVIEW card at the top of the settings
+     * screen's right column while this module's page is open.
+     *
+     * <p>Null by default, and a null preview means no card at all rather than an empty one:
+     * a module written before this existed, or one with nothing worth showing, simply does
+     * not get the panel and everything below it moves up. {@link HudPreview#ofModule} covers
+     * the usual case, which is this module drawing itself with stand-in data:
+     *
+     * <pre>{@code
+     * @Override
+     * public HudPreview getPreview() {
+     *     return HudPreview.ofModule(this);
+     * }
+     * }</pre>
+     *
+     * <p>Because the preview draws the module as it would really look, it usually needs data
+     * the game is not currently producing — no clicks have been counted, no server is
+     * connected, the player may not even exist. Branch on {@link #isPreviewing()} inside the
+     * render path to substitute sample values. That flag is also set while the preview is
+     * measured, so {@link #getWidth()} and {@link #getHeight()} see the same data they will
+     * be asked to draw.
+     *
+     * <p>Called every frame the page is open. Keep it cheap, and prefer returning a cached
+     * instance to allocating one per call. Throwing loses the preview for that frame and
+     * nothing else; the screen carries on.
+     *
+     * @return the preview for this module, or null for none
+     * @see HudPreview
+     */
+    public HudPreview getPreview() {
+        return null;
+    }
+
+    /**
+     * Whether this module is currently being drawn as a preview rather than onto the real
+     * HUD.
+     *
+     * <p>True for the whole of a preview pass, measurement included. Two things follow from
+     * that. Sample data substituted here must also be reflected in {@link #getWidth()} and
+     * {@link #getHeight()}, or the box will be sized for something other than what it shows.
+     * And a preview runs <em>in addition to</em> the live HUD render whenever the settings
+     * screen is opened in-game, so any per-frame animation counter stepped inside the render
+     * path needs a preview-local copy — otherwise the real HUD animates at double speed for
+     * as long as the menu is open.
+     */
+    public final boolean isPreviewing() {
+        return previewing;
+    }
+
+    /**
+     * Marks a preview pass. Called by the settings screen around measurement and drawing;
+     * modules read the flag through {@link #isPreviewing()} rather than setting it.
+     */
+    public final void setPreviewing(boolean previewing) {
+        this.previewing = previewing;
+    }
+
+    /**
      * Serialize this module's own settings so they travel with the config: they are
      * written into {@code simplecps.json}, saved into presets, packed into share
      * codes and (later) into per-server configs, all for free.
@@ -234,9 +303,17 @@ public abstract class HudModule implements IHudElement {
     public abstract String getName();
 
     protected int getRainbowColor() {
-        hue += 0.5f; 
-        if (hue > 360) hue = 0;
-        int rgb = net.minecraft.util.Mth.hsvToRgb(hue / 360f, 1.0f, 1.0f);
+        float phase;
+        if (previewing) {
+            previewHue += 0.5f;
+            if (previewHue > 360) previewHue = 0;
+            phase = previewHue;
+        } else {
+            hue += 0.5f;
+            if (hue > 360) hue = 0;
+            phase = hue;
+        }
+        int rgb = net.minecraft.util.Mth.hsvToRgb(phase / 360f, 1.0f, 1.0f);
         return rgb | 0xFF000000;
     }
 
