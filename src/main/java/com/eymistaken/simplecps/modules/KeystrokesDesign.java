@@ -27,11 +27,11 @@ public enum KeystrokesDesign {
     BAR("Bar"),
     /** 3px rounded corners with a 2px light line along the top. */
     SOFT_BLOCK("Soft Block"),
-    /** The body is built from horizontal slices, like an equaliser. */
+    /** The body is built from horizontal slices, like an equalizer. */
     SEGMENT("Segment"),
     /** Near-black core; the halo is painted by the animation, not by the body. */
     NEON("Neon"),
-    /** A wedge pointing away from centre. The direction comes from the keybind. */
+    /** A wedge pointing away from center. The direction comes from the keybind. */
     WEDGE("Wedge"),
     /** A whole-module mode: press history scrolls right to left. Global only. */
     TIMELINE("Timeline"),
@@ -55,7 +55,7 @@ public enum KeystrokesDesign {
     /**
      * Designs that reinterpret the whole module instead of styling one button.
      * These cannot be used as a per-key override: a single key cannot be a
-     * timeline while its neighbour stays a box.
+     * timeline while its neighbor stays a box.
      */
     public boolean isModuleWide() {
         return this == TIMELINE;
@@ -186,7 +186,7 @@ public enum KeystrokesDesign {
      * <p>Shared rather than living in the designer, because the HUD editor and the
      * settings screen can change the design too — and when only the designer applied
      * the preset, picking a design anywhere else changed the texture and left the
-     * layout, colours and animation belonging to the previous one.
+     * layout, colors and animation belonging to the previous one.
      *
      * <p>The layout is only rearranged when it needs to be: a design with its own
      * arrangement imposes it, and leaving such a design puts the keys back into the
@@ -209,7 +209,7 @@ public enum KeystrokesDesign {
         config.keystrokesBackgroundColor = palette[2];
         config.keystrokesBackgroundOpacity = palette[3];
 
-        // Per-key colour overrides would sit on top of the new palette and break the
+        // Per-key color overrides would sit on top of the new palette and break the
         // look the design was drawn for, so they go back to following the module.
         for (SimpleCPSConfig.KeyButtonData btn : config.keystrokesLayout) {
             btn.btnColor = -1;
@@ -313,9 +313,9 @@ public enum KeystrokesDesign {
     }
 
     /**
-     * Whether the accent colour paints the body rather than the label.
+     * Whether the accent color paints the body rather than the label.
      *
-     * <p>The old model only ever recoloured the text. Most of these designs flood
+     * <p>The old model only ever recolored the text. Most of these designs flood
      * the body instead and flip the label to a readable tone against it, which is
      * why {@link #labelOn(int)} exists rather than a second config field.
      */
@@ -335,7 +335,7 @@ public enum KeystrokesDesign {
     }
 
     /**
-     * The label colour to use while the key is held. When the body is flooded the
+     * The label color to use while the key is held. When the body is flooded the
      * label has to leave the accent and go dark (or light, against a dark accent)
      * or it disappears into its own background.
      */
@@ -369,8 +369,8 @@ public enum KeystrokesDesign {
      */
     private static float roundInset(int row, int h, int r) {
         if (r <= 0) return 0f;
-        float centre = row + 0.5f;
-        float dy = centre < r ? r - centre : (centre > h - r ? centre - (h - r) : 0f);
+        float center = row + 0.5f;
+        float dy = center < r ? r - center : (center > h - r ? center - (h - r) : 0f);
         if (dy <= 0f) return 0f;
         return r - (float) Math.sqrt(Math.max(0.0, (double) r * r - (double) dy * dy));
     }
@@ -397,7 +397,7 @@ public enum KeystrokesDesign {
         return w * 0.25f * d;
     }
 
-    /** Scale a colour's alpha by {@code coverage}. */
+    /** Scale a color's alpha by {@code coverage}. */
     private static int fade(int color, float coverage) {
         int alpha = Math.round(((color >>> 24) & 0xFF) * Math.max(0f, Math.min(1f, coverage)));
         return (alpha << 24) | (color & 0x00FFFFFF);
@@ -462,7 +462,7 @@ public enum KeystrokesDesign {
      * edge that did not follow the triangle it was supposed to be inside.
      */
     private static float[] wedgeSpan(int w, int h, int dir, int row) {
-        // Sampled at the row's centre so the slope is measured where the pixel is,
+        // Sampled at the row's center so the slope is measured where the pixel is,
         // not at its top edge.
         float t = h <= 1 ? 1f : (row + 0.5f) / h;
         if (dir == 0 || dir == 2) {
@@ -541,7 +541,7 @@ public enum KeystrokesDesign {
 
     /**
      * Draw the resting body. {@code bg} is the module's configured background
-     * colour and {@code accent} the pressed colour; a design uses whichever the
+     * color and {@code accent} the pressed color; a design uses whichever the
      * source document called for.
      */
     public void drawBody(GuiGraphicsExtractor ctx, SimpleCPSConfig.KeyButtonData btn,

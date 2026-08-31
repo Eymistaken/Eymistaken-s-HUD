@@ -34,7 +34,7 @@ public class ArmorModule extends HudModule {
         return stack;
     }
 
-    /** Built on first use, not in a static initialiser, so item registries are up. */
+    /** Built on first use, not in a static initializer, so item registries are up. */
     private static ItemStack previewStackFor(ArmorSlot slot) {
         if (previewStacks == null) {
             previewStacks = new ItemStack[] {

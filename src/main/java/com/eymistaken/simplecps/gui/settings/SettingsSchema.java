@@ -42,7 +42,7 @@ import java.util.function.Supplier;
  * <li><b>Accessors read {@link SimpleCPSConfig#instance} at call time.</b> Applying
  *     a preset, a share code or a server config replaces that object wholesale, and
  *     the screen has to keep showing the truth without rebuilding anything.</li>
- * <li><b>Defaults come from the field initialisers.</b> Every built-in row is
+ * <li><b>Defaults come from the field initializers.</b> Every built-in row is
  *     declared with a {@code Function<SimpleCPSConfig, T>}, so its default is simply
  *     that function applied to {@link #DEFAULTS} — a pristine {@code new
  *     SimpleCPSConfig()}. Nothing restates a default by hand, which is how the old
@@ -572,7 +572,7 @@ public final class SettingsSchema {
                     enumRow("keys.design", "Design",
                         "Look, animation and palette together. Some designs arrange the keys too.",
                         com.eymistaken.simplecps.modules.KeystrokesDesign.class,
-                        // applyTo brings the arrangement, colours and animation with
+                        // applyTo brings the arrangement, colors and animation with
                         // it; assigning the field alone would change only the texture.
                         c -> c.keystrokesDesign, (c, v) -> v.applyTo(c)))),
                 // Which animations run is a set, and a one-value-at-a-time row cannot
