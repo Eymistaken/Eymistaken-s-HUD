@@ -3,8 +3,6 @@ package com.eymistaken.simplecps.modules;
 import com.eymistaken.simplecps.SimpleCPSConfig;
 import com.eymistaken.simplecps.api.HudModule;
 import org.lwjgl.glfw.GLFW;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.HashSet;
 import java.util.Set;
 import net.minecraft.client.Minecraft;
@@ -13,27 +11,26 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 public class KeystrokesModule extends HudModule {
 
     public static final Set<Integer> pressedKeys = new HashSet<>();
-    private final Map<Integer, Float> keyScales = new HashMap<>();
-    private final Map<Integer, float[]> fillRadii = new HashMap<>();
-    private final Map<Integer, Boolean> prevPressed = new HashMap<>();
 
-    // The squish and ripple effects are stepped once per draw with no delta time, so the
-    // preview cannot share them: the settings screen renders over a live HUD, and both
-    // passes stepping the same maps would run the real keystrokes at double speed.
-    private final Map<Integer, Float> previewKeyScales = new HashMap<>();
-    private final Map<Integer, float[]> previewFillRadii = new HashMap<>();
-    private final Map<Integer, Boolean> previewPrevPressed = new HashMap<>();
+    // Animations are stepped once per draw with no delta time, so the preview cannot
+    // share their state: the settings screen renders over a live HUD, and both passes
+    // stepping the same store would run the real keystrokes at double speed.
+    private final KeystrokesAnim.Store animStore = new KeystrokesAnim.Store();
+    private final KeystrokesAnim.Store previewAnimStore = new KeystrokesAnim.Store();
+    private final KeystrokesTimeline.Store timelineStore = new KeystrokesTimeline.Store();
+    private final KeystrokesTimeline.Store previewTimelineStore = new KeystrokesTimeline.Store();
 
-    private Map<Integer, Float> keyScales() {
-        return isPreviewing() ? previewKeyScales : keyScales;
+    private KeystrokesAnim.Store anim() {
+        return isPreviewing() ? previewAnimStore : animStore;
     }
 
-    private Map<Integer, float[]> fillRadii() {
-        return isPreviewing() ? previewFillRadii : fillRadii;
+    private KeystrokesTimeline.Store timeline() {
+        return isPreviewing() ? previewTimelineStore : timelineStore;
     }
 
-    private Map<Integer, Boolean> prevPressed() {
-        return isPreviewing() ? previewPrevPressed : prevPressed;
+    /** Whether this button's physical key or mouse button is currently down. */
+    public static boolean isDown(SimpleCPSConfig.KeyButtonData btn) {
+        return pressedKeys.contains(btn.keyCode + (btn.isMouse ? 1000 : 0));
     }
 
     @Override
@@ -88,6 +85,24 @@ public class KeystrokesModule extends HudModule {
         config.keystrokesPressedColor = 0x00FF00;
         config.keystrokesBackgroundColor = 0x000000;
         config.keystrokesBackgroundOpacity = 128;
+        config.keystrokesDesign = KeystrokesDesign.BASELINE;
+        // Squish with no fill, which is what a fresh install has always looked like
+        // (the old keystrokesEffectMode defaulted to 1). A visual reset that landed
+        // somewhere the mod never shipped would be a surprise, not a reset.
+        config.keystrokesMotions = KeystrokesAnim.cleanMotions(
+            java.util.List.of(KeystrokesAnim.Motion.SQUISH));
+        config.keystrokesFills = KeystrokesAnim.cleanFills(java.util.List.of());
+        config.keystrokesFillDirection = KeystrokesAnim.Direction.RIGHT;
+        config.keystrokesGhost = false;
+        config.keystrokesBoard = false;
+        // Per-key overrides are part of the look too, so a visual reset that left
+        // them behind would still show a neon key in an otherwise plain layout.
+        for (SimpleCPSConfig.KeyButtonData btn : config.keystrokesLayout) {
+            btn.design = null;
+            btn.motion = null;
+            btn.fill = null;
+            btn.direction = null;
+        }
     }
 
     @Override
@@ -101,52 +116,80 @@ public class KeystrokesModule extends HudModule {
         renderKeystrokes(context, client, config, x, y, kScale);
     }
     
+    /** Size the module claims when nothing is visible, so it stays grabbable in the editor. */
+    private static final int EMPTY_EXTENT = 64;
+
+    /** The design in force module-wide, never null. */
+    private static KeystrokesDesign design(SimpleCPSConfig config) {
+        return config.keystrokesDesign == null
+            ? KeystrokesDesign.BASELINE : config.keystrokesDesign;
+    }
+
+    /**
+     * Room the module reserves around its keys.
+     *
+     * <p>Only the board counts. A neon halo, a release trail and a pixel bevel's
+     * outline all paint a few pixels past their key, but reserving space for them
+     * would change the module's size every time the design changed — so every other
+     * module on that edge would jump about while you were browsing designs. A soft
+     * halo overlapping a neighbour by four pixels is far less disruptive than the
+     * whole HUD reflowing, so the decoration is simply allowed to bleed.
+     *
+     * <p>The board is different: it is a deliberate frame around the whole cluster,
+     * it is large, and it is toggled once rather than browsed. It gets its space.
+     */
+    private static int reserved(SimpleCPSConfig config) {
+        return config.keystrokesBoard ? KeystrokesDesign.BOARD_PADDING : 0;
+    }
+
     @Override
     public int getWidth() {
         SimpleCPSConfig config = SimpleCPSConfig.instance;
         float kScale = config.keystrokesScale / 100f;
-        int maxX = 0;
-        if (!config.keystrokesLayout.isEmpty()) {
-            maxX = Integer.MIN_VALUE;
-            for (SimpleCPSConfig.KeyButtonData btn : config.keystrokesLayout) {
-                maxX = Math.max(maxX, btn.x + btn.w);
-            }
-        } else {
-             maxX = 64; 
+        if (design(config) == KeystrokesDesign.TIMELINE) {
+            return (int)(KeystrokesTimeline.width() * kScale);
         }
-        return (int)(maxX * kScale);
+        // Hidden keys are excluded here as well as from the render: counting them
+        // would reserve invisible space and push the auto-stacked modules around it.
+        int maxX = Integer.MIN_VALUE;
+        for (SimpleCPSConfig.KeyButtonData btn : config.keystrokesLayout) {
+            if (btn.hidden) continue;
+            maxX = Math.max(maxX, btn.x + btn.w);
+        }
+        if (maxX == Integer.MIN_VALUE) maxX = EMPTY_EXTENT;
+        return (int)((maxX + reserved(config) * 2) * kScale);
     }
 
     @Override
     public int getHeight() {
         SimpleCPSConfig config = SimpleCPSConfig.instance;
         float kScale = config.keystrokesScale / 100f;
-        int maxY = 0;
-        if (!config.keystrokesLayout.isEmpty()) {
-            maxY = Integer.MIN_VALUE;
-            for (SimpleCPSConfig.KeyButtonData btn : config.keystrokesLayout) {
-                maxY = Math.max(maxY, btn.y + btn.h);
-            }
-        } else {
-             maxY = 64; 
+        if (design(config) == KeystrokesDesign.TIMELINE) {
+            return (int)(KeystrokesTimeline.height(config.keystrokesLayout) * kScale);
         }
-        return (int)(maxY * kScale);
+        int maxY = Integer.MIN_VALUE;
+        for (SimpleCPSConfig.KeyButtonData btn : config.keystrokesLayout) {
+            if (btn.hidden) continue;
+            maxY = Math.max(maxY, btn.y + btn.h);
+        }
+        if (maxY == Integer.MIN_VALUE) maxY = EMPTY_EXTENT;
+        return (int)((maxY + reserved(config) * 2) * kScale);
     }
 
     private void renderKeystrokes(GuiGraphicsExtractor drawContext, Minecraft client, SimpleCPSConfig config, int x, int y, float scale) {
         int normalColor = config.keystrokesColor;
         if ((normalColor & 0xFF000000) == 0) normalColor |= 0xFF000000;
-        
+
         int pressedColor = config.keystrokesPressedColor;
         if ((pressedColor & 0xFF000000) == 0) pressedColor |= 0xFF000000;
-        
+
         int baseBgColor = (config.keystrokesBackgroundOpacity << 24) | (config.keystrokesBackgroundColor & 0x00FFFFFF);
 
         if (config.keystrokesRainbow) {
             int rainbow = getRainbowColor();
             if (config.keystrokesRainbowTarget == SimpleCPSConfig.RainbowTarget.TEXT) {
                 normalColor = rainbow;
-                pressedColor = rainbow; 
+                pressedColor = rainbow;
             } else {
                 baseBgColor = (config.keystrokesBackgroundOpacity << 24) | (rainbow & 0x00FFFFFF);
             }
@@ -156,214 +199,117 @@ public class KeystrokesModule extends HudModule {
         drawContext.pose().translate(x, y);
         drawContext.pose().scale(scale, scale);
 
-        long handle = client.getWindow().handle();
-
         // No key is faked as held. Forcing one showed the pressed color, but which key got
         // it was arbitrary — the layout is user-defined — and it left a single key wearing
         // a background none of its neighbours had, which read as a rendering fault rather
         // than a pressed state. Real presses still register while the menu is open.
 
+        if (design(config) == KeystrokesDesign.TIMELINE) {
+            KeystrokesTimeline.update(timeline(), config.keystrokesLayout, KeystrokesModule::isDown);
+            KeystrokesTimeline.draw(drawContext, client.font, timeline(),
+                config.keystrokesLayout, normalColor, pressedColor);
+            drawContext.pose().popMatrix();
+            return;
+        }
+
+        // Only the board's reserved room shifts the cluster. Decoration that spills
+        // past a key is drawn where it falls; see reserved().
+        int pad = reserved(config);
+        if (pad > 0) drawContext.pose().translate(pad, pad);
+
+        if (config.keystrokesBoard) drawBoard(drawContext, config);
+
         for (SimpleCPSConfig.KeyButtonData btn : config.keystrokesLayout) {
-             boolean isPressed = false;
+            if (btn.hidden) continue;
 
-             if (btn.isMouse) {
-                 isPressed = pressedKeys.contains(btn.keyCode + 1000);
-             } else {
-                 isPressed = pressedKeys.contains(btn.keyCode);
-             }
+            KeystrokesRender.KeyStyle style = KeystrokesRender.KeyStyle.of(config, btn);
+            KeystrokesAnim.State state = anim().get(btn);
+            boolean isPressed = isDown(btn);
 
-             // Animation
-             float currentAnim = keyScales().getOrDefault(btn.keyCode + (btn.isMouse ? 1000 : 0), 1.0f);
-             float newAnim;
-             boolean animOn = btn.animationEnabled == null || btn.animationEnabled;
-             boolean squishActive = config.keystrokesEffectMode == 1 || config.keystrokesEffectMode == 3;
-             if (!squishActive || !animOn) {
-                 newAnim = 1.0f;
-             } else {
-                 newAnim = updateAnimation(currentAnim, isPressed);
-             }
-             keyScales().put(btn.keyCode + (btn.isMouse ? 1000 : 0), newAnim);
+            KeystrokesAnim.step(state, style.motions(), style.fills(), isPressed,
+                style.animated(), config.keystrokesGhost, btn);
 
-             int fillKey = btn.keyCode + (btn.isMouse ? 1000 : 0);
-             boolean wasPressedBefore = prevPressed().getOrDefault(fillKey, false);
-             prevPressed().put(fillKey, isPressed);
-             
-             boolean rippleActive = config.keystrokesEffectMode == 2 || config.keystrokesEffectMode == 3;
-             float maxFillRadius = (float) Math.sqrt(btn.w * btn.w + btn.h * btn.h) / 2f * 1.05f;
-             float outerRadius = 0f;
-             float innerRadius = 0f;
-             
-             if (rippleActive) {
-                 float[] state = fillRadii().getOrDefault(fillKey, new float[]{0f, 0f});
-                 if (isPressed) {
-                     // Filling: outer grows to max, inner stays 0
-                     state[0] = Math.min(state[0] + maxFillRadius * 0.18f, maxFillRadius);
-                     state[1] = 0f;
-                 } else {
-                     // Emptying: outer stays at max, inner grows outward
-                     if (state[0] > 0f) {
-                         state[0] = maxFillRadius; // lock outer at max
-                         state[1] = Math.min(state[1] + maxFillRadius * 0.15f, maxFillRadius);
-                     }
-                 }
-                 if (state[0] > 0f && state[1] < maxFillRadius) {
-                     fillRadii().put(fillKey, state);
-                 } else {
-                     fillRadii().remove(fillKey);
-                     state[0] = 0f;
-                     state[1] = 0f;
-                 }
-                 outerRadius = state[0];
-                 innerRadius = state[1];
-             } else {
-                 fillRadii().remove(fillKey);
-             }
-             
-             drawAnimatedKey(drawContext, client, btn, isPressed ? pressedColor : normalColor, baseBgColor, newAnim, isPressed, outerRadius, innerRadius);
+            int idle = btn.btnColor != -1 && btn.btnColor != 0 ? btn.btnColor : normalColor;
+            int accent = btn.btnPressedColor != -1 && btn.btnPressedColor != 0
+                ? btn.btnPressedColor : pressedColor;
+
+            String cps = null;
+            if (btn.showCps && btn.isMouse) {
+                if (btn.keyCode == 0) cps = String.valueOf(CpsModule.leftClicks.size());
+                else if (btn.keyCode == 1) cps = String.valueOf(CpsModule.rightClicks.size());
+            }
+
+            KeystrokesRender.drawKey(drawContext, client.font, btn, style, state,
+                baseBgColor, idle, accent, config.keystrokesGhost, cps, null);
         }
 
         drawContext.pose().popMatrix();
     }
-    
-    private float updateAnimation(float currentScale, boolean isPressed) {
-        float target = isPressed ? 0.85f : 1.0f;
-        float speed = 0.2f;
-        float diff = target - currentScale;
-        if (Math.abs(diff) < 0.01f) return target;
-        return currentScale + (diff * speed);
+
+    /** Frame the whole visible cluster with the ornamented board. */
+    private static void drawBoard(GuiGraphicsExtractor ctx, SimpleCPSConfig config) {
+        int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE;
+        int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE;
+        for (SimpleCPSConfig.KeyButtonData btn : config.keystrokesLayout) {
+            if (btn.hidden) continue;
+            minX = Math.min(minX, btn.x);
+            minY = Math.min(minY, btn.y);
+            maxX = Math.max(maxX, btn.x + btn.w);
+            maxY = Math.max(maxY, btn.y + btn.h);
+        }
+        if (maxX == Integer.MIN_VALUE) return;
+        KeystrokesDesign.drawBoard(ctx, minX, minY, maxX - minX, maxY - minY);
     }
 
-    private void drawAnimatedKey(GuiGraphicsExtractor context, Minecraft client, SimpleCPSConfig.KeyButtonData btn, int textColor, int bgColor, float animScale, boolean isPressed, float outerRadius, float innerRadius) {
-        if (isPressed) {
-            if (btn.btnPressedColor != -1 && btn.btnPressedColor != 0) {
-                textColor = btn.btnPressedColor;
-            }
-        } else {
-            if (btn.btnColor != -1 && btn.btnColor != 0) {
-                textColor = btn.btnColor;
-            }
-        }
-        context.pose().pushMatrix();
-        
-        float centerX = btn.x + (btn.w / 2.0f);
-        float centerY = btn.y + (btn.h / 2.0f);
-        context.pose().translate(centerX, centerY);
-        context.pose().scale(animScale, animScale);
-        context.pose().translate(-centerX, -centerY);
-        
-        context.fill(btn.x, btn.y, btn.x + btn.w, btn.y + btn.h, bgColor);
-
-        if (outerRadius > 0f) {
-            int fillColor = 0x40FFFFFF;
-            int cx = btn.x + btn.w / 2;
-            int cy = btn.y + btn.h / 2;
-            int rOuter = (int) outerRadius;
-            int rInner = (int) innerRadius;
-            for (int sy = Math.max(btn.y, cy - rOuter); sy < Math.min(btn.y + btn.h, cy + rOuter); sy++) {
-                int dy = sy - cy;
-                int dxOuter = (int) Math.sqrt(Math.max(0.0, (double)rOuter * rOuter - (double)dy * dy));
-                int x1 = Math.max(btn.x, cx - dxOuter);
-                int x2 = Math.min(btn.x + btn.w, cx + dxOuter);
-                if (rInner > 0) {
-                    int dxInner = (int) Math.sqrt(Math.max(0.0, (double)rInner * rInner - (double)dy * dy));
-                    // Left segment
-                    int lx1 = x1;
-                    int lx2 = Math.min(x2, cx - dxInner);
-                    if (lx2 > lx1) context.fill(lx1, sy, lx2, sy + 1, fillColor);
-                    // Right segment
-                    int rx1 = Math.max(x1, cx + dxInner);
-                    int rx2 = x2;
-                    if (rx2 > rx1) context.fill(rx1, sy, rx2, sy + 1, fillColor);
-                } else {
-                    if (x2 > x1) context.fill(x1, sy, x2, sy + 1, fillColor);
-                }
-            }
-        }
-        
-        // Prepare Key Label
-        net.minecraft.network.chat.MutableComponent text = net.minecraft.network.chat.Component.literal(btn.label);
-        // Start from the active HUD font so key labels follow the font selection,
-        // then layer on the per-key bold/italic/underline styling.
-        net.minecraft.network.chat.Style style = com.eymistaken.simplecps.util.EymHudFonts.activeStyle();
-        if (btn.bold) style = style.withBold(true);
-        if (btn.italic) style = style.withItalic(true);
-        if (btn.underlined) style = style.withUnderlined(true);
-        text.setStyle(style);
-        
-        int textWidth = client.font.width(text);
-        int textHeight = client.font.lineHeight;
-        
-        // Handle CPS Display Layout
-        // If showing CPS, maybe move label up slightly?
-        int yOffset = (btn.showCps && btn.isMouse) ? -4 : 0; // Move label up a bit if CPS is shown
-        
-        // Label Position
-        int lx, ly;
-        if (btn.labelX == -1) {
-            lx = btn.x + (btn.w - textWidth) / 2;
-        } else {
-            lx = btn.x + btn.labelX;
-        }
-        
-        if (btn.labelY == -1) {
-            ly = btn.y + (btn.h - textHeight) / 2 + yOffset;
-        } else {
-            ly = btn.y + btn.labelY;
-        }
-        
-        if (btn.shadow) {
-            context.text(client.font, text, lx, ly, textColor);
-        } else {
-            context.text(client.font, text, lx, ly, textColor, false);
-        }
-        
-        // CPS Counter
-        if (btn.showCps && btn.isMouse) {
-            int cps = 0;
-            if (btn.keyCode == 0) cps = CpsModule.leftClicks.size(); // LMB
-            else if (btn.keyCode == 1) cps = CpsModule.rightClicks.size(); // RMB
-            
-            String cpsStr = String.valueOf(cps);
-            
-            // Draw small
-            context.pose().pushMatrix();
-            float smallScale = 0.6f;
-            int cpsW = client.font.width(com.eymistaken.simplecps.util.EymHudFonts.text(cpsStr));
-            
-            // Position at bottom center (or customized?)
-            // Center X relative to button
-            // Bottom Y relative to button
-            float cpsX = btn.x + (btn.w - (cpsW * smallScale)) / 2.0f;
-            float cpsY = btn.y + btn.h - (client.font.lineHeight * smallScale) - 1;
-            
-            context.pose().translate(cpsX, cpsY);
-            context.pose().scale(smallScale, smallScale);
-            
-            int cpsColor = textColor; 
-            context.text(client.font, com.eymistaken.simplecps.util.EymHudFonts.text(cpsStr), 0, 0, cpsColor);
-            
-            context.pose().popMatrix();
-        }
-        
-        context.pose().popMatrix();
-    }
-    
     @Override
     public java.util.List<com.eymistaken.simplecps.api.HudModuleSetting> getContextMenuSettings() {
         SimpleCPSConfig config = SimpleCPSConfig.instance;
         java.util.List<com.eymistaken.simplecps.api.HudModuleSetting> settings = new java.util.ArrayList<>();
         settings.addAll(java.util.List.of(
             new com.eymistaken.simplecps.api.BooleanSetting("Enable Keystrokes", () -> config.showKeystrokes, v -> config.showKeystrokes = v),
-            new com.eymistaken.simplecps.api.CycleSetting("Effect",
-                java.util.Arrays.asList("None", "Squish", "Ripple", "Both"),
-                () -> config.keystrokesEffectMode,
-                v -> { config.keystrokesEffectMode = v; com.eymistaken.simplecps.SimpleCPSConfig.save(); }
-            ),
+            // applyTo, not a bare assignment: a design carries its arrangement,
+            // palette and animation, and setting only the field left the keys sitting
+            // in the previous design's layout wearing the new one's texture.
+            cycle("Design", KeystrokesDesign.values(),
+                d -> d.display(),
+                () -> config.keystrokesDesign,
+                v -> v.applyTo(config)),
+            // Animations are not here on purpose. Several can run at once now, and a
+            // set is not something a cycle setting can express — the designer's
+            // animation drawer owns them.
+            new com.eymistaken.simplecps.api.BooleanSetting("Board",
+                () -> config.keystrokesBoard,
+                v -> { config.keystrokesBoard = v; SimpleCPSConfig.save(); }),
             new com.eymistaken.simplecps.api.ActionSetting("Open Designer", () -> {
                 net.minecraft.client.Minecraft client = net.minecraft.client.Minecraft.getInstance();
                 client.execute(() -> client.gui.setScreen(new com.eymistaken.simplecps.gui.KeystrokesDesignerScreen(client.gui.screen())));
             })
         ));
         return settings;
+    }
+
+    /**
+     * A {@code CycleSetting} over an enum's values. The editor's cycle setting works
+     * in indices, so every one of these would otherwise repeat the same
+     * index-to-constant conversion and the same "unknown value means the first one"
+     * guard.
+     */
+    private static <E extends Enum<E>> com.eymistaken.simplecps.api.CycleSetting cycle(
+            String name, E[] values, java.util.function.Function<E, String> label,
+            java.util.function.Supplier<E> get, java.util.function.Consumer<E> set) {
+        java.util.List<String> names = new java.util.ArrayList<>();
+        for (E value : values) names.add(label.apply(value));
+        return new com.eymistaken.simplecps.api.CycleSetting(name, names,
+            () -> {
+                E current = get.get();
+                for (int i = 0; i < values.length; i++) {
+                    if (values[i] == current) return i;
+                }
+                return 0;
+            },
+            index -> {
+                set.accept(values[Math.floorMod(index, values.length)]);
+                SimpleCPSConfig.save();
+            });
     }
 }

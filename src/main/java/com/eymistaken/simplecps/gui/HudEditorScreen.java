@@ -119,11 +119,23 @@ public class HudEditorScreen extends Screen {
         return RenderUtil.withAlpha(argb, p);
     }
 
-    // Generic text prompt overlay (used for renaming a config)
+    // Generic text prompt overlay (renaming a config, and typing in a share code).
+    //
+    // Backed by the settings screen's TextInput rather than a raw String: a share
+    // code is far too long to retype, so the field has to support Ctrl+V, and a
+    // hand-rolled buffer had no paste, no caret movement and no selection.
     private boolean textPromptActive = false;
-    private String textPromptBuffer = "";
+    private final com.eymistaken.simplecps.gui.settings.TextInput textPromptInput =
+        new com.eymistaken.simplecps.gui.settings.TextInput();
     private String textPromptLabel = "";
     private java.util.function.Consumer<String> textPromptCallback = null;
+
+    /** Width of the prompt box, wide enough that a pasted share code is workable. */
+    private static final int PROMPT_W = 220;
+
+    /** How long the Export Code row reads "COPIED!" after a successful export. */
+    private static final long COPIED_MILLIS = 1400;
+    private long copiedUntil = 0;
 
     // For text editing (Stage 4 prep)
     private com.eymistaken.simplecps.api.TextSetting textEditTarget = null;
@@ -362,17 +374,24 @@ public class HudEditorScreen extends Screen {
         }
 
         if (textEditTarget != null || textPromptActive) {
-            String label = textPromptActive ? textPromptLabel : textEditTarget.label;
-            String buffer = textPromptActive ? textPromptBuffer : textEditBuffer;
-            int cx = this.width / 2;
-            int cy = this.height - 40;
-            context.fill(cx - 100, cy - 10, cx + 100, cy + 10, 0xAA000000);
-            context.fill(cx - 101, cy - 11, cx + 101, cy - 10, 0xFFFFFFFF);
-            context.fill(cx - 101, cy + 10, cx + 101, cy + 11, 0xFFFFFFFF);
-            context.fill(cx - 101, cy - 10, cx - 100, cy + 10, 0xFFFFFFFF);
-            context.fill(cx + 100, cy - 10, cx + 101, cy + 10, 0xFFFFFFFF);
+            int[] box = promptBox();
+            context.fill(box[0], box[1], box[0] + box[2], box[1] + box[3], 0xAA000000);
+            context.fill(box[0] - 1, box[1] - 1, box[0] + box[2] + 1, box[1], 0xFFFFFFFF);
+            context.fill(box[0] - 1, box[1] + box[3], box[0] + box[2] + 1, box[1] + box[3] + 1, 0xFFFFFFFF);
+            context.fill(box[0] - 1, box[1], box[0], box[1] + box[3], 0xFFFFFFFF);
+            context.fill(box[0] + box[2], box[1], box[0] + box[2] + 1, box[1] + box[3], 0xFFFFFFFF);
 
-            context.centeredText(this.font, EymHudFonts.text(label + ": " + buffer + "_"), cx, cy - 4, 0xFFFFFFFF);
+            String label = (textPromptActive ? textPromptLabel : textEditTarget.label) + ": ";
+            context.text(this.font, EymHudFonts.text(label), box[0] + 4, box[1] + 6, 0xFFFFFFFF, true);
+
+            int fieldX = promptFieldX();
+            int fieldW = box[0] + box[2] - 4 - fieldX;
+            if (textPromptActive) {
+                textPromptInput.render(context, this.font, fieldX, box[1], fieldW, box[3], true, 0xFFFFFFFF);
+            } else {
+                context.text(this.font, EymHudFonts.text(textEditBuffer + "_"), fieldX, box[1] + 6,
+                    0xFFFFFFFF, true);
+            }
         }
     }
     
@@ -382,8 +401,14 @@ public class HudEditorScreen extends Screen {
         double mouseY = click.y();
         int button = click.button();
 
-        // While the rename prompt is up, swallow all clicks (Enter/Esc dismiss it).
+        // While the prompt is up, swallow all clicks (Enter/Esc dismiss it). A click
+        // inside the field still places the caret, so a pasted code can be corrected.
         if (textPromptActive) {
+            int[] box = promptBox();
+            if (button == 0 && mouseY >= box[1] && mouseY < box[1] + box[3]
+                && mouseX >= promptFieldX() && mouseX < box[0] + box[2]) {
+                textPromptInput.onClick(this.font, mouseX, promptFieldX(), false);
+            }
             return true;
         }
 
@@ -1073,21 +1098,36 @@ public class HudEditorScreen extends Screen {
 
     /** Copy the whole current config to the clipboard as an EYMHUD1- share code. */
     private void exportShareCode() {
-        setShareStatus(com.eymistaken.simplecps.util.HudActions.exportShareCode().message());
+        com.eymistaken.simplecps.util.HudActions.Result result =
+            com.eymistaken.simplecps.util.HudActions.exportShareCode();
+        // The row itself confirms the copy, so the feedback is where the click was
+        // rather than only on a status line under the menu.
+        if (result.ok()) copiedUntil = System.currentTimeMillis() + COPIED_MILLIS;
+        setShareStatus(result.message());
     }
 
     /**
-     * Read a share code from the clipboard and apply it. The current config is
-     * backed up to a preset first so an unwanted import can be undone.
+     * Ask for a share code and apply it. Typed rather than read straight off the
+     * clipboard: silently applying whatever happened to be copied is a surprising
+     * amount of destruction for one menu click, and it made importing a code someone
+     * sent in chat a matter of getting the copy exactly right first.
+     *
+     * <p>The current config is backed up to a preset before anything is replaced.
      */
     private void importShareCode() {
-        com.eymistaken.simplecps.util.HudActions.Result result =
-            com.eymistaken.simplecps.util.HudActions.importShareCode();
-        if (result.ok()) {
-            onConfigReplaced();
-            cachedPresetNames = ConfigPresetManager.listPresets();
-        }
-        setShareStatus(result.message());
+        startTextPrompt("Import Code", "", code -> {
+            com.eymistaken.simplecps.util.HudActions.Result result =
+                com.eymistaken.simplecps.util.HudActions.importShareCode(code);
+            if (result.ok()) {
+                onConfigReplaced();
+                cachedPresetNames = ConfigPresetManager.listPresets();
+            }
+            setShareStatus(result.message());
+            // The prompt closed the menu on its way in; reopening it is what makes the
+            // result visible, since the status line lives inside it.
+            globalMenuOpen = true;
+            globalMenuAnim.snap(0f);
+        });
     }
 
     private void resetHudLayout() {
@@ -1316,10 +1356,12 @@ public class HudEditorScreen extends Screen {
         context.text(this.font, EymHudFonts.text("Server Configs"), x + 5, rSrv + 6, fade(0xFFFFFFFF, p), true);
         context.text(this.font, EymHudFonts.text(">"), x + w - this.font.width(EymHudFonts.text(">")) - 6, rSrv + 6, fade(0xFFFFFFFF, p), true);
 
-        // Row 5: Export Code
+        // Row 5: Export Code, which briefly confirms the copy in place
         int rExp = y + 20 + GLOBAL_ROW_EXPORT_CODE * 20;
         if (hoverRow(mouseX, mouseY, x, rExp, w)) context.fill(x, rExp, x + w, rExp + 20, fade(0xFF444444, p));
-        context.text(this.font, EymHudFonts.text("Export Code"), x + 5, rExp + 6, fade(0xFF55FF55, p), true);
+        boolean justCopied = System.currentTimeMillis() < copiedUntil;
+        context.text(this.font, EymHudFonts.text(justCopied ? "Copied!" : "Export Code"), x + 5, rExp + 6,
+            fade(justCopied ? 0xFFAAFFAA : 0xFF55FF55, p), true);
 
         // Row 6: Import Code
         int rImp = y + 20 + GLOBAL_ROW_IMPORT_CODE * 20;
@@ -1570,7 +1612,9 @@ public class HudEditorScreen extends Screen {
     private void startTextPrompt(String label, String initial, java.util.function.Consumer<String> callback) {
         textPromptActive = true;
         textPromptLabel = label;
-        textPromptBuffer = initial == null ? "" : initial;
+        textPromptInput.setMaxLength(4096);
+        textPromptInput.setValue(initial == null ? "" : initial);
+        textPromptInput.selectAll();
         textPromptCallback = callback;
         // Close menus so the prompt overlay is unobstructed.
         configsSubmenuOpen = false;
@@ -1581,16 +1625,27 @@ public class HudEditorScreen extends Screen {
 
     private void closeTextPrompt() {
         textPromptActive = false;
-        textPromptBuffer = "";
+        textPromptInput.setValue("");
         textPromptLabel = "";
         textPromptCallback = null;
+    }
+
+    /** The prompt box as {@code {x, y, w, h}}. */
+    private int[] promptBox() {
+        return new int[] { this.width / 2 - PROMPT_W / 2, this.height - 50, PROMPT_W, 20 };
+    }
+
+    /** Where the editable part of the prompt starts, just past its label. */
+    private int promptFieldX() {
+        String label = (textPromptActive ? textPromptLabel : textEditTarget == null ? "" : textEditTarget.label) + ": ";
+        return promptBox()[0] + 4 + this.font.width(EymHudFonts.text(label));
     }
 
     @Override
     public boolean charTyped(CharacterEvent charInput) {
         char chr = (char) charInput.codepoint();
         if (textPromptActive) {
-            textPromptBuffer += chr;
+            textPromptInput.charTyped(charInput);
             return true;
         }
         if (textEditTarget != null) {
@@ -2054,22 +2109,21 @@ public class HudEditorScreen extends Screen {
     public boolean keyPressed(KeyEvent keyInput) {
         int keyCode = keyInput.input();
         if (textPromptActive) {
-            if (keyCode == GLFW.GLFW_KEY_ENTER) {
+            if (keyInput.isConfirmation()) {
                 java.util.function.Consumer<String> cb = textPromptCallback;
-                String val = textPromptBuffer;
+                String val = textPromptInput.getValue();
                 closeTextPrompt();
                 if (cb != null) cb.accept(val);
                 return true;
-            } else if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
+            }
+            if (keyInput.isEscape()) {
                 closeTextPrompt();
                 return true;
-            } else if (keyCode == GLFW.GLFW_KEY_BACKSPACE) {
-                if (!textPromptBuffer.isEmpty()) {
-                    textPromptBuffer = textPromptBuffer.substring(0, textPromptBuffer.length() - 1);
-                }
-                return true;
             }
-            return true; // swallow all other keys while typing (no nudging, etc.)
+            // TextInput handles paste, selection and caret movement; anything it does
+            // not take is swallowed anyway so a keystroke never nudges an element.
+            textPromptInput.keyPressed(keyInput);
+            return true;
         }
         if (textEditTarget != null) {
             if (keyCode == GLFW.GLFW_KEY_ENTER) {
