@@ -16,7 +16,7 @@ import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
 /**
- * Encodes a config or a keystrokes layout into a short shareable string and back.
+ * Encodes a config, or the whole Keystrokes look, into a short shareable string and back.
  *
  * <p>Format: {@code EYMHUD1-<base64url(gzip(json))>}, where the JSON is an envelope
  * {@code {"v":<schema>,"mv":"<mod version>","t":"<type>","d":<payload>}}. The prefix
@@ -33,8 +33,17 @@ public final class HudShareCodec {
     public static final String TYPE_CONFIG = "config";
     public static final String TYPE_KEYSTROKES = "keys";
 
-    /** Bump when the payload shape changes in a way older builds cannot read. */
-    private static final int SCHEMA_VERSION = 1;
+    /**
+     * Payload schema, stamped per type so one payload growing does not invalidate the
+     * other. A config payload has not changed shape, so it stays at 1 and older builds
+     * go on reading it; a keystrokes payload became an object at 2, and stamping that
+     * is what makes an older build reject it with "not a valid share code" instead of
+     * half-applying it.
+     */
+    private static final int SCHEMA_CONFIG = 1;
+    private static final int SCHEMA_KEYSTROKES = 2;
+    /** Highest schema this build understands; anything above it was written by a newer one. */
+    private static final int MAX_SCHEMA = 2;
 
     /** A legitimate full-config code is a couple of KB; anything near this is an attack. */
     private static final int MAX_ENCODED_CHARS = 64 * 1024;
@@ -53,12 +62,21 @@ public final class HudShareCodec {
     /** Share code for the entire current config. */
     public static String encodeConfig() {
         SimpleCPSConfig.collectModuleState(); // this path does not go through save()
-        return encode(TYPE_CONFIG, GSON.toJsonTree(SimpleCPSConfig.instance));
+        return encode(TYPE_CONFIG, GSON.toJsonTree(SimpleCPSConfig.instance), SCHEMA_CONFIG);
     }
 
-    /** Share code for just the keystrokes layout. */
+    /**
+     * Share code for the whole Keystrokes look — the key list and the design,
+     * animation and palette it was drawn with.
+     *
+     * <p>It used to carry only {@code keystrokesLayout}, which meant the geometry
+     * arrived wearing whatever design the receiver already had: a compass layout
+     * repainted as a plain grid. See {@link SimpleCPSConfig.KeystrokesShare}.
+     */
     public static String encodeKeystrokes() {
-        return encode(TYPE_KEYSTROKES, GSON.toJsonTree(SimpleCPSConfig.instance.keystrokesLayout));
+        return encode(TYPE_KEYSTROKES,
+            GSON.toJsonTree(SimpleCPSConfig.KeystrokesShare.capture(SimpleCPSConfig.instance)),
+            SCHEMA_KEYSTROKES);
     }
 
     /** Mod version of this install, or "" if it cannot be determined. */
@@ -80,9 +98,9 @@ public final class HudShareCodec {
         return !here.isEmpty() && !here.equals(decoded.modVersion());
     }
 
-    private static String encode(String type, com.google.gson.JsonElement payload) {
+    private static String encode(String type, com.google.gson.JsonElement payload, int schema) {
         JsonObject envelope = new JsonObject();
-        envelope.addProperty("v", SCHEMA_VERSION);
+        envelope.addProperty("v", schema);
         envelope.addProperty("mv", modVersion());
         envelope.addProperty("t", type);
         envelope.add("d", payload);
@@ -133,7 +151,7 @@ public final class HudShareCodec {
             JsonObject envelope = JsonParser.parseString(out.toString(StandardCharsets.UTF_8)).getAsJsonObject();
             // Codes written before "v" existed are schema 1 by definition.
             int schema = envelope.has("v") ? envelope.get("v").getAsInt() : 1;
-            if (schema > SCHEMA_VERSION) return null; // written by a newer build
+            if (schema > MAX_SCHEMA) return null; // written by a newer build
             String type = envelope.get("t").getAsString();
             String writerVersion = envelope.has("mv") ? envelope.get("mv").getAsString() : "";
             return new Decoded(type, envelope.get("d").toString(), schema, writerVersion);
@@ -168,14 +186,9 @@ public final class HudShareCodec {
                     SimpleCPSConfig.distributeModuleState();
                 }
                 case TYPE_KEYSTROKES -> {
-                    List<SimpleCPSConfig.KeyButtonData> layout = GSON.fromJson(
-                        decoded.payloadJson(),
-                        new TypeToken<List<SimpleCPSConfig.KeyButtonData>>() {}.getType()
-                    );
-                    List<SimpleCPSConfig.KeyButtonData> sanitized =
-                        SimpleCPSConfig.sanitizeKeystrokesLayout(layout);
-                    if (sanitized.isEmpty()) return false;
-                    SimpleCPSConfig.instance.keystrokesLayout = sanitized;
+                    SimpleCPSConfig.KeystrokesShare share = readKeystrokes(decoded.payloadJson());
+                    if (share == null) return false;
+                    if (!share.applyTo(SimpleCPSConfig.instance)) return false;
                     SimpleCPSConfig.instance.normalize();
                 }
                 default -> {
@@ -188,5 +201,31 @@ public final class HudShareCodec {
         }
         SimpleCPSConfig.save();
         return true;
+    }
+
+    /**
+     * Read a keystrokes payload in either shape it has ever had.
+     *
+     * <p>The shape is what decides, not the stamped schema: schema 1 wrote a bare key
+     * list, schema 2 writes the whole look as an object. A schema 1 code still imports
+     * — it just brings no look with it, so the receiver keeps the design and palette it
+     * already had, which is exactly what those codes have always done.
+     *
+     * @return the share to apply, or null if the payload is neither shape
+     */
+    private static SimpleCPSConfig.KeystrokesShare readKeystrokes(String payloadJson) {
+        com.google.gson.JsonElement payload = JsonParser.parseString(payloadJson);
+        if (payload.isJsonObject()) {
+            return GSON.fromJson(payload, SimpleCPSConfig.KeystrokesShare.class);
+        }
+        if (payload.isJsonArray()) {
+            List<SimpleCPSConfig.KeyButtonData> layout = GSON.fromJson(
+                payload, new TypeToken<List<SimpleCPSConfig.KeyButtonData>>() {}.getType());
+            SimpleCPSConfig.KeystrokesShare share =
+                SimpleCPSConfig.KeystrokesShare.capture(SimpleCPSConfig.instance);
+            share.layout = layout;
+            return share;
+        }
+        return null;
     }
 }
