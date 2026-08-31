@@ -121,4 +121,42 @@ public final class HudActions {
         }
         return new Result(true, "Imported! (backup saved)");
     }
+
+    /** Copy just the keystrokes layout to the clipboard as an {@code EYMHUD1-} code. */
+    public static Result exportKeystrokes() {
+        String code = HudShareCodec.encodeKeystrokes();
+        if (code == null) return new Result(false, "Export failed");
+
+        Minecraft client = Minecraft.getInstance();
+        if (client == null) return new Result(false, "Export failed");
+        client.keyboardHandler.setClipboard(code);
+        return new Result(true, "Copied to clipboard!");
+    }
+
+    /**
+     * Apply a keystrokes share code the user typed or pasted into a field.
+     *
+     * <p>Unlike {@link #importShareCode(String)} this takes no preset backup. It only
+     * ever replaces the layout, and the designer that calls it has already pushed the
+     * old layout onto its own undo stack — burning a preset slot per import as well
+     * would fill the list with backups nobody asked for.
+     */
+    public static Result importKeystrokes(String code) {
+        if (code == null || code.trim().isEmpty()) return new Result(false, "Enter a code first");
+
+        HudShareCodec.Decoded decoded = HudShareCodec.decode(code);
+        if (decoded == null) return new Result(false, "Not a valid share code");
+        if (!HudShareCodec.TYPE_KEYSTROKES.equals(decoded.type())) {
+            // The mirror of the message importShareCode gives for a keystrokes code.
+            return new Result(false, "That's a config code - use the HUD editor");
+        }
+
+        if (!HudShareCodec.apply(decoded)) {
+            return new Result(false, "Import failed");
+        }
+        if (HudShareCodec.isFromOtherVersion(decoded)) {
+            return new Result(true, "Imported from v" + decoded.modVersion());
+        }
+        return new Result(true, "Imported!");
+    }
 }

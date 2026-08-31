@@ -39,7 +39,12 @@ public class SimpleCPSConfig {
             instance.normalize();
         } else {
             instance.resetLayout();
-            instance.ensureDefaults();
+            // normalize(), not just ensureDefaults(): the design and animation fields
+            // start null so an old config can be told apart from one that really
+            // chose "none", and it is coalesceEnums() inside normalize() that turns
+            // that null into the real default. Without it a fresh install would get
+            // no key animation at all.
+            instance.normalize();
             save(); // Create default
         }
     }
@@ -144,6 +149,48 @@ public class SimpleCPSConfig {
         if (comboHeatmapMode == null) comboHeatmapMode = HeatmapMode.MEDIUM;
         if (combatMode == null) combatMode = CombatMode.MODERN;
         if (hudFont == null) hudFont = HudFont.VANILLA;
+
+        // Designs and animations arrived after these configs were written, so GSON
+        // leaves them null. Derive them from the old effect mode rather than
+        // resetting the player to the defaults: 0=None 1=Squish 2=Ripple 3=Both.
+        if (keystrokesDesign == null) {
+            keystrokesDesign = com.eymistaken.simplecps.modules.KeystrokesDesign.BASELINE;
+        }
+        // Two migrations in a row: the effect mode became a motion and a fill, and
+        // those became lists once several animations could run together. Each step
+        // only fires when the newer field is absent, so a config from any version
+        // arrives with the player's effects intact.
+        if (keystrokesMotions == null) {
+            keystrokesMotions = new ArrayList<>();
+            boolean squish = keystrokesMotion != null
+                ? keystrokesMotion != com.eymistaken.simplecps.modules.KeystrokesAnim.Motion.NONE
+                : (keystrokesEffectMode == 1 || keystrokesEffectMode == 3);
+            if (squish) {
+                keystrokesMotions.add(keystrokesMotion != null ? keystrokesMotion
+                    : com.eymistaken.simplecps.modules.KeystrokesAnim.Motion.SQUISH);
+            }
+        }
+        if (keystrokesFills == null) {
+            keystrokesFills = new ArrayList<>();
+            boolean ripple = keystrokesFill != null
+                ? keystrokesFill != com.eymistaken.simplecps.modules.KeystrokesAnim.Fill.NONE
+                : (keystrokesEffectMode == 2 || keystrokesEffectMode == 3);
+            if (ripple) {
+                keystrokesFills.add(keystrokesFill != null ? keystrokesFill
+                    : com.eymistaken.simplecps.modules.KeystrokesAnim.Fill.RIPPLE);
+            }
+        }
+        // A hand-edited or foreign config can carry nulls, duplicates and NONE.
+        keystrokesMotions = com.eymistaken.simplecps.modules.KeystrokesAnim
+            .cleanMotions(keystrokesMotions);
+        keystrokesFills = com.eymistaken.simplecps.modules.KeystrokesAnim
+            .cleanFills(keystrokesFills);
+        keystrokesFillDirection = com.eymistaken.simplecps.modules.KeystrokesAnim
+            .coerceAll(keystrokesFills, keystrokesFillDirection);
+
+        // A module-wide design cannot also be the global default for one key, but it
+        // can legitimately be the global default itself, so only the per-key copies
+        // are policed - see sanitizeKeystrokesLayout.
     }
 
     private void coalesceStrings() {
@@ -223,10 +270,32 @@ public class SimpleCPSConfig {
             key.h = clamp(key.h, 1, 1024);
             key.labelX = key.labelX < 0 ? -1 : offset(key.labelX);
             key.labelY = key.labelY < 0 ? -1 : offset(key.labelY);
+            // A share code from a stranger reaches this method. A zero or negative
+            // scale would render the label invisible and divide by zero in the
+            // designer's centering math.
+            key.labelScale = clamp(key.labelScale, MIN_LABEL_SCALE, MAX_LABEL_SCALE);
+            key.lineWidthPercent = clamp(key.lineWidthPercent, MIN_LINE_WIDTH, MAX_LINE_WIDTH);
+            // A module-wide design describes the whole layout, so one key cannot wear
+            // it while its neighbours stay boxes. Drop it back to the global setting.
+            if (key.design != null && key.design.isModuleWide()) key.design = null;
+            // A share code can pair a perimeter fill with a linear direction, which
+            // would leave the fill stuck at zero rather than looking wrong.
+            if (key.direction != null) {
+                key.direction = com.eymistaken.simplecps.modules.KeystrokesAnim
+                    .coerce(key.fill, key.direction);
+            }
             out.add(key);
         }
         return out;
     }
+
+    /** Label scale bounds, shared by the designer's stepper and the sanitizer. */
+    public static final int MIN_LABEL_SCALE = 50;
+    public static final int MAX_LABEL_SCALE = 400;
+
+    /** Line-mode bar length bounds, as a percentage of the key's inner width. */
+    public static final int MIN_LINE_WIDTH = 10;
+    public static final int MAX_LINE_WIDTH = 100;
 
     private static final int MAX_KEYSTROKE_BUTTONS = 256;
     private static final int MAX_OFFSET = 10_000;
@@ -426,7 +495,38 @@ public class SimpleCPSConfig {
     public int keystrokesPressedColor = 0x00FF00;
     public int keystrokesBackgroundColor = 0x000000;
     public int keystrokesBackgroundOpacity = 128;
+    /**
+     * Legacy effect selector, kept only so an old config still migrates. Read once
+     * in {@link #coalesceEnums()} and never written again; the live settings are
+     * {@link #keystrokesMotion} and {@link #keystrokesFill}.
+     */
     public int keystrokesEffectMode = 1; // 0=None, 1=Squish, 2=Ripple, 3=Both
+
+    /** How a key looks at rest. See {@link com.eymistaken.simplecps.modules.KeystrokesDesign}. */
+    public com.eymistaken.simplecps.modules.KeystrokesDesign keystrokesDesign = null;
+    /**
+     * Single-animation settings from before animations could be combined. Read once
+     * in {@link #coalesceEnums()} to seed the lists below, then left alone.
+     */
+    public com.eymistaken.simplecps.modules.KeystrokesAnim.Motion keystrokesMotion = null;
+    public com.eymistaken.simplecps.modules.KeystrokesAnim.Fill keystrokesFill = null;
+
+    /**
+     * How a key moves and how it is painted when pressed. Independent of the design,
+     * and of each other — several can run at once, which is why these are lists.
+     * Empty means nothing of that kind happens.
+     */
+    public List<com.eymistaken.simplecps.modules.KeystrokesAnim.Motion> keystrokesMotions = null;
+    public List<com.eymistaken.simplecps.modules.KeystrokesAnim.Fill> keystrokesFills = null;
+    /** Which side a directional fill starts from. */
+    public com.eymistaken.simplecps.modules.KeystrokesAnim.Direction keystrokesFillDirection = null;
+    /** The release trail. Its own switch because it fires on release, not on press. */
+    public boolean keystrokesGhost = false;
+    /**
+     * The ornamented board behind the whole cluster. Deliberately not part of the
+     * design enum, so it can back any style rather than only the slot one.
+     */
+    public boolean keystrokesBoard = false;
     
     // Toggleable Defaults
     public boolean showLCTRL = true;
@@ -449,6 +549,32 @@ public class SimpleCPSConfig {
         @com.google.gson.annotations.SerializedName("btnPressedColor")
         public int btnPressedColor = -1; // -1 means global pressed color
         public Boolean animationEnabled = null; // null means unset (treat as true)
+
+        /**
+         * Per-key overrides of the module-wide look and feel. {@code null} means
+         * "use the global setting" — the same idea as {@code btnColor}'s -1, but
+         * spelled as a null because an enum has no spare sentinel value.
+         */
+        public com.eymistaken.simplecps.modules.KeystrokesDesign design = null;
+        public com.eymistaken.simplecps.modules.KeystrokesAnim.Motion motion = null;
+        public com.eymistaken.simplecps.modules.KeystrokesAnim.Fill fill = null;
+        public com.eymistaken.simplecps.modules.KeystrokesAnim.Direction direction = null;
+
+        /** Hidden keys are skipped everywhere: not drawn, and not part of the module's size. */
+        public boolean hidden = false;
+        /** Label size as a percentage, 50-400. Doubles as the bar thickness in line mode. */
+        public int labelScale = 100;
+        /**
+         * Draw a solid bar instead of the label text. This is what a space bar actually
+         * wants; before it existed the only way to get one was a label of dashes.
+         */
+        public boolean labelLine = false;
+        /**
+         * Bar length in line mode, as a percentage of the key's inner width. The
+         * thickness is {@link #labelScale}; without this the bar was always the full
+         * width, so a space bar could only ever look like one thing.
+         */
+        public int lineWidthPercent = 100;
 
         /**
          * Required by GSON. Without a no-arg constructor it allocates through Unsafe

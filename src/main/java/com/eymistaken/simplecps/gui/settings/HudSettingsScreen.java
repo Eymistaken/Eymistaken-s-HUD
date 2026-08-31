@@ -66,7 +66,7 @@ import net.minecraft.network.chat.Component;
  * other Minecraft screen; leaving unsaved edits in memory would be worse, because
  * the next unrelated save would silently commit them.
  */
-public class HudSettingsScreen extends Screen implements SettingsSchema.Host {
+public class HudSettingsScreen extends ScaledDesignScreen implements SettingsSchema.Host {
 
     private static final Gson GSON = new GsonBuilder().create();
 
@@ -91,34 +91,10 @@ public class HudSettingsScreen extends Screen implements SettingsSchema.Host {
     // space, so at the far more common guiScale 2 (960px) every control came out
     // at roughly half its intended share of the width and the rows looked starved.
 
-    /** Width of the design mock these proportions come from. */
-    private static final int DESIGN_W = 1600;
-    private static final int DESIGN_H = 900;
-
-    /**
-     * Upper bound on the design-to-panel scale, set by the font: the mock's body
-     * text is 11px, Minecraft's is 9px, so past 9/11 the chrome would keep growing
-     * around text that cannot. Beyond that point the UI just looks empty.
-     */
-    private static final float MAX_UI_SCALE = 9f / 11f;
-
-    /**
-     * Layout width the screen aims for, in virtual units, at 100% menu scale.
-     *
-     * <p>Everything is laid out in this space and then scaled onto the real
-     * screen, which is what makes the menu the same physical size at GUI Scale 1
-     * and at GUI Scale 4. Without it the chrome shrinks with the GUI space while
-     * Minecraft's 9px font cannot, so at high GUI Scale the text ends up twice
-     * the size the design calls for and the whole thing reads as clunky.
-     */
-    private static final int TARGET_VIRTUAL_W = 960;
-    private static final int TARGET_VIRTUAL_H = 540;
-
-    /** Virtual-to-screen factor, and the virtual viewport it produces. */
-    private float renderScale = 1f;
-    private int vw, vh;
-
-    private float uiScale;
+    // DESIGN_W/H, MAX_UI_SCALE, TARGET_VIRTUAL_W/H, renderScale, vw/vh, uiScale,
+    // computeRenderScale(), virtualX/Y() and d() all live on ScaledDesignScreen —
+    // the keystrokes designer is laid out from the same mock and needs every one
+    // of them behaving identically.
 
     private int headerH, footerH, contentHeadH, tabH, moduleRowH, rowH;
     private int pad, gap, resetW, ctrlH;
@@ -133,11 +109,6 @@ public class HudSettingsScreen extends Screen implements SettingsSchema.Host {
     private int sideHeadH, sideFootH;
     private int cardHeadH, presetRowH;
     private int badgeH, indicatorSize;
-
-    /** Scale a length from the design mock, never going below {@code min}. */
-    private int d(int designPx, int min) {
-        return Math.max(min, Math.round(designPx * uiScale));
-    }
 
     // --- Layout (recomputed every frame) -----------------------------------
 
@@ -228,6 +199,14 @@ public class HudSettingsScreen extends Screen implements SettingsSchema.Host {
     private boolean drawerOpen;
 
     private JsonElement openSnapshot;
+    /**
+     * Whether {@link #takeSnapshot()} has run for this screen instance yet.
+     *
+     * <p>Minecraft re-runs {@link #init()} on every window resize. Snapshotting there
+     * unguarded quietly adopted the edits made so far as the baseline, so resizing
+     * mid-edit left CANCEL with nothing to revert to.
+     */
+    private boolean snapshotTaken;
     /** Whether anything has changed since the screen opened — what CANCEL undoes. */
     private boolean changedSinceOpen;
     /** When the queued autosave should fire, or 0 when nothing is pending. */
@@ -296,7 +275,10 @@ public class HudSettingsScreen extends Screen implements SettingsSchema.Host {
 
         resolvePreviewModule();
         presetNames = ConfigPresetManager.listPresets();
-        takeSnapshot();
+        // Only on the first init; a resize must not move the baseline CANCEL restores.
+        // onConfigReplaced() still re-baselines deliberately when a preset or share
+        // code swaps the config out.
+        if (!snapshotTaken) takeSnapshot();
         layout();
     }
 
@@ -304,36 +286,6 @@ public class HudSettingsScreen extends Screen implements SettingsSchema.Host {
     public void resize(int width, int height) {
         super.resize(width, height);
         layout();
-    }
-
-    /**
-     * Pick the virtual viewport and the factor that maps it onto the screen.
-     *
-     * <p>The factor is chosen so that {@code renderScale * guiScale} lands on a
-     * whole number. That product is how many screen pixels one font pixel covers,
-     * and keeping it integral is what stops the text going soft when the menu is
-     * scaled down — at 1080p it works out to exactly 2 whether the player has GUI
-     * Scale on 1, 2 or 4.
-     */
-    private void computeRenderScale() {
-        int guiScale = this.minecraft != null ? Math.max(1, this.minecraft.getWindow().getGuiScale()) : 1;
-
-        // Larger menu scale means fewer virtual units across the same screen.
-        int percent = Math.max(50, Math.min(200, SimpleCPSConfig.instance.settingsMenuScale));
-        float targetW = TARGET_VIRTUAL_W * 100f / percent;
-        float targetH = TARGET_VIRTUAL_H * 100f / percent;
-
-        float physicalW = this.width * (float) guiScale;
-        float physicalH = this.height * (float) guiScale;
-
-        // Round up, not to nearest: rounding down would hand the layout more
-        // virtual units than it was designed for and shrink the menu on small
-        // displays. The epsilon keeps an exact 2.0 from creeping up to 3.
-        int total = Math.max(1, (int) Math.ceil(Math.max(physicalW / targetW, physicalH / targetH) - 0.01f));
-        renderScale = total / (float) guiScale;
-
-        vw = Math.max(160, Math.round(this.width / renderScale));
-        vh = Math.max(120, Math.round(this.height / renderScale));
     }
 
     private void layout() {
@@ -468,6 +420,7 @@ public class HudSettingsScreen extends Screen implements SettingsSchema.Host {
         openSnapshot = GSON.toJsonTree(SimpleCPSConfig.instance);
         changedSinceOpen = false;
         pendingSaveAt = 0;
+        snapshotTaken = true;
     }
 
     /**
@@ -644,15 +597,6 @@ public class HudSettingsScreen extends Screen implements SettingsSchema.Host {
         ctx.pose().popMatrix();
 
         super.extractRenderState(ctx, mouseX, mouseY, delta);
-    }
-
-    /** Map a screen coordinate into the virtual space everything is laid out in. */
-    private int virtualX(double screenX) {
-        return (int) Math.floor(screenX / renderScale);
-    }
-
-    private int virtualY(double screenY) {
-        return (int) Math.floor(screenY / renderScale);
     }
 
     // --- Header -------------------------------------------------------------

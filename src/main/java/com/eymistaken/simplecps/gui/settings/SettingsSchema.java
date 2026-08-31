@@ -569,10 +569,28 @@ public final class SettingsSchema {
                         "Apply the rainbow effect to the text or the background.",
                         SimpleCPSConfig.RainbowTarget.class,
                         c -> c.keystrokesRainbowTarget, (c, v) -> c.keystrokesRainbowTarget = v),
-                    choice("keys.effect", "Key Effect",
-                        "Animation played when a key is pressed.",
-                        List.of("NONE", "SQUISH", "RIPPLE", "BOTH"),
-                        c -> c.keystrokesEffectMode, (c, v) -> c.keystrokesEffectMode = v))),
+                    enumRow("keys.design", "Design",
+                        "Look, animation and palette together. Some designs arrange the keys too.",
+                        com.eymistaken.simplecps.modules.KeystrokesDesign.class,
+                        // applyTo brings the arrangement, colours and animation with
+                        // it; assigning the field alone would change only the texture.
+                        c -> c.keystrokesDesign, (c, v) -> v.applyTo(c)))),
+                // Which animations run is a set, and a one-value-at-a-time row cannot
+                // express one, so ticking them lives in the designer's drawer. What
+                // stays here are the settings that really are single-valued.
+                new Tab("anim", "ANIMATION", List.of(
+                    enumRow("keys.fillDirection", "Fill Direction",
+                        "Which side the fill starts from. Ignored by fills that have no direction.",
+                        com.eymistaken.simplecps.modules.KeystrokesAnim.Direction.class,
+                        c -> c.keystrokesFillDirection,
+                        (c, v) -> c.keystrokesFillDirection = com.eymistaken.simplecps.modules
+                            .KeystrokesAnim.coerceAll(c.keystrokesFills, v)),
+                    bool("keys.ghost", "Release Trail",
+                        "Leave a fading outline behind when a key is released.",
+                        c -> c.keystrokesGhost, (c, v) -> c.keystrokesGhost = v),
+                    bool("keys.board", "Board",
+                        "Frame the whole cluster with an ornamented board.",
+                        c -> c.keystrokesBoard, (c, v) -> c.keystrokesBoard = v))),
                 new Tab("bg", "BACKGROUND", List.of(
                     color("keys.bgColor", "Background Color", "Color of the key backgrounds.",
                         c -> c.keystrokesBackgroundColor, (c, v) -> c.keystrokesBackgroundColor = v),
