@@ -2693,7 +2693,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
             true, SettingsTheme.TEXT);
 
         String message = importMessage.isEmpty()
-            ? "THE LAYOUT IS REPLACED. CTRL+Z PUTS THE OLD ONE BACK."
+            ? "REPLACES LAYOUT, DESIGN AND COLORS. CTRL+Z PUTS THEM BACK."
             : SettingsTheme.up(importMessage);
         SettingsTheme.text(ctx, this.font,
             SettingsTheme.truncate(this.font, message, r[2] - pad * 2),
@@ -3644,9 +3644,11 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
     }
 
     private void runImport() {
-        // Snapshot before the codec swaps the list out, so Ctrl+Z still has the
-        // layout the import replaced.
-        String before = gson.toJson(layout());
+        // Snapshot before the codec swaps the module out — and snapshot the whole
+        // look, not the key list. History is read back as a KeystrokesShare, so a bare
+        // list here threw on Ctrl+Z instead of undoing, and importKeystrokes skips the
+        // preset backup precisely because it trusts this stack.
+        String before = gson.toJson(snapshot());
         HudActions.Result result = HudActions.importKeystrokes(importInput.getValue().trim());
         if (!result.ok()) {
             importMessage = result.message();
@@ -3654,9 +3656,13 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
             return;
         }
         pushHistory(before);
+        // The imported cluster is a different size than the one on screen. See centerW.
+        recenter();
         selection.clear();
         glides.clear();
+        clearLabelGuides();
         labelInputFor = null;
+        labelFocused = false;
         mode = Mode.IDLE;
         dirty = true;
         closeImport();
@@ -3784,21 +3790,14 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
      * only moved keys about, but selecting a design now rewrites the module's
      * animation and palette too — and an undo that put the keys back while leaving
      * the colors changed would be worse than no undo at all.
+     *
+     * <p>It is the same {@link SimpleCPSConfig.KeystrokesShare} a share code carries,
+     * so undo and import can never disagree about what "the look" is: a field added to
+     * one is in the other for free. It used to be a private record here, which is how
+     * it fell a scale and a rainbow setting behind what RESET LAYOUT changes.
      */
-    private record EditState(List<SimpleCPSConfig.KeyButtonData> layout,
-                            KeystrokesDesign design,
-                            List<KeystrokesAnim.Motion> motions,
-                            List<KeystrokesAnim.Fill> fills,
-                            KeystrokesAnim.Direction direction,
-                            boolean ghost, boolean board,
-                            int color, int pressedColor, int bgColor, int bgOpacity) {}
-
-    private EditState snapshot() {
-        SimpleCPSConfig c = config();
-        return new EditState(layout(), c.keystrokesDesign, globalMotions(), globalFills(),
-            c.keystrokesFillDirection, c.keystrokesGhost, c.keystrokesBoard,
-            c.keystrokesColor, c.keystrokesPressedColor,
-            c.keystrokesBackgroundColor, c.keystrokesBackgroundOpacity);
+    private SimpleCPSConfig.KeystrokesShare snapshot() {
+        return SimpleCPSConfig.KeystrokesShare.capture(config());
     }
 
     private void saveUndo() {
@@ -3823,23 +3822,13 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
      * field, which would otherwise animate and edit objects nothing draws any more.
      */
     private void restoreLayout(String json) {
-        EditState snap = gson.fromJson(json, EditState.class);
-        if (snap == null) return;
+        SimpleCPSConfig.KeystrokesShare snap =
+            gson.fromJson(json, SimpleCPSConfig.KeystrokesShare.class);
+        // applyTo sanitizes the layout and leaves the config alone if nothing survives,
+        // so a corrupt entry is a no-op rather than an emptied board.
+        if (snap == null || !snap.applyTo(config())) return;
+        recenter();
 
-        SimpleCPSConfig c = config();
-        c.keystrokesDesign = snap.design();
-        c.keystrokesMotions = KeystrokesAnim.cleanMotions(snap.motions());
-        c.keystrokesFills = KeystrokesAnim.cleanFills(snap.fills());
-        c.keystrokesFillDirection =
-            KeystrokesAnim.coerceAll(c.keystrokesFills, snap.direction());
-        c.keystrokesGhost = snap.ghost();
-        c.keystrokesBoard = snap.board();
-        c.keystrokesColor = snap.color();
-        c.keystrokesPressedColor = snap.pressedColor();
-        c.keystrokesBackgroundColor = snap.bgColor();
-        c.keystrokesBackgroundOpacity = snap.bgOpacity();
-
-        replaceLayout(SimpleCPSConfig.sanitizeKeystrokesLayout(snap.layout()));
         selection.clear();
         glides.clear();
         clearLabelGuides();

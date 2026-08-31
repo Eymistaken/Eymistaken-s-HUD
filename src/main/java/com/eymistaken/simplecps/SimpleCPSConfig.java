@@ -599,6 +599,109 @@ public class SimpleCPSConfig {
         }
     }
 
+    /**
+     * The whole Keystrokes look in one object: the key list plus every module-wide
+     * field that decides how those keys are drawn.
+     *
+     * <p>It exists because a share code carrying only the key list is not a shareable
+     * design. The geometry arrived wearing whatever design the receiver already had,
+     * so a compass layout came back painted as a plain grid — neither the sender's
+     * design nor the receiver's.
+     *
+     * <p>The field list is deliberately the one
+     * {@link com.eymistaken.simplecps.modules.KeystrokesModule#resetVisualDefaults()}
+     * writes: if a visual reset touches it, it is part of the look and belongs here.
+     * Placement is not — the anchor and offsets belong to the receiver's screen, not
+     * to the sender's design.
+     *
+     * <p>This never reaches {@code simplecps.json}. It lives in share codes and in the
+     * designer's in-memory undo stack, which is why the field names are short.
+     */
+    public static final class KeystrokesShare {
+
+        public List<KeyButtonData> layout;
+        public com.eymistaken.simplecps.modules.KeystrokesDesign design;
+        public List<com.eymistaken.simplecps.modules.KeystrokesAnim.Motion> motions;
+        public List<com.eymistaken.simplecps.modules.KeystrokesAnim.Fill> fills;
+        public com.eymistaken.simplecps.modules.KeystrokesAnim.Direction direction;
+        public boolean ghost;
+        public boolean board;
+        public int scale = 80;
+        public boolean rainbow;
+        public RainbowTarget rainbowTarget;
+        public int color = 0xFFFFFF;
+        public int pressedColor = 0x00FF00;
+        public int bgColor = 0x000000;
+        public int bgOpacity = 128;
+
+        /** Required by GSON, for the reason spelled out on {@link KeyButtonData}. */
+        public KeystrokesShare() {}
+
+        /** Read the current look off a config. */
+        public static KeystrokesShare capture(SimpleCPSConfig c) {
+            KeystrokesShare s = new KeystrokesShare();
+            s.layout = c.keystrokesLayout;
+            s.design = c.keystrokesDesign;
+            s.motions = c.keystrokesMotions;
+            s.fills = c.keystrokesFills;
+            s.direction = c.keystrokesFillDirection;
+            s.ghost = c.keystrokesGhost;
+            s.board = c.keystrokesBoard;
+            s.scale = c.keystrokesScale;
+            s.rainbow = c.keystrokesRainbow;
+            s.rainbowTarget = c.keystrokesRainbowTarget;
+            s.color = c.keystrokesColor;
+            s.pressedColor = c.keystrokesPressedColor;
+            s.bgColor = c.keystrokesBackgroundColor;
+            s.bgOpacity = c.keystrokesBackgroundOpacity;
+            return s;
+        }
+
+        /**
+         * Write this look onto a config, layout included.
+         *
+         * <p>It assigns {@code keystrokesDesign} directly instead of going through
+         * {@link com.eymistaken.simplecps.modules.KeystrokesDesign#applyTo}. That rule
+         * exists to stop a bare assignment leaving the <em>previous</em> design's
+         * arrangement and palette in place; here the arrangement, palette and animation
+         * all arrive in the same object, so there is nothing previous left to
+         * contradict. Calling applyTo would re-run arrange() over the incoming geometry
+         * and reset every per-key color to -1 — it would destroy what was shared.
+         *
+         * <p>Nothing is touched unless the layout survives sanitizing, so a false
+         * return really does mean the config is unchanged.
+         *
+         * @return true if it applied
+         */
+        public boolean applyTo(SimpleCPSConfig c) {
+            List<KeyButtonData> keys = sanitizeKeystrokesLayout(layout);
+            if (keys.isEmpty()) return false;
+
+            c.keystrokesLayout = keys;
+            c.keystrokesDesign = design == null
+                ? com.eymistaken.simplecps.modules.KeystrokesDesign.BASELINE
+                : design;
+            c.keystrokesMotions =
+                com.eymistaken.simplecps.modules.KeystrokesAnim.cleanMotions(motions);
+            c.keystrokesFills =
+                com.eymistaken.simplecps.modules.KeystrokesAnim.cleanFills(fills);
+            c.keystrokesFillDirection = com.eymistaken.simplecps.modules.KeystrokesAnim
+                .coerceAll(c.keystrokesFills, direction);
+            c.keystrokesGhost = ghost;
+            c.keystrokesBoard = board;
+            // Clamped here rather than left to clampRanges(): the designer's undo path
+            // applies a share without going through normalize().
+            c.keystrokesScale = clamp(scale, 50, 300);
+            c.keystrokesRainbow = rainbow;
+            c.keystrokesRainbowTarget = rainbowTarget == null ? RainbowTarget.TEXT : rainbowTarget;
+            c.keystrokesColor = color;
+            c.keystrokesPressedColor = pressedColor;
+            c.keystrokesBackgroundColor = bgColor;
+            c.keystrokesBackgroundOpacity = clamp(bgOpacity, 0, 255);
+            return true;
+        }
+    }
+
     public List<KeyButtonData> keystrokesLayout = new ArrayList<>();
 
     public SimpleCPSConfig() {
