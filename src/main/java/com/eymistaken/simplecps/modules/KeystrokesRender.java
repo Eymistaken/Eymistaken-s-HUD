@@ -168,7 +168,7 @@ public final class KeystrokesRender {
 
             // A per-key override names one animation and means only that one, rather
             // than adding to the module's set — otherwise there would be no way for a
-            // key to opt out of an effect its neighbours have.
+            // key to opt out of an effect its neighbors have.
             java.util.List<KeystrokesAnim.Motion> motions = btn.motion != null
                 ? java.util.List.of(btn.motion)
                 : KeystrokesAnim.cleanMotions(config.keystrokesMotions);
@@ -204,8 +204,8 @@ public final class KeystrokesRender {
      * used to each carry their own copy of the drawing, which is what lets a "what
      * you see is what you get" screen quietly stop being that.
      *
-     * @param accent  the pressed colour, which a design may put on the body or the text
-     * @param idle    the resting label colour
+     * @param accent  the pressed color, which a design may put on the body or the text
+     * @param idle    the resting label color
      * @param cps     the click counter to draw, or null to skip it
      */
     public static void drawKey(GuiGraphicsExtractor ctx, Font font,
@@ -239,7 +239,7 @@ public final class KeystrokesRender {
             style.design(), btn, accent);
 
         // A design that floods its body has to move the label off the accent, or the
-        // letter vanishes into the colour that was meant to highlight it.
+        // letter vanishes into the color that was meant to highlight it.
         int labelColor = pressed ? style.design().labelOn(accent) : idle;
         drawLabel(ctx, font, btn, labelColor, labelOverride);
         if (cps != null) drawCps(ctx, font, btn, labelColor, cps);

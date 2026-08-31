@@ -124,10 +124,10 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
     };
 
     /**
-     * A colour per animation, so which one is active reads at a glance instead of
+     * A color per animation, so which one is active reads at a glance instead of
      * having to be word-read. Desaturated to the same recipe as the palette's own
      * green, so they sit inside the design rather than shouting over it; NONE stays
-     * grey precisely because it is the "nothing happening" state.
+     * gray precisely because it is the "nothing happening" state.
      */
     private static int motionColor(KeystrokesAnim.Motion motion) {
         if (motion == null) return SettingsTheme.TEXT_OFF;
@@ -309,7 +309,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
     private int zoom = 1, safeX, safeY, originX, originY;
 
     /**
-     * The cluster size the canvas centres on, in game pixels.
+     * The cluster size the canvas centers on, in game pixels.
      *
      * <p>The origin used to be a constant sized for the stock 67x96 layout, so an
      * arranged design — the compass is 120x134, the honeycomb 100x158 — sat down and
@@ -321,7 +321,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
      * is the only time the cluster's size changes without the player watching a key
      * move under the cursor.
      */
-    private int centreW = 67, centreH = 97;
+    private int centerW = 67, centerH = 97;
 
     public KeystrokesDesignerScreen(Screen parent) {
         super(Component.nullToEmpty("Keystrokes Designer"));
@@ -340,7 +340,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
             openSnapshot = gson.toJson(snapshot());
             snapshotTaken = true;
         }
-        recentre();
+        recenter();
         layout0();
     }
 
@@ -437,8 +437,8 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
 
         safeX = canvasX + (canvasW - SAFE_W * zoom) / 2;
         safeY = canvasY + (canvasH - SAFE_H * zoom) / 2;
-        originX = safeX + (SAFE_W - centreW) / 2 * zoom;
-        originY = safeY + (SAFE_H - centreH) / 2 * zoom;
+        originX = safeX + (SAFE_W - centerW) / 2 * zoom;
+        originY = safeY + (SAFE_H - centerH) / 2 * zoom;
     }
 
     private int centerTextY(int y, int h) {
@@ -994,7 +994,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
 
         // The keys are drawn exactly as the HUD draws them, through the same
         // KeystrokesRender path. Picking a design is pointless if the canvas answers
-        // with a generic grey box instead of what the game will show.
+        // with a generic gray box instead of what the game will show.
         int edge = Math.max(1, zoom);
         SimpleCPSConfig config = config();
         int accent = config.keystrokesPressedColor | 0xFF000000;
@@ -1500,7 +1500,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
      *
      * <p>A per-key override names exactly one animation and means only that one — it
      * replaces the module's set rather than adding to it, so a key can opt out of an
-     * effect its neighbours have.
+     * effect its neighbors have.
      */
     private KeystrokesAnim.Motion keyMotion() {
         SimpleCPSConfig.KeyButtonData k = single();
@@ -1512,7 +1512,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
         return k == null ? null : k.fill;
     }
 
-    /** What a row shows when the key defers: the module's set, summarised. */
+    /** What a row shows when the key defers: the module's set, summarized. */
     private String globalSummary(String id) {
         List<?> values = id.equals("kmotion") ? globalMotions() : globalFills();
         if (values.isEmpty()) return "NONE";
@@ -1544,7 +1544,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
         return true;
     }
 
-    /** The value control on a design row: same geometry as the colour button. */
+    /** The value control on a design row: same geometry as the color button. */
     private int[] designBtnRect(int rowY) {
         int w = d(140, 52);
         return new int[] { inspRight() - w, ctrlY(rowY), w, ctrlH };
@@ -2219,7 +2219,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
             int[] card = galleryCardRect(i);
             // Clip each card to itself, intersected with the scrolling body. One
             // region per card handles both a half-scrolled card and a preview that
-            // would otherwise spill across its neighbour, without nesting regions.
+            // would otherwise spill across its neighbor, without nesting regions.
             int x0 = Math.max(card[0], body[0]);
             int y0 = Math.max(card[1], body[1]);
             int x1 = Math.min(card[0] + card[2], body[0] + body[2]);
@@ -2258,7 +2258,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
             card[0] + gap * 2, centerTextY(card[1], headH),
             active ? SettingsTheme.TEXT_STRONG : SettingsTheme.TEXT_LABEL);
 
-        // Name the animation the design ships with, in its own colour, so the card
+        // Name the animation the design ships with, in its own color, so the card
         // says what picking it will do and not only what it looks like.
         boolean rearranges = design.isModuleWide() || design.arrangement() != null;
         String note = rearranges
@@ -2285,7 +2285,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
      *
      * <p>The design's own palette is used rather than the player's current one: the
      * card is showing what the design will look like once picked, and picking it
-     * applies exactly these colours.
+     * applies exactly these colors.
      */
     private void renderPreviewCluster(GuiGraphicsExtractor ctx, KeystrokesDesign design,
                                       int index, int[] stage) {
@@ -2295,8 +2295,8 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
         if (design == KeystrokesDesign.TIMELINE) {
             // The timeline has no per-key body to show, so the card says what it is
             // rather than drawing an empty stage. On the light preview plate the
-            // muted grey was all but invisible, so it takes the design's own label
-            // colour like every other card's keys do.
+            // muted gray was all but invisible, so it takes the design's own label
+            // color like every other card's keys do.
             SettingsTheme.centeredText(ctx, this.font, "PRESS HISTORY", cx,
                 cy - this.font.lineHeight / 2, design.defaultColors()[0] | 0xFF000000);
             return;
@@ -2307,7 +2307,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
         int margin = d(8, 3);
         // Fit rather than clip. A whole-number scale keeps the edges crisp, but the
         // arranged designs are much taller than the others, and forcing a minimum of
-        // 1 made them spill out of the card and across their neighbours.
+        // 1 made them spill out of the card and across their neighbors.
         float fit = Math.min(
             (stage[2] - margin * 2) / (float) Math.max(1, extent[0]),
             (stage[3] - margin * 2) / (float) Math.max(1, extent[1]));
@@ -2352,7 +2352,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
         // this puts the module-wide look back to the shipping default. The module
         // owns that list, so it is asked rather than copied here.
         new com.eymistaken.simplecps.modules.KeystrokesModule().resetVisualDefaults();
-        recentre();
+        recenter();
 
         selection.clear();
         glides.clear();
@@ -2365,13 +2365,13 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
      * Adopt a design, with the arrangement, animation and palette it was drawn with.
      *
      * <p>The work itself lives on {@link KeystrokesDesign#applyTo} so the HUD editor
-     * and the settings screen get exactly the same behaviour; this only wraps it in
+     * and the settings screen get exactly the same behavior; this only wraps it in
      * one undo step and drops the editing state the new layout invalidates.
      */
     private void applyDesign(KeystrokesDesign design) {
         saveUndo();
         design.applyTo(config());
-        recentre();
+        recenter();
         selection.clear();
         glides.clear();
         clearLabelGuides();
@@ -2462,7 +2462,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
         for (AnimRow row : animRows()) h += animRowH(row) + gap;
         h += pad - gap;
 
-        // Hung under the ANIM button rather than centred, so it reads as that
+        // Hung under the ANIM button rather than centerd, so it reads as that
         // button's drawer instead of as another modal. Pulled back up when the list
         // is taller than the room below the toolbar.
         int x = innerX + pad;
@@ -2503,7 +2503,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
     private void renderAnimPanel(GuiGraphicsExtractor ctx, int mx, int my) {
         ctx.nextStratum();
         int[] r = animPanelRect();
-        // Opaque, not the palette's translucent panel colour: this floats over the
+        // Opaque, not the palette's translucent panel color: this floats over the
         // canvas, and the checkerboard showing through it made the rows hard to read.
         SettingsTheme.rect(ctx, r[0], r[1], r[2], r[3], SettingsTheme.FOCUS_BG);
         SettingsTheme.raised(ctx, r[0], r[1], r[2], r[3], SettingsTheme.PANEL_BG,
@@ -3683,19 +3683,19 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
     private void replaceLayout(List<SimpleCPSConfig.KeyButtonData> keys) {
         layout().clear();
         layout().addAll(keys);
-        recentre();
+        recenter();
     }
 
-    /** Re-measure the cluster the canvas centres on. See {@link #centreW}. */
-    private void recentre() {
+    /** Re-measure the cluster the canvas centers on. See {@link #centerW}. */
+    private void recenter() {
         int w = 0, h = 0;
         for (SimpleCPSConfig.KeyButtonData btn : layout()) {
             if (btn.hidden) continue;
             w = Math.max(w, btn.x + btn.w);
             h = Math.max(h, btn.y + btn.h);
         }
-        centreW = Math.max(1, Math.min(SAFE_W, w));
-        centreH = Math.max(1, Math.min(SAFE_H, h));
+        centerW = Math.max(1, Math.min(SAFE_W, w));
+        centerH = Math.max(1, Math.min(SAFE_H, h));
     }
 
     private List<SimpleCPSConfig.KeyButtonData> fullPreset() {
@@ -3783,7 +3783,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
      * <p>History used to hold only the key list. That was enough while the designer
      * only moved keys about, but selecting a design now rewrites the module's
      * animation and palette too — and an undo that put the keys back while leaving
-     * the colours changed would be worse than no undo at all.
+     * the colors changed would be worse than no undo at all.
      */
     private record EditState(List<SimpleCPSConfig.KeyButtonData> layout,
                             KeystrokesDesign design,
@@ -3952,7 +3952,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
     /**
      * Step one of the inspector's design rows. The cycle runs through {@code null}
      * first, so "use the module setting" is a stop on the wheel rather than a
-     * separate reset button the way the colour rows need one.
+     * separate reset button the way the color rows need one.
      */
     private void cycleDesignRow(String id) {
         if (selection.isEmpty()) return;
@@ -4023,12 +4023,12 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
     }
 
     /**
-     * Apply a change that resizes the label, holding it on the spot it was centred on.
+     * Apply a change that resizes the label, holding it on the spot it was centerd on.
      *
      * <p>{@code labelX}/{@code labelY} are the label's top-left corner, so a label that
      * has been placed by hand grows and shrinks from that corner — shortening a space
      * bar's line made it creep to the left instead of staying put. A label still at -1
-     * re-centres itself and is left alone.
+     * re-centers itself and is left alone.
      */
     private void resizeLabel(java.util.function.Consumer<SimpleCPSConfig.KeyButtonData> change,
                              boolean snapshot) {

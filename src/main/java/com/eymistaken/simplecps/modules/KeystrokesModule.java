@@ -132,7 +132,7 @@ public class KeystrokesModule extends HudModule {
      * outline all paint a few pixels past their key, but reserving space for them
      * would change the module's size every time the design changed — so every other
      * module on that edge would jump about while you were browsing designs. A soft
-     * halo overlapping a neighbour by four pixels is far less disruptive than the
+     * halo overlapping a neighbor by four pixels is far less disruptive than the
      * whole HUD reflowing, so the decoration is simply allowed to bleed.
      *
      * <p>The board is different: it is a deliberate frame around the whole cluster,
@@ -201,7 +201,7 @@ public class KeystrokesModule extends HudModule {
 
         // No key is faked as held. Forcing one showed the pressed color, but which key got
         // it was arbitrary — the layout is user-defined — and it left a single key wearing
-        // a background none of its neighbours had, which read as a rendering fault rather
+        // a background none of its neighbors had, which read as a rendering fault rather
         // than a pressed state. Real presses still register while the menu is open.
 
         if (design(config) == KeystrokesDesign.TIMELINE) {

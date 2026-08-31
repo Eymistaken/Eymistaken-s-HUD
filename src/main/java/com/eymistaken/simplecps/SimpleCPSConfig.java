@@ -276,7 +276,7 @@ public class SimpleCPSConfig {
             key.labelScale = clamp(key.labelScale, MIN_LABEL_SCALE, MAX_LABEL_SCALE);
             key.lineWidthPercent = clamp(key.lineWidthPercent, MIN_LINE_WIDTH, MAX_LINE_WIDTH);
             // A module-wide design describes the whole layout, so one key cannot wear
-            // it while its neighbours stay boxes. Drop it back to the global setting.
+            // it while its neighbors stay boxes. Drop it back to the global setting.
             if (key.design != null && key.design.isModuleWide()) key.design = null;
             // A share code can pair a perimeter fill with a linear direction, which
             // would leave the fill stuck at zero rather than looking wrong.
