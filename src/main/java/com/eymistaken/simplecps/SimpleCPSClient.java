@@ -2,6 +2,7 @@ package com.eymistaken.simplecps;
 
 import com.eymistaken.simplecps.gui.HudEditorScreen;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
@@ -20,6 +21,9 @@ public class SimpleCPSClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         SimpleCPSConfig.load();
+        ComboStats.load();
+        // A new best is written when its combo ends; closing the game mid-combo would skip that.
+        ClientLifecycleEvents.CLIENT_STOPPING.register(client -> ComboStats.flush());
 
         HudModuleManager manager = HudModuleManager.getInstance();
         // Before the plugin loop, so a save triggered during registration already

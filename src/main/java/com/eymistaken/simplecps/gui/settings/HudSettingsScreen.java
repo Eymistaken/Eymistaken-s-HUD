@@ -1,5 +1,6 @@
 package com.eymistaken.simplecps.gui.settings;
 
+import com.eymistaken.simplecps.ComboStats;
 import com.eymistaken.simplecps.ConfigPresetManager;
 import com.eymistaken.simplecps.SimpleCPSConfig;
 import com.eymistaken.simplecps.api.HudModule;
@@ -191,9 +192,13 @@ public class HudSettingsScreen extends ScaledDesignScreen implements SettingsSch
     private boolean shareOk;
 
     /** Which confirmation is on screen, if any. */
-    private enum Dialog { NONE, RESET_ALL, DISCARD }
+    private enum Dialog { NONE, RESET_ALL, DISCARD, RESET_BEST }
 
     private Dialog dialog = Dialog.NONE;
+    // What the modal draws. Set when a dialog opens and kept through its fade-out, by which time
+    // dialog is already NONE; the body is fixed too, since confirming a reset changes what it says.
+    private Dialog shownDialog = Dialog.NONE;
+    private String shownBody = "";
     private final Anim dialogAnim = new Anim(0f);
 
     private boolean drawerOpen;
@@ -537,6 +542,12 @@ public class HudSettingsScreen extends ScaledDesignScreen implements SettingsSch
     public void resetHudLayout() {
         HudActions.resetHudLayout();
         onConfigReplaced();
+    }
+
+    /** The record is not part of the config, so CANCEL could not bring it back: ask first. */
+    @Override
+    public void resetComboBest() {
+        openDialog(Dialog.RESET_BEST);
     }
 
     /**
@@ -2181,20 +2192,40 @@ public class HudSettingsScreen extends ScaledDesignScreen implements SettingsSch
             + "INCLUDING THE EDITS ALREADY WRITTEN TO DISK.";
 
     private String dialogTitle() {
-        return dialog == Dialog.DISCARD ? "DISCARD CHANGES" : "RESET ALL SETTINGS";
+        return switch (shownDialog) {
+            case DISCARD -> "DISCARD CHANGES";
+            case RESET_BEST -> "RESET BEST COMBO";
+            default -> "RESET ALL SETTINGS";
+        };
     }
 
     private String dialogBody() {
-        return dialog == Dialog.DISCARD ? DISCARD_BODY : RESET_BODY;
+        return shownBody;
     }
 
     private String dialogConfirmLabel() {
-        return dialog == Dialog.DISCARD ? "DISCARD" : "RESET";
+        return shownDialog == Dialog.DISCARD ? "DISCARD" : "RESET";
+    }
+
+    private static String bodyFor(Dialog which) {
+        return switch (which) {
+            case DISCARD -> DISCARD_BODY;
+            case RESET_BEST -> {
+                int best = ComboStats.getBest();
+                yield best == 0
+                    ? "NO BEST COMBO HAS BEEN RECORDED YET."
+                    : "YOUR BEST COMBO OF " + best + " WILL BE FORGOTTEN, AND THE RECORD STARTS OVER "
+                        + "FROM YOUR NEXT COMBO.";
+            }
+            default -> RESET_BODY;
+        };
     }
 
     private void openDialog(Dialog which) {
         commitFocus();
         dialog = which;
+        shownDialog = which;
+        shownBody = bodyFor(which);
         dialogAnim.snap(0f);
     }
 
@@ -2207,6 +2238,7 @@ public class HudSettingsScreen extends ScaledDesignScreen implements SettingsSch
                 onConfigReplaced();
             }
             case DISCARD -> discardAndClose();
+            case RESET_BEST -> ComboStats.resetBest();
             case NONE -> { }
         }
     }
@@ -2288,7 +2320,7 @@ public class HudSettingsScreen extends ScaledDesignScreen implements SettingsSch
         boolean keepHovered = SettingsTheme.inside(mouseX, mouseY, modalCancelX(), by, bw, bh);
         SettingsTheme.button(ctx, modalCancelX(), by, bw, bh, keepHovered);
         SettingsTheme.centeredText(ctx, this.font,
-            dialog == Dialog.DISCARD ? "KEEP EDITING" : "CANCEL",
+            shownDialog == Dialog.DISCARD ? "KEEP EDITING" : "CANCEL",
             modalCancelX() + bw / 2, centerTextY(by, bh), SettingsTheme.TEXT);
 
         boolean confirmHovered = SettingsTheme.inside(mouseX, mouseY, modalConfirmX(), by, bw, bh);

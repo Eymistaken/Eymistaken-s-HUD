@@ -63,6 +63,7 @@ public final class SettingsSchema {
         void openHudEditor();
         void openKeystrokesDesigner();
         void resetHudLayout();
+        void resetComboBest();
     }
 
     // --- Rows --------------------------------------------------------------
@@ -606,7 +607,7 @@ public final class SettingsSchema {
             v -> SimpleCPSConfig.instance.showKeystrokes = v);
     }
 
-    private static Page combo() {
+    private static Page combo(Host host) {
         return new Page("combo", "COMBO",
             "Hit combo counter with optional heatmap coloring.",
             List.of(
@@ -648,6 +649,10 @@ public final class SettingsSchema {
                         "Smallest count worth showing, for your combo and for one landed on you. "
                             + "Always Show keeps yours on screen anyway.",
                         1, 5, c -> c.comboMinDisplay, (c, v) -> c.comboMinDisplay = v),
+                    action("combo.resetBest", "Reset Best",
+                        "Your best combo is kept between sessions, and beating it from the second "
+                            + "heatmap tier on flashes BEST on the counter. This forgets it.",
+                        "RESET BEST", false, host::resetComboBest),
                     // Last on purpose: Decay stays for the players who like it, below the plain
                     // rules. DEFAULTS is never normalized, so its null has to read as off here.
                     bool("combo.decay", "Decay",
@@ -662,8 +667,9 @@ public final class SettingsSchema {
                             + "Overrides Rainbow.",
                         c -> c.comboHeatmap, (c, v) -> c.comboHeatmap = v),
                     enumRow("combo.heatmapMode", "Heatmap Difficulty",
-                        "Hits per tier, for the heatmap colors and for how a combo landed on you "
-                            + "darkens and shakes. Resets the combo on change.",
+                        "Hits per tier: where the heatmap colors change, where your count starts to "
+                            + "shake, and how fast a combo landed on you darkens and shakes. Resets the "
+                            + "combo on change.",
                         SimpleCPSConfig.HeatmapMode.class,
                         c -> c.comboHeatmapMode,
                         (c, v) -> {
@@ -676,12 +682,28 @@ public final class SettingsSchema {
                         c -> c.comboColor, (c, v) -> c.comboColor = v),
                     bool("combo.rainbow", "Rainbow", "Enable the rainbow text effect.",
                         c -> c.comboRainbow, (c, v) -> c.comboRainbow = v),
-                    enumRow("combo.impact", "Impact",
-                        "How hard hits land on your count: a punch on every hit, a brief freeze on a "
-                            + "new tier, a kill or a broken combo, and past the top tier a shake that "
-                            + "each hit freezes. OFF keeps it still.",
-                        SimpleCPSConfig.Impact.class,
-                        c -> c.comboImpact, (c, v) -> c.comboImpact = v))),
+                    enumRow("combo.line", "Line",
+                        "The thin line under your count. TIMEOUT shrinks with the time left before the "
+                            + "combo ends. HITS shows your last 8 hits: gray, white for a sprint hit, gold "
+                            + "for a critical one. BOTH puts the hits under the timeout. When a combo landed "
+                            + "on you stacks under yours, the line becomes the divider between them.",
+                        SimpleCPSConfig.ComboLine.class,
+                        c -> c.comboLine, (c, v) -> c.comboLine = v))),
+                // One slider per part of the motion, each in percent of its stock size, so any of
+                // them can be tuned or switched off without touching the others.
+                new Tab("anim", "ANIMATION", List.of(
+                    slider("combo.impact", "Impact %",
+                        "How hard hits land on your count: how far it punches up, and how long it "
+                            + "freezes on a new tier, a new best, a kill, a broken combo and every hit "
+                            + "past the top tier. 0 turns both off.",
+                        0, 200, c -> c.comboImpactStrength, (c, v) -> c.comboImpactStrength = v),
+                    slider("combo.shake", "Shake %",
+                        "How hard your count shakes past the top tier, and a combo landed on you as "
+                            + "it grows. 0 keeps both still, whatever the heatmap settings.",
+                        0, 200, c -> c.comboShakeStrength, (c, v) -> c.comboShakeStrength = v),
+                    slider("combo.jolt", "Hit Jolt %",
+                        "How far a combo landed on you jolts with each hit you take. 0 turns it off.",
+                        0, 200, c -> c.comboJoltStrength, (c, v) -> c.comboJoltStrength = v))),
                 new Tab("bg", "BACKGROUND", List.of(
                     bool("combo.showBg", "Show Background", BG_SHOW_DESC,
                         c -> c.comboShowBackground, (c, v) -> c.comboShowBackground = v),
@@ -1055,7 +1077,7 @@ public final class SettingsSchema {
 
     /** Every built-in page, in the order the sidebar lists them. */
     public static List<Page> builtInPages(Host host) {
-        return List.of(cps(), ping(), fps(), keystrokes(host), combo(), reach(), armor(), general(host));
+        return List.of(cps(), ping(), fps(), keystrokes(host), combo(host), reach(), armor(), general(host));
     }
 
     /** Pages for third-party modules, in registration order. Empty when none are installed. */
