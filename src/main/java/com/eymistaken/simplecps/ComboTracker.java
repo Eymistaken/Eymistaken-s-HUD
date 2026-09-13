@@ -4,6 +4,8 @@ import com.eymistaken.simplecps.api.ComboHeatmap;
 import com.eymistaken.simplecps.api.EymistakenHudEventBus;
 import com.eymistaken.simplecps.api.event.ComboStreakEvent;
 import java.util.ArrayDeque;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -37,7 +39,11 @@ import net.minecraft.world.entity.player.Player;
  * <p>The received combo counts hits taken in a row from one attacker. It ends when that
  * attacker is hit back, dies, or goes the timeout without landing another.
  *
- * <p>What happens to the combo is also queued as {@link Moment}s, for the display to react to.
+ * <p>What happens to the combo is also queued as {@link Moment}s, for the display to react to,
+ * and every counted hit is offered to {@link ComboStats} as a possible new best.
+ *
+ * <p>The latest counted hits are kept as {@link HitMark}s, noting sprint and critical hits, for
+ * the strip under the count.
  */
 public final class ComboTracker {
 
@@ -47,6 +53,11 @@ public final class ComboTracker {
         HIT,
         /** A counted hit that reached a higher heatmap tier. */
         TIER,
+        /**
+         * A counted hit that beat the best combo on record, at the second tier or past it. It
+         * takes the place of HIT or TIER, once per combo.
+         */
+        BEST,
         /** Our target died right after our hit. */
         FINISHER,
         /** Taking damage ended the combo. */
@@ -57,6 +68,15 @@ public final class ComboTracker {
 
     /** A moment and the combo it happened at; {@code time} is in {@code System.nanoTime()} milliseconds. */
     public record Moment(Kind kind, int value, long time) {}
+
+    /** How a counted hit landed. */
+    public enum HitKind { NORMAL, SPRINT, CRIT }
+
+    /** A counted hit for the strip under the count; {@code time} is in {@code System.nanoTime()} milliseconds. */
+    public record HitMark(HitKind kind, long time) {}
+
+    /** How many of the latest counted hits are kept as marks. */
+    public static final int MAX_HIT_MARKS = 8;
 
     /** How long our swing may wait for the server's damage event, on top of latency. */
     private static final long CONFIRM_WINDOW_MS = 200;
@@ -72,8 +92,10 @@ public final class ComboTracker {
     private static final int NO_ENTITY = -1;
     /** Kept short: a moment nobody takes in time is stale anyway. */
     private static final int MAX_MOMENTS = 8;
+    /** The server sends a critical hit's particles this close behind the damage of its hit. */
+    private static final long CRIT_WINDOW_MS = 150;
 
-    private record Swing(long time, boolean fullStrength) {}
+    private record Swing(long time, boolean fullStrength, boolean sprinting) {}
 
     private static int combo = 0;
     private static int targetId = NO_ENTITY;
@@ -81,6 +103,9 @@ public final class ComboTracker {
     private static long lastHitTime = 0;
     private static boolean draining = false;
     private static long nextDrainTime = 0;
+    /** The record this combo set out to beat, fixed at its first hit: the record rises with it. */
+    private static int recordToBeat = 0;
+    private static boolean bestAnnounced = false;
 
     private static int received = 0;
     private static int attackerId = NO_ENTITY;
@@ -95,6 +120,11 @@ public final class ComboTracker {
     /** When other entities last swung, by id. Only kept while attackers go unnamed. */
     private static final Map<Integer, Long> recentSwings = new HashMap<>();
     private static final ArrayDeque<Moment> moments = new ArrayDeque<>();
+    /** Our latest counted hits, oldest first, kept until the next combo starts so an ending still shows them. */
+    private static final ArrayDeque<HitMark> marks = new ArrayDeque<>();
+    private static final Collection<HitMark> marksView = Collections.unmodifiableCollection(marks);
+    /** The entity our latest mark landed on. It outlives the combo, so a kill's critical hit still finds it. */
+    private static int markedTargetId = NO_ENTITY;
     /**
      * Set once a damage event names its cause. From then on, damage without a cause is the
      * environment's rather than a hit whose attacker was left out.
@@ -112,14 +142,16 @@ public final class ComboTracker {
         long now = now();
         boolean fullStrength = config.combatMode != SimpleCPSConfig.CombatMode.MODERN
             || attacker.getAttackStrengthScale(0.5f) >= FULL_STRENGTH;
+        // Read before the attack goes through, since a sprint hit ends the sprint.
+        boolean sprinting = attacker.isSprinting();
 
         if (config.comboHitDetection == SimpleCPSConfig.HitDetection.CLIENT) {
-            if (fullStrength) countHit(target, now);
+            if (fullStrength) countHit(target, now, sprinting);
             return;
         }
         // Spam-clicking after a full swing must not turn the hit the server is about to
         // confirm into a weak one.
-        pendingSwings.merge(target.getId(), new Swing(now, fullStrength),
+        pendingSwings.merge(target.getId(), new Swing(now, fullStrength, sprinting),
             (earlier, later) -> earlier.fullStrength() && !later.fullStrength() ? earlier : later);
     }
 
@@ -161,10 +193,11 @@ public final class ComboTracker {
     }
 
     public static void onAnimate(ClientboundAnimatePacket packet) {
-        if (serverNamesAttackers) return;
         int action = packet.getAction();
-        if (action == ClientboundAnimatePacket.SWING_MAIN_HAND
-                || action == ClientboundAnimatePacket.SWING_OFF_HAND) {
+        if (action == ClientboundAnimatePacket.CRITICAL_HIT) {
+            onCriticalHit(packet.getId());
+        } else if (!serverNamesAttackers && (action == ClientboundAnimatePacket.SWING_MAIN_HAND
+                || action == ClientboundAnimatePacket.SWING_OFF_HAND)) {
             recentSwings.put(packet.getId(), now());
         }
     }
@@ -223,6 +256,25 @@ public final class ComboTracker {
         return receivedHits;
     }
 
+    /**
+     * Our latest counted hits, oldest first and at most {@link #MAX_HIT_MARKS}. They outlast the
+     * combo until the next one starts.
+     */
+    public static Collection<HitMark> getHitMarks() {
+        return marksView;
+    }
+
+    /** Share of the timeout left before the combo ends: 1 on a fresh hit, 0 with no combo or while it drains. */
+    public static float getTimeLeft() {
+        long timeout = timeoutMs(SimpleCPSConfig.instance);
+        if (combo == 0 || draining || timeout <= 0) return 0f;
+        return Math.max(0f, 1f - (now() - lastHitTime) / (float) timeout);
+    }
+
+    public static boolean isDraining() {
+        return draining;
+    }
+
     /** The oldest moment not taken yet, or null. The combo display takes them as it draws. */
     public static Moment pollMoment() {
         return moments.pollFirst();
@@ -242,7 +294,24 @@ public final class ComboTracker {
 
         pendingSwings.remove(packet.entityId());
         Entity target = level.getEntity(packet.entityId());
-        if (swing.fullStrength() && target != null) countHit(target, now);
+        if (swing.fullStrength() && target != null) countHit(target, now, swing.sprinting());
+    }
+
+    /**
+     * Critical hit particles on {@code entityId}. The server sends them right behind the damage
+     * of the hit they go with, and behind the death when that hit was a kill, so if our latest
+     * mark just landed on that entity, it was a critical hit. CLIENT detection counts a round trip
+     * before the server answers.
+     */
+    private static void onCriticalHit(int entityId) {
+        HitMark last = marks.peekLast();
+        if (last == null || entityId != markedTargetId || last.kind() == HitKind.CRIT) return;
+        LocalPlayer player = Minecraft.getInstance().player;
+        boolean early = SimpleCPSConfig.instance.comboHitDetection == SimpleCPSConfig.HitDetection.CLIENT;
+        long window = early && player != null ? confirmWindow(player) : CRIT_WINDOW_MS;
+        if (now() - last.time() > window) return;
+        marks.pollLast();
+        marks.addLast(new HitMark(HitKind.CRIT, last.time()));
     }
 
     private static void onLocalPlayerHurt(ClientboundDamageEventPacket packet, LocalPlayer player,
@@ -299,7 +368,7 @@ public final class ComboTracker {
         receivedHits++;
     }
 
-    private static void countHit(Entity target, long now) {
+    private static void countHit(Entity target, long now, boolean sprinting) {
         SimpleCPSConfig config = SimpleCPSConfig.instance;
         if (combo > 0) {
             boolean switched = !target.getUUID().equals(targetUuid);
@@ -316,16 +385,32 @@ public final class ComboTracker {
         // Hitting back ends the combo that attacker was landing on us.
         if (target.getId() == attackerId) endReceived();
 
+        if (combo == 0) {
+            recordToBeat = ComboStats.getBest();
+            bestAnnounced = false;
+            // The last combo's marks stayed only to see its ending out.
+            marks.clear();
+        }
+
         // Compared around the increment so plugins hear about a tier once, on the hit
         // that reaches it. Independent of comboHeatmap: that only controls coloring.
         ComboHeatmap heatmap = ComboHeatmap.of(config.comboHeatmapMode);
         int previousLevel = heatmap.levelFor(combo);
         combo++;
+        ComboStats.offer(combo);
+        if (marks.size() == MAX_HIT_MARKS) marks.pollFirst();
+        marks.addLast(new HitMark(sprinting ? HitKind.SPRINT : HitKind.NORMAL, now));
+        markedTargetId = target.getId();
         int level = heatmap.levelFor(combo);
         if (level > previousLevel) {
             EymistakenHudEventBus.getInstance().emit(new ComboStreakEvent(combo, level, previousLevel, target));
         }
-        emit(level > previousLevel ? Kind.TIER : Kind.HIT, combo, now);
+
+        // Once per combo, and not before the second tier, so topping a low record with a short
+        // combo passes quietly.
+        boolean newBest = !bestAnnounced && combo > recordToBeat && combo >= heatmap.tier2();
+        if (newBest) bestAnnounced = true;
+        emit(newBest ? Kind.BEST : level > previousLevel ? Kind.TIER : Kind.HIT, combo, now);
     }
 
     /** The combo broke or ran out of time: it ends, or with Decay starts draining. */
@@ -349,6 +434,8 @@ public final class ComboTracker {
         targetId = NO_ENTITY;
         targetUuid = null;
         draining = false;
+        // A record this combo set is written once, as it ends, rather than on every hit past it.
+        ComboStats.flush();
     }
 
     private static void endReceived() {
@@ -363,6 +450,8 @@ public final class ComboTracker {
         pendingSwings.clear();
         recentSwings.clear();
         moments.clear();
+        marks.clear();
+        markedTargetId = NO_ENTITY;
         serverNamesAttackers = false;
         trackedLevel = null;
     }

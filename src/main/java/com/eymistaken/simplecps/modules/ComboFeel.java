@@ -4,17 +4,19 @@ import com.eymistaken.simplecps.api.ComboHeatmap;
 import com.eymistaken.simplecps.util.Easings;
 
 /**
- * Motion for {@link ComboModule}: how hits land on our row and how it shakes at a high combo,
- * the color and shake of the received combo, and the divider between the two rows.
+ * Motion for {@link ComboModule}: how hits land on our row, how it shakes at a high combo and
+ * flashes on a new best, the color and shake of the received combo, and the divider between the
+ * two rows.
  *
  * <p>All of it reads one clock, {@link #now()}, and that clock stands still while a hitstop
  * holds. A big moment therefore freezes everything on the counter at once, shakes included, the
  * way a fighting game freezes both fighters on a heavy blow, and the motion resumes exactly where
  * it stopped.
  *
- * <p>State moves only through {@link #update} and {@link #impact}, on the live HUD. The settings
- * preview draws with the static helpers instead: it runs alongside the live HUD and would
- * otherwise step the same state twice a frame.
+ * <p>State moves only through {@link #update}, {@link #impact}, {@link #best} and
+ * {@link #forgetBest}. Each display of the counter keeps its own instance: the live HUD, and the
+ * settings preview's demo, which is drawn alongside the live HUD and would otherwise step the
+ * same state twice a frame. The HUD editor's still sample uses only the static helpers.
  */
 final class ComboFeel {
 
@@ -37,15 +39,20 @@ final class ComboFeel {
     private static final float DIVIDER_MS = 150f;
     /** Steady shake of the received row at the top tier, in unscaled pixels. */
     private static final float MAX_SHAKE_PX = 2.5f;
-    /** Extra jolt from a single hit taken, in unscaled pixels, gone after {@link #KICK_MS}. */
-    private static final float KICK_PX = 1.5f;
-    private static final float KICK_MS = 300f;
+    /** Jolt from a single hit taken, in unscaled pixels at full strength, gone after {@link #JOLT_MS}. */
+    private static final float JOLT_PX = 1.5f;
+    private static final float JOLT_MS = 300f;
     /** Our row starts shaking this hard on reaching the top tier, in unscaled pixels... */
     private static final float OWN_SHAKE_START_PX = 1.0f;
     /** ...and gains this much more as the combo runs on past it. */
     private static final float OWN_SHAKE_GROWTH_PX = 2.0f;
     /** Longest step one frame may take, so a stall does not skip the motion outright. */
     private static final float MAX_STEP_MS = 250f;
+    /** A new best stays gold through its hitstop, then drains back to the row's own color over this. */
+    private static final float GOLD_FADE_MS = 400f;
+    /** How long the BEST tag stays up, spending the last stretch of it fading out. */
+    private static final float BEST_TAG_MS = 1600f;
+    private static final float BEST_TAG_FADE_MS = 300f;
     private static final int[] NO_SHAKE = {0, 0};
 
     // Hitstop: from holdStart until holdEnd, in real time, the clock reads frozenClock.
@@ -60,6 +67,9 @@ final class ComboFeel {
     private float impactSettleMs = 1f;
     private int impactRank = 0;
 
+    // When the latest new best landed, on the animation clock; MIN_VALUE when there is none to show.
+    private long bestClock = Long.MIN_VALUE;
+
     private long lastFrame = -1;
     private float divider = 0f;
     private float red;
@@ -67,7 +77,7 @@ final class ComboFeel {
     private float blue;
     private boolean colorTracking = false;
     private int seenReceivedHits = -1;
-    private long kickStart = Long.MIN_VALUE;
+    private long joltStart = Long.MIN_VALUE;
 
     /** Real milliseconds, for anything that has to keep running through a hitstop. */
     static long realNow() {
@@ -110,6 +120,32 @@ final class ComboFeel {
         return 1f + impactBoost * (1f - Easings.backOut(t));
     }
 
+    /**
+     * A new best landed: our row flashes gold and wears the BEST tag for a moment. Call it after
+     * the best's impact, so both start inside that hitstop and hold with everything else.
+     */
+    void best() {
+        bestClock = now();
+    }
+
+    /** A new combo began; the tag belonged to the one before it. */
+    void forgetBest() {
+        bestClock = Long.MIN_VALUE;
+    }
+
+    /** How far our row's color goes toward gold: all the way while the best holds, then draining. */
+    float gold() {
+        if (bestClock == Long.MIN_VALUE) return 0f;
+        float t = (now() - bestClock) / GOLD_FADE_MS;
+        return t >= 1f ? 0f : 1f - Easings.sineInOut(t);
+    }
+
+    /** Opacity of the BEST tag: up at once, fading over the end of its time. */
+    float bestTag() {
+        if (bestClock == Long.MIN_VALUE) return 0f;
+        return Easings.clamp01((BEST_TAG_MS - (now() - bestClock)) / BEST_TAG_FADE_MS);
+    }
+
     /** Advances the motion by one live frame. */
     void update(boolean stacked, int received, int receivedHits, ComboHeatmap heatmap) {
         long now = now();
@@ -120,7 +156,7 @@ final class ComboFeel {
         divider = stacked ? Math.min(1f, divider + dividerStep) : Math.max(0f, divider - dividerStep);
 
         if (receivedHits != seenReceivedHits) {
-            if (seenReceivedHits >= 0) kickStart = now;
+            if (seenReceivedHits >= 0) joltStart = now;
             seenReceivedHits = receivedHits;
         }
 
@@ -146,11 +182,16 @@ final class ComboFeel {
         return 0xFF000000 | (Math.round(red) << 16) | (Math.round(green) << 8) | Math.round(blue);
     }
 
-    /** This frame's shake for the received row, in whole GUI pixels. */
-    int[] shake(int received, ComboHeatmap heatmap, float scale) {
+    /**
+     * This frame's shake for the received row, in whole GUI pixels: its steady shake and the jolt
+     * of the latest hit taken, each scaled by its own strength.
+     */
+    int[] shake(int received, ComboHeatmap heatmap, float scale, float shakeStrength, float joltStrength) {
         long now = now();
-        float kick = kickStart == Long.MIN_VALUE ? 0f : Easings.clamp01(1f - (now - kickStart) / KICK_MS);
-        return shakeOffset((growthShake(received, heatmap) + KICK_PX * kick * kick) * scale, now, 0.0);
+        float jolt = joltStart == Long.MIN_VALUE ? 0f : Easings.clamp01(1f - (now - joltStart) / JOLT_MS);
+        float amplitude = growthShake(received, heatmap) * shakeStrength
+            + JOLT_PX * jolt * jolt * joltStrength;
+        return shakeOffset(amplitude * scale, now, 0.0);
     }
 
     private void hold(long ms) {
@@ -191,8 +232,9 @@ final class ComboFeel {
     }
 
     /**
-     * How hard our row shakes at {@code combo}, in unscaled pixels. Nothing below the top tier;
-     * from there it grows over as many hits again as the step between the last two tiers.
+     * How hard our row shakes at {@code combo}, in unscaled pixels at full strength. Nothing below
+     * the top tier; from there it grows over as many hits again as the step between the last two
+     * tiers.
      */
     static float ownShake(int combo, ComboHeatmap heatmap) {
         int top = heatmap.tier3();

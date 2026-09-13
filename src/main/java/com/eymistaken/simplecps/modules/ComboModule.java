@@ -8,6 +8,8 @@ import com.eymistaken.simplecps.gui.HudEditorScreen;
 import com.eymistaken.simplecps.util.Easings;
 import com.eymistaken.simplecps.util.EymHudFonts;
 import com.eymistaken.simplecps.util.RenderUtil;
+import java.util.Collection;
+import java.util.List;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
@@ -21,22 +23,57 @@ public class ComboModule extends HudModule {
     private static final int DIVIDER_COLOR = 0x59FFFFFF;
     /** Divider length as a share of the wider row. */
     private static final float DIVIDER_LENGTH = 0.6f;
+    /** Room under a lone row for each of its lines; the first sits where the divider does. */
+    private static final int LINE_SPACE = 2;
+    /** The timeout line takes the count's color, a little see-through. */
+    private static final float TIMEOUT_LINE_ALPHA = 0.75f;
+    private static final int SEGMENT_GAP = 1;
+    private static final int SEGMENT_NORMAL = 0xFF9A9A9A;
+    private static final int SEGMENT_SPRINT = 0xFFFFFFFF;
+    /** A new hit's segment starts white and settles into its color over this. */
+    private static final long SEGMENT_FLASH_MS = 150;
+    /** A draining combo keeps its hits on show, dimmed. */
+    private static final float DRAINING_ALPHA = 0.4f;
 
     /** How long a finished combo stays on screen before it goes. */
-    private static final long LINGER_MS = 1200;
+    static final long LINGER_MS = 1200;
     /** A finished combo lands at full strength first, and only then dims. */
     private static final long LINGER_BRIGHT_MS = 300;
     private static final long LINGER_DIM_MS = 250;
     private static final float LINGER_ALPHA = 0.45f;
+    private static final long NOT_LINGERING = -1;
     /** A moment older than this happened while the counter was not being drawn; replaying it would be wrong. */
     private static final long STALE_MOMENT_MS = 250;
+    /**
+     * Impact scales how far a hit punches the count up directly, and how long it freezes more
+     * gently, so that 150% lands exactly where the old STRONG preset did: a 1.5x punch held 1.3x
+     * as long.
+     */
+    private static final double HOLD_EXPONENT = 0.65;
+
+    /** The gold a new best flashes the count with and writes its tag in. */
+    private static final int BEST_GOLD = 0xFFFFB800;
+    private static final String BEST_TAG = "BEST";
+    /** The tag's size against the count's, and its distance from the count in unscaled pixels. */
+    private static final float BEST_TAG_SCALE = 0.5f;
+    private static final int BEST_TAG_GAP = 2;
+
+    // The HUD editor's still sample of the line, whichever kind the config asks for.
+    private static final float SAMPLE_TIME_LEFT = 0.7f;
+    private static final List<ComboTracker.HitMark> SAMPLE_MARKS = List.of(
+        new ComboTracker.HitMark(ComboTracker.HitKind.SPRINT, 0),
+        new ComboTracker.HitMark(ComboTracker.HitKind.NORMAL, 0),
+        new ComboTracker.HitMark(ComboTracker.HitKind.CRIT, 0),
+        new ComboTracker.HitMark(ComboTracker.HitKind.NORMAL, 0),
+        new ComboTracker.HitMark(ComboTracker.HitKind.SPRINT, 0));
 
     /**
      * What to draw: our own combo, the combo being landed on us, or both. When ours is gone the
      * received combo takes over its row, so the two only stack while ours is still alive. A
-     * lingering row is a combo that already ended, shown dimmed on its way out.
+     * lingering row is a combo that already ended, shown dimmed on its way out; {@code lingerMs}
+     * is how long it has lingered so far, or {@link #NOT_LINGERING}.
      */
-    private record Rows(int own, int received, boolean ownShown, boolean lingering) {
+    private record Rows(int own, int received, boolean ownShown, long lingerMs) {
         boolean receivedShown() {
             return received > 0;
         }
@@ -48,22 +85,40 @@ public class ComboModule extends HudModule {
         boolean empty() {
             return !ownShown && !receivedShown();
         }
+
+        boolean lingering() {
+            return lingerMs != NOT_LINGERING;
+        }
     }
 
-    private static final Rows EMPTY = new Rows(0, 0, false, false);
+    private static final Rows EMPTY = new Rows(0, 0, false, NOT_LINGERING);
 
-    private final ComboFeel feel = new ComboFeel();
+    /**
+     * What one display of the counter animates from. The live HUD has one and the settings
+     * preview's demo another: the preview is drawn over the running HUD, and sharing one would
+     * step the same motion twice a frame.
+     */
+    private static final class Stage {
+        final ComboFeel feel = new ComboFeel();
+        // A combo a hit took apart stays frozen on screen for the length of its hitstop.
+        int brokenValue = 0;
+        long brokenUntil = 0;
+        // A combo that ended any other way lingers from lingerStart.
+        int lingerValue = 0;
+        long lingerStart = 0;
+
+        boolean lingering(long real) {
+            return lingerValue > 0 && real - lingerStart < LINGER_MS;
+        }
+    }
+
+    private final Stage live = new Stage();
+    private final Stage preview = new Stage();
+    private final ComboDemo demo = new ComboDemo();
 
     // The last rows drawn with a count on them. A fade-out runs after the counters have
     // already dropped to zero, and should fade on "12 Combo", not "0 Combo".
-    private Rows lastRows = new Rows(0, 0, true, false);
-
-    // A combo a hit took apart stays frozen on screen for the length of its hitstop.
-    private int brokenValue = 0;
-    private long brokenUntil = 0;
-    // A combo that ended any other way lingers from lingerStart.
-    private int lingerValue = 0;
-    private long lingerStart = 0;
+    private Rows lastRows = new Rows(0, 0, true, NOT_LINGERING);
 
     @Override
     public boolean supportsFade() {
@@ -77,7 +132,7 @@ public class ComboModule extends HudModule {
         int min = config.comboMinDisplay;
         long real = ComboFeel.realNow();
         return !config.comboHideWhenInactive || ComboTracker.getCombo() >= min
-            || ComboTracker.getReceivedCombo() >= min || real < brokenUntil || lingering(real);
+            || ComboTracker.getReceivedCombo() >= min || real < live.brokenUntil || live.lingering(real);
     }
 
     @Override
@@ -132,8 +187,11 @@ public class ComboModule extends HudModule {
         config.combatMode = SimpleCPSConfig.CombatMode.MODERN;
         config.comboHitDetection = SimpleCPSConfig.HitDetection.SERVER;
         config.comboDecay = false;
-        config.comboImpact = SimpleCPSConfig.Impact.SUBTLE;
         config.comboMinDisplay = 2;
+        config.comboImpactStrength = 100;
+        config.comboShakeStrength = 100;
+        config.comboJoltStrength = 100;
+        config.comboLine = SimpleCPSConfig.ComboLine.TIMEOUT;
     }
 
     @Override
@@ -163,20 +221,36 @@ public class ComboModule extends HudModule {
     public void extractRenderState(GuiGraphicsExtractor context, float tickDelta) {
         SimpleCPSConfig config = SimpleCPSConfig.instance;
         ComboHeatmap heatmap = ComboHeatmap.of(config.comboHeatmapMode);
-        boolean live = !showsSample();
-        if (live) takeMoments(config, heatmap);
+        long real = ComboFeel.realNow();
+        Stage stage = stage();
+        if (stage == live) {
+            takeMoments(config, heatmap, real);
+        } else if (stage == preview) {
+            demo.advance(real, heatmap, canStack(config), timeoutMs(config),
+                moment -> play(moment, config, heatmap, real, preview));
+            clearLinger(preview, demo.own(), demo.received(), config);
+        }
 
-        Rows rows = rows();
+        Rows rows = rows(stage, config, heatmap, real);
         if (rows.empty()) return;
-        if (live) {
-            if (rows.own() > 0 || rows.received() > 0) lastRows = rows;
-            feel.update(rows.stacked(), rows.received(), ComboTracker.getReceivedHits(), heatmap);
+        // Without a stage there is no motion: the HUD editor's sample holds still to be placed.
+        ComboFeel feel = stage == null ? null : stage.feel;
+        if (feel != null) {
+            if (stage == live && (rows.own() > 0 || rows.received() > 0)) lastRows = rows;
+            int receivedHits = stage == live ? ComboTracker.getReceivedHits() : demo.receivedHits();
+            feel.update(rows.stacked(), rows.received(), receivedHits, heatmap);
         }
 
         float scale = config.comboScale / 100f;
+        float shake = config.comboShakeStrength / 100f;
+        float jolt = config.comboJoltStrength / 100f;
         int padding = config.comboShowBackground ? PADDING : 0;
-        int contentW = contentWidth(rows, config);
+        // The preview holds the width of its whole demo so the rows keep their place while it
+        // plays; everywhere else the content is exactly what is shown.
+        int shownW = contentWidth(rows, config);
+        int contentW = stage == preview ? demoWidth(config, heatmap) : shownW;
         int line = client.font.lineHeight;
+        long clock = feel == null ? 0L : feel.now();
 
         context.pose().pushMatrix();
         context.pose().translate((float) x, (float) y);
@@ -184,22 +258,28 @@ public class ComboModule extends HudModule {
 
         if (config.comboShowBackground) {
             int background = (config.comboBackgroundOpacity << 24) | (config.comboBackgroundColor & 0x00FFFFFF);
-            context.fill(0, 0, contentW + padding * 2, contentHeight(rows.stacked()) + padding * 2, col(background));
+            int left = align(contentW, shownW);
+            context.fill(left, 0, left + shownW + padding * 2, contentHeight(rows.stacked(), config) + padding * 2, col(background));
         }
+
+        // Our row's color and fade; the line under it follows both.
+        int color = rows.ownShown() ? ownColor(rows.own(), config, heatmap) : 0;
+        float gold = feel == null ? 0f : feel.gold();
+        if (gold > 0f) color = interpolateColor(color, BEST_GOLD, gold);
+        float alpha = rows.lingering() ? lingerAlpha(rows.lingerMs()) : 1f;
 
         if (rows.ownShown()) {
             String text = ownText(rows.own(), config);
             int width = textWidth(text);
             int left = padding + align(contentW, width);
-            float alpha = rows.lingering() ? lingerAlpha(ComboFeel.realNow()) : 1f;
-            float pulse = live ? feel.pulse() : 1f;
-            // A live combo past the top tier shakes, and every hitstop freezes that shake mid-motion
+            float pulse = feel == null ? 1f : feel.pulse();
+            // A combo past the top tier shakes, and every hitstop freezes that shake mid-motion
             // along with the rest of the counter. A finished combo lingers still.
-            boolean shakes = live && !rows.lingering() && config.comboImpact != SimpleCPSConfig.Impact.OFF;
-            float amplitude = shakes ? ComboFeel.ownShake(rows.own(), heatmap) * strength(config) * scale : 0f;
+            float amplitude = feel == null || rows.lingering() ? 0f
+                : ComboFeel.ownShake(rows.own(), heatmap) * shake * scale;
 
             context.pose().pushMatrix();
-            shift(context, ComboFeel.shakeOffset(amplitude, feel.now(), ComboFeel.OWN_PHASE), scale);
+            shift(context, ComboFeel.shakeOffset(amplitude, clock, ComboFeel.OWN_PHASE), scale);
             if (pulse != 1f) {
                 // Grow from the middle of the number, not from its corner.
                 float centerX = left + width / 2f;
@@ -208,37 +288,23 @@ public class ComboModule extends HudModule {
                 context.pose().scale(pulse, pulse);
                 context.pose().translate(-centerX, -centerY);
             }
-            drawEdgedText(context, text, left, padding, ownColor(rows.own(), config, heatmap), alpha);
+            drawEdgedText(context, text, left, padding, color, alpha);
+            // Inside the row's transform, so the tag punches, shakes and freezes along with the count.
+            float tag = feel == null ? 0f : feel.bestTag();
+            if (tag > 0f) drawBestTag(context, left, width, padding, alpha * tag);
             context.pose().popMatrix();
         }
 
-        // Grows in as the rows stack and shrinks back once they no longer do.
-        float divider = live ? feel.divider() : (rows.stacked() ? 1f : 0f);
-        if (divider > 0f) {
-            int width = Math.round(contentW * DIVIDER_LENGTH * divider);
-            int left = padding + align(contentW, width);
-            int top = padding + line + 1;
-            context.fill(left, top, left + width, top + 1, col(DIVIDER_COLOR));
-        }
+        drawLine(context, stage, rows, config, real, shownW, contentW, padding, padding + line + 1, color, alpha);
 
         if (rows.receivedShown()) {
             String text = receivedText(rows.received(), config);
-            int color;
-            int[] shake;
-            if (live) {
-                color = feel.receivedColor();
-                shake = feel.shake(rows.received(), heatmap, scale);
-            } else {
-                color = ComboFeel.colorFor(rows.received(), heatmap);
-                // The editor holds still so the module can be placed; the preview shows the shake.
-                float amplitude = isPreviewing() ? ComboFeel.growthShake(rows.received(), heatmap) * scale : 0f;
-                shake = ComboFeel.shakeOffset(amplitude, feel.now(), 0.0);
-            }
+            int receivedColor = feel == null ? ComboFeel.colorFor(rows.received(), heatmap) : feel.receivedColor();
             int top = padding + (rows.stacked() ? line + ROW_GAP : 0);
 
             context.pose().pushMatrix();
-            shift(context, shake, scale);
-            drawEdgedText(context, text, padding + align(contentW, textWidth(text)), top, color, 1f);
+            if (feel != null) shift(context, feel.shake(rows.received(), heatmap, scale, shake, jolt), scale);
+            drawEdgedText(context, text, padding + align(contentW, textWidth(text)), top, receivedColor, 1f);
             context.pose().popMatrix();
         }
 
@@ -248,43 +314,66 @@ public class ComboModule extends HudModule {
     @Override
     public int getWidth() {
         SimpleCPSConfig config = SimpleCPSConfig.instance;
-        return scaled(contentWidth(rows(), config), config);
+        ComboHeatmap heatmap = ComboHeatmap.of(config.comboHeatmapMode);
+        Stage stage = stage();
+        if (stage == preview) return scaled(demoWidth(config, heatmap), config);
+        return scaled(contentWidth(rows(stage, config, heatmap, ComboFeel.realNow()), config), config);
     }
 
     @Override
     public int getHeight() {
         SimpleCPSConfig config = SimpleCPSConfig.instance;
-        return scaled(contentHeight(rows().stacked()), config);
+        Stage stage = stage();
+        // The demo stacks and unstacks as it plays; its card keeps the room the stack needs.
+        if (stage == preview) return scaled(contentHeight(canStack(config), config), config);
+        ComboHeatmap heatmap = ComboHeatmap.of(config.comboHeatmapMode);
+        return scaled(contentHeight(rows(stage, config, heatmap, ComboFeel.realNow()).stacked(), config), config);
     }
 
     /**
-     * Reserves the received row whenever it can appear under ours, so the modules stacked on
-     * this edge do not jump every time a hit is taken. That space is structural and set once,
-     * the same trade KeystrokesModule makes for its board.
+     * Reserves the received row whenever it can appear under ours, and otherwise the line under a
+     * lone row, so the modules stacked on this edge do not jump every time a hit is taken. That
+     * space is structural and set once, the same trade KeystrokesModule makes for its board.
      */
     @Override
     public int getLayoutHeight() {
         SimpleCPSConfig config = SimpleCPSConfig.instance;
-        return scaled(contentHeight(canStack(config)), config);
+        return scaled(contentHeight(canStack(config), config), config);
+    }
+
+    /**
+     * Which display is being drawn: the settings preview's demo, the live HUD, or null for the
+     * HUD editor, which shows a still sample so the module can be placed.
+     */
+    private Stage stage() {
+        if (isPreviewing()) return preview;
+        return client.gui.screen() instanceof HudEditorScreen ? null : live;
     }
 
     /** Plays what the tracker reported since the last frame. */
-    private void takeMoments(SimpleCPSConfig config, ComboHeatmap heatmap) {
-        long real = ComboFeel.realNow();
+    private void takeMoments(SimpleCPSConfig config, ComboHeatmap heatmap, long real) {
         ComboTracker.Moment moment;
         while ((moment = ComboTracker.pollMoment()) != null) {
-            if (real - moment.time() <= STALE_MOMENT_MS) play(moment, config, heatmap, real);
+            // Only a new combo is ever at one hit, and a BEST tag still up was earned by the last one.
+            if (moment.value() == 1) live.feel.forgetBest();
+            if (real - moment.time() <= STALE_MOMENT_MS) play(moment, config, heatmap, real, live);
         }
-        // A new combo, ours or theirs, takes the screen from one that is lingering.
-        int min = config.comboMinDisplay;
-        if (ComboTracker.getCombo() >= min || ComboTracker.getReceivedCombo() >= min) lingerValue = 0;
+        clearLinger(live, ComboTracker.getCombo(), ComboTracker.getReceivedCombo(), config);
     }
 
-    private void play(ComboTracker.Moment moment, SimpleCPSConfig config, ComboHeatmap heatmap, long real) {
+    /** A new combo, ours or theirs, takes the screen from one that is lingering. */
+    private static void clearLinger(Stage stage, int own, int received, SimpleCPSConfig config) {
+        int min = config.comboMinDisplay;
+        if (own >= min || received >= min) stage.lingerValue = 0;
+    }
+
+    private static void play(ComboTracker.Moment moment, SimpleCPSConfig config, ComboHeatmap heatmap,
+                             long real, Stage stage) {
         int value = moment.value();
-        boolean still = config.comboImpact == SimpleCPSConfig.Impact.OFF;
-        float boost = strength(config);
-        float hold = config.comboImpact == SimpleCPSConfig.Impact.STRONG ? 1.3f : 1f;
+        ComboFeel feel = stage.feel;
+        float boost = config.comboImpactStrength / 100f;
+        float hold = (float) Math.pow(boost, HOLD_EXPONENT);
+        boolean still = boost <= 0f;
 
         switch (moment.kind()) {
             case HIT -> {
@@ -300,74 +389,165 @@ public class ComboModule extends HudModule {
             case TIER -> {
                 if (!still) feel.impact(0.18f * boost, Math.round(60 * hold), 200, 2);
             }
+            case BEST -> {
+                // Lands a little harder than a tier and turns the count gold through its hold. The
+                // flash and the tag stay with Impact at 0: they carry news, not just motion.
+                if (!still) feel.impact(0.22f * boost, Math.round(90 * hold), 220, 3);
+                feel.best();
+            }
             case FINISHER -> {
                 // Bigger combos land harder and hold longer.
                 if (!still) {
                     float peak = Math.min(0.40f, 0.20f + 0.01f * value) * boost;
-                    feel.impact(peak, Math.round(Math.min(160, 70 + 4 * value) * hold), 260, 4);
+                    feel.impact(peak, Math.round(Math.min(160, 70 + 4 * value) * hold), 260, 5);
                 }
             }
             case BROKEN -> {
                 // Only a combo that reached a tier gets the freeze; a short one just gives way.
                 if (!still && value >= heatmap.tier1()) {
                     long holdMs = Math.round(Math.min(120, 50 + 3 * value) * hold);
-                    feel.impact(0f, holdMs, 1, 3);
-                    brokenValue = value;
-                    brokenUntil = real + Math.min(holdMs, ComboFeel.MAX_HOLD_MS);
+                    feel.impact(0f, holdMs, 1, 4);
+                    stage.brokenValue = value;
+                    stage.brokenUntil = real + Math.min(holdMs, ComboFeel.MAX_HOLD_MS);
                 }
             }
             case ENDED -> {
                 if (value >= config.comboMinDisplay) {
-                    lingerValue = value;
-                    lingerStart = real;
+                    stage.lingerValue = value;
+                    stage.lingerStart = real;
                 }
             }
         }
     }
 
-    private Rows rows() {
-        SimpleCPSConfig config = SimpleCPSConfig.instance;
-        if (showsSample()) {
+    /**
+     * The rows {@code stage} shows: the tracker's counts on the live HUD, the demo's in the
+     * settings preview, and a still sample in the HUD editor, which has no stage.
+     */
+    private Rows rows(Stage stage, SimpleCPSConfig config, ComboHeatmap heatmap, long real) {
+        if (stage == null) {
             // Taken from the active heatmap rather than fixed numbers, so the sample lands in the
             // same tiers whatever the difficulty is: ours far enough in for the heatmap coloring
             // to show, and a received combo under it whenever the layout can stack at all.
-            ComboHeatmap heatmap = ComboHeatmap.of(config.comboHeatmapMode);
-            return new Rows(heatmap.tier2(), canStack(config) ? heatmap.tier1() : 0, true, false);
+            return new Rows(heatmap.tier2(), canStack(config) ? heatmap.tier1() : 0, true, NOT_LINGERING);
         }
-        long real = ComboFeel.realNow();
         int min = config.comboMinDisplay;
-        int own = ComboTracker.getCombo();
-        int received = ComboTracker.getReceivedCombo();
+        int own = stage == live ? ComboTracker.getCombo() : demo.own();
+        int received = stage == live ? ComboTracker.getReceivedCombo() : demo.received();
         boolean receivedShown = received >= min;
 
         // A broken combo holds the screen for its hitstop; the received one waits it out.
-        if (real < brokenUntil) return new Rows(brokenValue, 0, true, false);
-        if (own >= min) return new Rows(own, receivedShown ? received : 0, true, false);
-        if (receivedShown) return new Rows(own, received, false, false);
-        if (lingering(real)) return new Rows(lingerValue, 0, true, true);
-        if (!config.comboHideWhenInactive) return new Rows(own, 0, true, false);
+        if (real < stage.brokenUntil) return new Rows(stage.brokenValue, 0, true, NOT_LINGERING);
+        if (own >= min) return new Rows(own, receivedShown ? received : 0, true, NOT_LINGERING);
+        if (receivedShown) return new Rows(own, received, false, NOT_LINGERING);
+        if (stage.lingering(real)) return new Rows(stage.lingerValue, 0, true, real - stage.lingerStart);
+        if (!config.comboHideWhenInactive) return new Rows(own, 0, true, NOT_LINGERING);
         // Fading out after everything is gone: keep drawing what was last on screen.
-        return renderAlpha < 1f ? lastRows : EMPTY;
-    }
-
-    private boolean lingering(long real) {
-        return lingerValue > 0 && real - lingerStart < LINGER_MS;
+        return stage == live && renderAlpha < 1f ? lastRows : EMPTY;
     }
 
     /** Full strength while the ending lands, then easing down to dim. */
-    private float lingerAlpha(long real) {
-        float dim = Easings.clamp01((real - lingerStart - LINGER_BRIGHT_MS) / (float) LINGER_DIM_MS);
+    private static float lingerAlpha(long lingerMs) {
+        float dim = Easings.clamp01((lingerMs - LINGER_BRIGHT_MS) / (float) LINGER_DIM_MS);
         return Easings.lerp(1f, LINGER_ALPHA, Easings.sineInOut(dim));
     }
 
-    /** The settings preview and the HUD editor show sample numbers instead of the live ones. */
-    private boolean showsSample() {
-        return isPreviewing() || client.gui.screen() instanceof HudEditorScreen;
+    /**
+     * The lines under our count, and the divider they turn into. A lone row of ours carries the
+     * lines the Line setting names, the timeout line on top when there are both; once a combo
+     * landed on us stacks under it, they become the short divider between the two rows, and turn
+     * back when the rows part.
+     */
+    private void drawLine(GuiGraphicsExtractor context, Stage stage, Rows rows, SimpleCPSConfig config,
+                          long real, int shownW, int contentW, int padding, int top, int color, float alpha) {
+        // 0 while our row stands alone, 1 once the rows have stacked, eased in between.
+        float divider = stage == null ? (rows.stacked() ? 1f : 0f) : stage.feel.divider();
+        int dividerW = Math.round(shownW * DIVIDER_LENGTH);
+        boolean ours = rows.ownShown() && rows.own() > 0;
+        SimpleCPSConfig.ComboLine mode = config.comboLine;
+        boolean timeout = mode == SimpleCPSConfig.ComboLine.TIMEOUT || mode == SimpleCPSConfig.ComboLine.BOTH;
+        boolean hits = mode == SimpleCPSConfig.ComboLine.HITS || mode == SimpleCPSConfig.ComboLine.BOTH;
+
+        if (hits && ours && divider < 1f) {
+            float fade = alpha * (1f - divider) * (draining(stage) ? DRAINING_ALPHA : 1f);
+            // Under the timeout line when there are both, a pixel apart.
+            drawHits(context, stage, rows, real, shownW, contentW, padding, timeout ? top + LINE_SPACE : top, fade);
+        }
+        if (timeout && ours) {
+            // Only a running combo has time left; one that lingers, drains or broke shows none.
+            float timeLeft = rows.lingering() ? 0f : timeLeft(stage, config, real);
+            int width = Math.round(Easings.lerp(shownW * timeLeft, dividerW, divider));
+            int lineColor = mixArgb(RenderUtil.withAlpha(color, TIMEOUT_LINE_ALPHA), DIVIDER_COLOR, divider);
+            fillLine(context, padding + align(contentW, width), top, width, lineColor);
+            return;
+        }
+        int width = Math.round(dividerW * divider);
+        fillLine(context, padding + align(contentW, width), top, width, DIVIDER_COLOR);
     }
 
-    /** How much STRONG adds to the size of a punch and the reach of a shake. */
-    private static float strength(SimpleCPSConfig config) {
-        return config.comboImpact == SimpleCPSConfig.Impact.STRONG ? 1.5f : 1f;
+    /**
+     * A segment for each remembered hit: gray, white for a sprint hit, gold for a critical one,
+     * newest at the right end. While there are fewer than the strip holds, they gather toward the
+     * anchor's side.
+     */
+    private void drawHits(GuiGraphicsExtractor context, Stage stage, Rows rows, long real, int shownW,
+                          int contentW, int padding, int top, float alpha) {
+        // A lingering count shows the hits of the combo it ended, never the first of the next one.
+        if (rows.lingering() && stage == live && ComboTracker.getCombo() > 0) return;
+        Collection<ComboTracker.HitMark> marks = hitMarks(stage);
+        int slots = ComboTracker.MAX_HIT_MARKS;
+        int shown = Math.min(marks.size(), slots);
+        if (shown == 0) return;
+
+        int segmentW = Math.max(1, (shownW - SEGMENT_GAP * (slots - 1)) / slots);
+        int stripW = segmentW * slots + SEGMENT_GAP * (slots - 1);
+        int usedW = segmentW * shown + SEGMENT_GAP * (shown - 1);
+        int x = padding + align(contentW, stripW) + align(stripW, usedW);
+        int skip = marks.size() - shown;
+        for (ComboTracker.HitMark mark : marks) {
+            if (skip-- > 0) continue;
+            int kindColor = switch (mark.kind()) {
+                case SPRINT -> SEGMENT_SPRINT;
+                case CRIT -> BEST_GOLD;
+                case NORMAL -> SEGMENT_NORMAL;
+            };
+            // A new hit lands white and settles into its own color.
+            float flash = Easings.clamp01(1f - (real - mark.time()) / (float) SEGMENT_FLASH_MS);
+            fillLine(context, x, top, segmentW, RenderUtil.withAlpha(mixArgb(kindColor, 0xFFFFFFFF, flash), alpha));
+            x += segmentW + SEGMENT_GAP;
+        }
+    }
+
+    private void fillLine(GuiGraphicsExtractor context, int left, int top, int width, int color) {
+        if (width > 0) context.fill(left, top, left + width, top + 1, col(color));
+    }
+
+    /** Share of the timeout left on the combo {@code stage} shows. */
+    private float timeLeft(Stage stage, SimpleCPSConfig config, long real) {
+        if (stage == null) return SAMPLE_TIME_LEFT;
+        return stage == live ? ComboTracker.getTimeLeft() : demo.timeLeft(real, timeoutMs(config));
+    }
+
+    private Collection<ComboTracker.HitMark> hitMarks(Stage stage) {
+        if (stage == null) return SAMPLE_MARKS;
+        return stage == live ? ComboTracker.getHitMarks() : demo.hitMarks();
+    }
+
+    private boolean draining(Stage stage) {
+        return stage == live && ComboTracker.isDraining();
+    }
+
+    private static long timeoutMs(SimpleCPSConfig config) {
+        return (long) (config.comboTimeout * 1000);
+    }
+
+    /** Blends every channel, alpha included, where {@link #interpolateColor} keeps the result opaque. */
+    private static int mixArgb(int from, int to, float t) {
+        int a = Math.round(Easings.lerp((from >>> 24) & 0xFF, (to >>> 24) & 0xFF, t));
+        int r = Math.round(Easings.lerp((from >> 16) & 0xFF, (to >> 16) & 0xFF, t));
+        int g = Math.round(Easings.lerp((from >> 8) & 0xFF, (to >> 8) & 0xFF, t));
+        int b = Math.round(Easings.lerp(from & 0xFF, to & 0xFF, t));
+        return (a << 24) | (r << 16) | (g << 8) | b;
     }
 
     /** Shakes are counted in GUI pixels, so they are undone from the scale they are applied inside of. */
@@ -400,9 +580,23 @@ public class ComboModule extends HudModule {
         return width;
     }
 
-    private int contentHeight(boolean stacked) {
+    /** The widest the demo gets, so the preview card keeps one size while it plays. */
+    private int demoWidth(SimpleCPSConfig config, ComboHeatmap heatmap) {
+        return Math.max(textWidth(ownText(ComboDemo.ownPeak(heatmap), config)),
+            textWidth(receivedText(ComboDemo.receivedPeak(heatmap), config)));
+    }
+
+    /** Two rows with the divider between them, or one row with room under it for its lines. */
+    private int contentHeight(boolean stacked, SimpleCPSConfig config) {
         int line = client.font.lineHeight;
-        return stacked ? line * 2 + ROW_GAP : line;
+        if (stacked) return line * 2 + ROW_GAP;
+        return line + LINE_SPACE * lineCount(config);
+    }
+
+    /** How many lines sit under a lone row: none, one, or the timeout line with the hits under it. */
+    private static int lineCount(SimpleCPSConfig config) {
+        if (config.comboLine == SimpleCPSConfig.ComboLine.OFF) return 0;
+        return config.comboLine == SimpleCPSConfig.ComboLine.BOTH ? 2 : 1;
     }
 
     private static int scaled(int content, SimpleCPSConfig config) {
@@ -412,11 +606,28 @@ public class ComboModule extends HudModule {
 
     /** Offset of something {@code width} wide inside the content, pushed toward the anchor's side. */
     private int align(int contentW, int width) {
+        if (anchoredRight()) return contentW - width;
+        return getPositionType() == SimpleCPSConfig.Position.CENTER ? (contentW - width) / 2 : 0;
+    }
+
+    private boolean anchoredRight() {
         SimpleCPSConfig.Position position = getPositionType();
-        if (position == SimpleCPSConfig.Position.TOP_RIGHT || position == SimpleCPSConfig.Position.BOTTOM_RIGHT) {
-            return contentW - width;
-        }
-        return position == SimpleCPSConfig.Position.CENTER ? (contentW - width) / 2 : 0;
+        return position == SimpleCPSConfig.Position.TOP_RIGHT || position == SimpleCPSConfig.Position.BOTTOM_RIGHT;
+    }
+
+    /**
+     * The tag a new best wears: a half-size word level with the top of our row, on the side away
+     * from the anchor. It overflows the module rather than growing it, and that side keeps it on
+     * screen; toward the anchor it would run off the edge the module is pinned to.
+     */
+    private void drawBestTag(GuiGraphicsExtractor context, int left, int width, int top, float alpha) {
+        float tagWidth = textWidth(BEST_TAG) * BEST_TAG_SCALE;
+        float tagX = anchoredRight() ? left - BEST_TAG_GAP - tagWidth : left + width + BEST_TAG_GAP;
+        context.pose().pushMatrix();
+        context.pose().translate(tagX, (float) top);
+        context.pose().scale(BEST_TAG_SCALE, BEST_TAG_SCALE);
+        drawEdgedText(context, BEST_TAG, 0, 0, BEST_GOLD, alpha);
+        context.pose().popMatrix();
     }
 
     private int ownColor(int combo, SimpleCPSConfig config, ComboHeatmap heatmap) {

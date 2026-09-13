@@ -149,7 +149,7 @@ public class SimpleCPSConfig {
         if (comboHeatmapMode == null) comboHeatmapMode = HeatmapMode.MEDIUM;
         if (combatMode == null) combatMode = CombatMode.MODERN;
         if (comboHitDetection == null) comboHitDetection = HitDetection.SERVER;
-        if (comboImpact == null) comboImpact = Impact.SUBTLE;
+        if (comboLine == null) comboLine = ComboLine.TIMEOUT;
         if (hudFont == null) hudFont = HudFont.VANILLA;
         // Turning Reset on Any Damage off used to switch decay on as well. A config from
         // before Decay was its own setting keeps the behavior it had.
@@ -230,6 +230,9 @@ public class SimpleCPSConfig {
         editorGridSize = clamp(editorGridSize, 2, 64);
         comboTimeout = clamp(comboTimeout, 0.1, 60.0);
         comboMinDisplay = clamp(comboMinDisplay, 1, 5);
+        comboImpactStrength = clamp(comboImpactStrength, 0, 200);
+        comboShakeStrength = clamp(comboShakeStrength, 0, 200);
+        comboJoltStrength = clamp(comboJoltStrength, 0, 200);
         reachTimeout = clamp(reachTimeout, 0.1, 60.0);
 
         // Offsets are added to an anchor position; an unbounded value overflows int
@@ -425,7 +428,7 @@ public class SimpleCPSConfig {
     public enum HeatmapMode { EASY, MEDIUM, HARD } // New Enum
     public enum CombatMode { CLASSIC, MODERN }
     public enum HitDetection { SERVER, CLIENT }
-    public enum Impact { OFF, SUBTLE, STRONG }
+    public enum ComboLine { TIMEOUT, HITS, BOTH, OFF }
     // Custom HUD font selection (affects HUD elements + editor screens only, never vanilla text).
     public enum HudFont { VANILLA, INTER, RUBIK, JETBRAINS_MONO, BEBAS_NEUE, ENCHANT }
 
@@ -771,9 +774,17 @@ public class SimpleCPSConfig {
     public HitDetection comboHitDetection = HitDetection.SERVER;
     // Null in configs written before Decay was its own setting; coalesceEnums() derives it.
     public Boolean comboDecay = null;
-    public Impact comboImpact = Impact.SUBTLE;
     // Smallest combo, ours or one landed on us, the counter bothers to show.
     public int comboMinDisplay = 2;
+    // How strongly each part of the counter's motion plays, in percent of its stock size; 0 turns
+    // that part off. Impact is the punch and the freeze of a hit, Shake the steady shake past the
+    // top tier and of a combo landed on you, Hit Jolt the jolt of each hit taken.
+    public int comboImpactStrength = 100;
+    public int comboShakeStrength = 100;
+    public int comboJoltStrength = 100;
+    // What the thin lines under a lone count show: the time left, the last hits, or both. They
+    // become the divider when a combo landed on you stacks under yours.
+    public ComboLine comboLine = ComboLine.TIMEOUT;
 
     // --- REACH DISPLAY ---
     public boolean showReach = false;
