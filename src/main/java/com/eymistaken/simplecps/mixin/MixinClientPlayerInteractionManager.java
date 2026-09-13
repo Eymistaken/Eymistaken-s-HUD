@@ -14,7 +14,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public class MixinClientPlayerInteractionManager {
     @Inject(method = "attack", at = @At("HEAD"))
     private void onAttackEntity(Player player, Entity target, CallbackInfo ci) {
-        ComboTracker.registerHit(target, player);
+        ComboTracker.onAttack(target, player);
         ReachTracker.onAttack(target, player);
     }
 }

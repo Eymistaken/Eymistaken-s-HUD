@@ -6,7 +6,7 @@
     "mixins": [
         "MixinMinecraftClient",
         "MixinClientPlayerInteractionManager",
-        "MixinLivingEntity",
+        "MixinClientPacketListener",
         "MixinMouse",
         "MixinKeyboard"
     ],
