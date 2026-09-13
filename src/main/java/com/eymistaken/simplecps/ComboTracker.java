@@ -393,7 +393,7 @@ public final class ComboTracker {
         }
 
         // Compared around the increment so plugins hear about a tier once, on the hit
-        // that reaches it. Independent of comboHeatmap: that only controls coloring.
+        // that reaches it. Independent of the color mode: that only controls coloring.
         ComboHeatmap heatmap = ComboHeatmap.of(config.comboHeatmapMode);
         int previousLevel = heatmap.levelFor(combo);
         combo++;
