@@ -148,7 +148,12 @@ public class SimpleCPSConfig {
         if (keystrokesRainbowTarget == null) keystrokesRainbowTarget = RainbowTarget.TEXT;
         if (comboHeatmapMode == null) comboHeatmapMode = HeatmapMode.MEDIUM;
         if (combatMode == null) combatMode = CombatMode.MODERN;
+        if (comboHitDetection == null) comboHitDetection = HitDetection.SERVER;
+        if (comboImpact == null) comboImpact = Impact.SUBTLE;
         if (hudFont == null) hudFont = HudFont.VANILLA;
+        // Turning Reset on Any Damage off used to switch decay on as well. A config from
+        // before Decay was its own setting keeps the behavior it had.
+        if (comboDecay == null) comboDecay = !comboResetOnAnyDamage;
 
         // Designs and animations arrived after these configs were written, so GSON
         // leaves them null. Derive them from the old effect mode rather than
@@ -224,6 +229,7 @@ public class SimpleCPSConfig {
         // A grid of 0 or 1 would draw a line per pixel across the whole screen.
         editorGridSize = clamp(editorGridSize, 2, 64);
         comboTimeout = clamp(comboTimeout, 0.1, 60.0);
+        comboMinDisplay = clamp(comboMinDisplay, 1, 5);
         reachTimeout = clamp(reachTimeout, 0.1, 60.0);
 
         // Offsets are added to an anchor position; an unbounded value overflows int
@@ -418,6 +424,8 @@ public class SimpleCPSConfig {
     public enum RainbowTarget { TEXT, BACKGROUND }
     public enum HeatmapMode { EASY, MEDIUM, HARD } // New Enum
     public enum CombatMode { CLASSIC, MODERN }
+    public enum HitDetection { SERVER, CLIENT }
+    public enum Impact { OFF, SUBTLE, STRONG }
     // Custom HUD font selection (affects HUD elements + editor screens only, never vanilla text).
     public enum HudFont { VANILLA, INTER, RUBIK, JETBRAINS_MONO, BEBAS_NEUE, ENCHANT }
 
@@ -753,16 +761,19 @@ public class SimpleCPSConfig {
     public int comboBackgroundColor = 0x000000;
     public int comboBackgroundOpacity = 128;
     public double comboTimeout = 3.0;
-    public boolean comboResetOnAnyDamage = true; // Default: True (Legacy Mode). If False -> Advanced Mode (Decay/Distance)
+    public boolean comboResetOnAnyDamage = true; // "Break on Any Damage". OFF: only opponents break the combo.
     public boolean comboContinueOnSwitch = true;
     public boolean comboHideWhenInactive = false;
     public boolean comboHeatmap = false;
     public HeatmapMode comboHeatmapMode = HeatmapMode.MEDIUM; // Default: Medium
     public boolean comboOnlyPlayers = true; // Default: True
-    // public boolean comboDecay = true; // Removed - Tied to !comboResetOnAnyDamage
-    // public boolean comboDistanceCheck = true; // Removed - Tied to !comboResetOnAnyDamage
-    // public boolean comboLOSCheck = true; // Removed
     public CombatMode combatMode = CombatMode.MODERN;
+    public HitDetection comboHitDetection = HitDetection.SERVER;
+    // Null in configs written before Decay was its own setting; coalesceEnums() derives it.
+    public Boolean comboDecay = null;
+    public Impact comboImpact = Impact.SUBTLE;
+    // Smallest combo, ours or one landed on us, the counter bothers to show.
+    public int comboMinDisplay = 2;
 
     // --- REACH DISPLAY ---
     public boolean showReach = false;

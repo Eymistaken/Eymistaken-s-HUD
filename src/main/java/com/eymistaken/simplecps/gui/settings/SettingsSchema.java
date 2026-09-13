@@ -616,13 +616,20 @@ public final class SettingsSchema {
                     c -> c.comboYOffset, (c, v) -> c.comboYOffset = v,
                     c -> c.comboScale, (c, v) -> c.comboScale = v)),
                 new Tab("behavior", "BEHAVIOR", List.of(
+                    enumRow("combo.hitDetection", "Hit Detection",
+                        "SERVER counts a hit once the server confirms it landed. "
+                            + "CLIENT counts every attack you send, as the counter used to.",
+                        SimpleCPSConfig.HitDetection.class,
+                        c -> c.comboHitDetection, (c, v) -> c.comboHitDetection = v),
                     enumRow("combo.combatMode", "Combat Mode",
-                        "Combat mechanics used for combo detection.",
+                        "MODERN only counts hits at full attack strength. CLASSIC counts every hit.",
                         SimpleCPSConfig.CombatMode.class,
                         c -> c.combatMode, (c, v) -> c.combatMode = v),
-                    bool("combo.resetAny", "Reset on Any Damage",
-                        "ON: classic mode, the combo resets on any hit taken. "
-                            + "OFF: advanced mode with decay and a distance check.",
+                    // Same field and row id as the old "Reset on Any Damage": with Decay on,
+                    // nothing resets, so the label says what the setting actually decides.
+                    bool("combo.resetAny", "Break on Any Damage",
+                        "ON: any damage breaks the combo. OFF: only hits from someone you are "
+                            + "fighting do. Thorns never breaks it.",
                         c -> c.comboResetOnAnyDamage, (c, v) -> c.comboResetOnAnyDamage = v),
                     bool("combo.onlyPlayers", "Only Players",
                         "Only hits landed on players count towards the combo.",
@@ -632,19 +639,31 @@ public final class SettingsSchema {
                         c -> c.comboContinueOnSwitch, (c, v) -> c.comboContinueOnSwitch = v),
                     // The field is a double; the UI has always exposed whole seconds.
                     slider("combo.timeout", "Timeout (s)",
-                        "Seconds of inactivity before the combo resets.", 1, 10,
+                        "Seconds without a hit before the combo ends, or starts draining with Decay.", 1, 10,
                         c -> (int) Math.round(c.comboTimeout), (c, v) -> c.comboTimeout = v),
                     bool("combo.hideInactive", "Hide When Inactive",
-                        "Hide the display entirely while the combo is 0.",
-                        c -> c.comboHideWhenInactive, (c, v) -> c.comboHideWhenInactive = v))),
+                        "Hide the display while there is no combo to show.",
+                        c -> c.comboHideWhenInactive, (c, v) -> c.comboHideWhenInactive = v),
+                    stepper("combo.minDisplay", "Min Display",
+                        "Smallest count worth showing, for your combo and for one landed on you. "
+                            + "Always Show keeps yours on screen anyway.",
+                        1, 5, c -> c.comboMinDisplay, (c, v) -> c.comboMinDisplay = v),
+                    // Last on purpose: Decay stays for the players who like it, below the plain
+                    // rules. DEFAULTS is never normalized, so its null has to read as off here.
+                    bool("combo.decay", "Decay",
+                        "A broken or timed-out combo drains one hit per second instead of ending. "
+                            + "Landing a hit stops the drain.",
+                        c -> Boolean.TRUE.equals(c.comboDecay), (c, v) -> c.comboDecay = v))),
                 new Tab("style", "STYLE", List.of(
                     text("combo.suffix", "Suffix Text", "Text displayed after the combo count.",
                         c -> c.comboText, (c, v) -> c.comboText = v),
                     bool("combo.heatmap", "Heatmap Mode",
-                        "Dynamic color (blue to red to black) plus shake. Overrides Rainbow.",
+                        "Colors your count from the text color through red to dark red as it climbs. "
+                            + "Overrides Rainbow.",
                         c -> c.comboHeatmap, (c, v) -> c.comboHeatmap = v),
                     enumRow("combo.heatmapMode", "Heatmap Difficulty",
-                        "Difficulty scaling for the heatmap colors and shake. Resets the combo on change.",
+                        "Hits per tier, for the heatmap colors and for how a combo landed on you "
+                            + "darkens and shakes. Resets the combo on change.",
                         SimpleCPSConfig.HeatmapMode.class,
                         c -> c.comboHeatmapMode,
                         (c, v) -> {
@@ -656,7 +675,13 @@ public final class SettingsSchema {
                     color("combo.textColor", "Text Color", TEXT_COLOR_DESC,
                         c -> c.comboColor, (c, v) -> c.comboColor = v),
                     bool("combo.rainbow", "Rainbow", "Enable the rainbow text effect.",
-                        c -> c.comboRainbow, (c, v) -> c.comboRainbow = v))),
+                        c -> c.comboRainbow, (c, v) -> c.comboRainbow = v),
+                    enumRow("combo.impact", "Impact",
+                        "How hard hits land on your count: a punch on every hit, a brief freeze on a "
+                            + "new tier, a kill or a broken combo, and past the top tier a shake that "
+                            + "each hit freezes. OFF keeps it still.",
+                        SimpleCPSConfig.Impact.class,
+                        c -> c.comboImpact, (c, v) -> c.comboImpact = v))),
                 new Tab("bg", "BACKGROUND", List.of(
                     bool("combo.showBg", "Show Background", BG_SHOW_DESC,
                         c -> c.comboShowBackground, (c, v) -> c.comboShowBackground = v),
