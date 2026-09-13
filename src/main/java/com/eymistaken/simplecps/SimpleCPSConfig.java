@@ -150,10 +150,14 @@ public class SimpleCPSConfig {
         if (combatMode == null) combatMode = CombatMode.MODERN;
         if (comboHitDetection == null) comboHitDetection = HitDetection.SERVER;
         if (comboLine == null) comboLine = ComboLine.TIMEOUT;
+        if (comboStyle == null) comboStyle = ComboStyle.TEXT;
         if (hudFont == null) hudFont = HudFont.VANILLA;
         // Turning Reset on Any Damage off used to switch decay on as well. A config from
         // before Decay was its own setting keeps the behavior it had.
         if (comboDecay == null) comboDecay = !comboResetOnAnyDamage;
+        // Heatmap and Rainbow used to be two switches, the heatmap winning when both were on. A
+        // config from before Color Mode keeps the colors it had.
+        if (comboColorMode == null) comboColorMode = resolvedComboColorMode();
 
         // Designs and animations arrived after these configs were written, so GSON
         // leaves them null. Derive them from the old effect mode rather than
@@ -204,6 +208,8 @@ public class SimpleCPSConfig {
         cpsSeparator = text(cpsSeparator, " | ");
         fpsText = text(fpsText, "FPS");
         comboText = text(comboText, "Combo");
+        // After comboText, which a config written before the format derives it from.
+        comboFormat = text(resolvedComboFormat(), DEFAULT_COMBO_FORMAT);
         reachNoHitText = text(reachNoHitText, "No Hit");
     }
 
@@ -233,6 +239,10 @@ public class SimpleCPSConfig {
         comboImpactStrength = clamp(comboImpactStrength, 0, 200);
         comboShakeStrength = clamp(comboShakeStrength, 0, 200);
         comboJoltStrength = clamp(comboJoltStrength, 0, 200);
+        // Each tier at least a hit past the one before it.
+        comboHeatTier1 = clamp(comboHeatTier1, 1, MAX_HEAT_TIER - 2);
+        comboHeatTier2 = clamp(comboHeatTier2, comboHeatTier1 + 1, MAX_HEAT_TIER - 1);
+        comboHeatTier3 = clamp(comboHeatTier3, comboHeatTier2 + 1, MAX_HEAT_TIER);
         reachTimeout = clamp(reachTimeout, 0.1, 60.0);
 
         // Offsets are added to an anchor position; an unbounded value overflows int
@@ -309,6 +319,10 @@ public class SimpleCPSConfig {
     private static final int MAX_KEYSTROKE_BUTTONS = 256;
     private static final int MAX_OFFSET = 10_000;
     private static final int MAX_TEXT_LENGTH = 64;
+    /** The highest a CUSTOM heatmap tier can be set. */
+    public static final int MAX_HEAT_TIER = 100;
+    /** What the combo counter reads on a fresh install. */
+    public static final String DEFAULT_COMBO_FORMAT = "{combo} Combo";
 
     private static int clamp(int value, int min, int max) {
         return Math.max(min, Math.min(max, value));
@@ -326,6 +340,50 @@ public class SimpleCPSConfig {
     private static String text(String value, String fallback) {
         if (value == null) return fallback;
         return value.length() > MAX_TEXT_LENGTH ? value.substring(0, MAX_TEXT_LENGTH) : value;
+    }
+
+    /**
+     * The combo's color mode. Until normalize() has run, as in DEFAULTS or right after a reset, the
+     * field can still be null, and the mode then comes from the two switches it replaced;
+     * coalesceEnums() stores that once.
+     */
+    public ComboColorMode resolvedComboColorMode() {
+        if (comboColorMode != null) return comboColorMode;
+        if (comboHeatmap) return ComboColorMode.HEATMAP;
+        return comboRainbow ? ComboColorMode.RAINBOW : ComboColorMode.STATIC;
+    }
+
+    /**
+     * The combo's format. Until normalize() has run the field can still be null, and the format then
+     * comes from the suffix text it replaced; coalesceStrings() stores that once.
+     */
+    public String resolvedComboFormat() {
+        if (comboFormat != null) return comboFormat;
+        return comboText == null ? DEFAULT_COMBO_FORMAT : "{combo} " + comboText;
+    }
+
+    /**
+     * Sets CUSTOM heatmap tier {@code tier}, 1 to 3, and moves the other two out of its way, so the
+     * tiers stay strictly increasing however they are set.
+     */
+    public void setComboHeatTier(int tier, int value) {
+        switch (tier) {
+            case 1 -> {
+                comboHeatTier1 = clamp(value, 1, MAX_HEAT_TIER - 2);
+                comboHeatTier2 = Math.max(comboHeatTier2, comboHeatTier1 + 1);
+                comboHeatTier3 = Math.max(comboHeatTier3, comboHeatTier2 + 1);
+            }
+            case 2 -> {
+                comboHeatTier2 = clamp(value, 2, MAX_HEAT_TIER - 1);
+                comboHeatTier1 = Math.min(comboHeatTier1, comboHeatTier2 - 1);
+                comboHeatTier3 = Math.max(comboHeatTier3, comboHeatTier2 + 1);
+            }
+            default -> {
+                comboHeatTier3 = clamp(value, 3, MAX_HEAT_TIER);
+                comboHeatTier2 = Math.min(comboHeatTier2, comboHeatTier3 - 1);
+                comboHeatTier1 = Math.min(comboHeatTier1, comboHeatTier2 - 1);
+            }
+        }
     }
 
     public static boolean isManualLayout(String key) {
@@ -425,10 +483,12 @@ public class SimpleCPSConfig {
     // Enums
     public enum Position { TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT, CENTER }
     public enum RainbowTarget { TEXT, BACKGROUND }
-    public enum HeatmapMode { EASY, MEDIUM, HARD } // New Enum
+    public enum HeatmapMode { EASY, MEDIUM, HARD, CUSTOM } // New Enum
     public enum CombatMode { CLASSIC, MODERN }
     public enum HitDetection { SERVER, CLIENT }
     public enum ComboLine { TIMEOUT, HITS, BOTH, OFF }
+    public enum ComboColorMode { STATIC, RAINBOW, HEATMAP }
+    public enum ComboStyle { TEXT, BIG }
     // Custom HUD font selection (affects HUD elements + editor screens only, never vanilla text).
     public enum HudFont { VANILLA, INTER, RUBIK, JETBRAINS_MONO, BEBAS_NEUE, ENCHANT }
 
@@ -758,8 +818,8 @@ public class SimpleCPSConfig {
     public int comboYOffset = 0;
     public int comboScale = 100;
     public int comboColor = 0xFFFFFF;
-    public boolean comboRainbow = false;
-    public String comboText = "Combo";
+    public boolean comboRainbow = false; // Only seeds comboColorMode now.
+    public String comboText = "Combo"; // Only seeds comboFormat now.
     public boolean comboShowBackground = false;
     public int comboBackgroundColor = 0x000000;
     public int comboBackgroundOpacity = 128;
@@ -767,7 +827,7 @@ public class SimpleCPSConfig {
     public boolean comboResetOnAnyDamage = true; // "Break on Any Damage". OFF: only opponents break the combo.
     public boolean comboContinueOnSwitch = true;
     public boolean comboHideWhenInactive = false;
-    public boolean comboHeatmap = false;
+    public boolean comboHeatmap = false; // Only seeds comboColorMode now.
     public HeatmapMode comboHeatmapMode = HeatmapMode.MEDIUM; // Default: Medium
     public boolean comboOnlyPlayers = true; // Default: True
     public CombatMode combatMode = CombatMode.MODERN;
@@ -785,6 +845,23 @@ public class SimpleCPSConfig {
     // What the thin lines under a lone count show: the time left, the last hits, or both. They
     // become the divider when a combo landed on you stacks under yours.
     public ComboLine comboLine = ComboLine.TIMEOUT;
+    // How the count is colored: the text color, a rainbow, or the heatmap. Null in configs written
+    // before Color Mode, when Heatmap and Rainbow were two switches; coalesceEnums() derives it.
+    public ComboColorMode comboColorMode = null;
+    // The CUSTOM heatmap tiers, strictly increasing; clampRanges() keeps them so.
+    public int comboHeatTier1 = 5;
+    public int comboHeatTier2 = 8;
+    public int comboHeatTier3 = 12;
+    // The heatmap turns the count from the text color to the mid color by tier 2, and on to the top
+    // color by tier 3.
+    public int comboHeatColorMid = 0xFF0000;
+    public int comboHeatColorTop = 0x550000;
+    // What the count reads, {combo} and {best} filled in. Null in configs written before the format,
+    // which had only the suffix text; coalesceStrings() derives it from comboText.
+    public String comboFormat = null;
+    // TEXT puts the count and the rest of the format on one line; BIG draws the count twice as large
+    // with the rest under it.
+    public ComboStyle comboStyle = ComboStyle.TEXT;
 
     // --- REACH DISPLAY ---
     public boolean showReach = false;

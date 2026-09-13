@@ -1,5 +1,6 @@
 package com.eymistaken.simplecps.modules;
 
+import com.eymistaken.simplecps.ComboStats;
 import com.eymistaken.simplecps.ComboTracker;
 import com.eymistaken.simplecps.SimpleCPSConfig;
 import com.eymistaken.simplecps.api.ComboHeatmap;
@@ -57,6 +58,15 @@ public class ComboModule extends HudModule {
     /** The tag's size against the count's, and its distance from the count in unscaled pixels. */
     private static final float BEST_TAG_SCALE = 0.5f;
     private static final int BEST_TAG_GAP = 2;
+
+    // The format's placeholders.
+    private static final String COMBO_TOKEN = "{combo}";
+    private static final String BEST_TOKEN = "{best}";
+    /** How many times its usual size the BIG style draws the count. */
+    private static final int BIG_SCALE = 2;
+    /** The label under a BIG count rises into the empty bottom of its digits by this much. */
+    private static final int BIG_LABEL_RISE = 2;
+    private static final int[] STILL = {0, 0};
 
     // The HUD editor's still sample of the line, whichever kind the config asks for.
     private static final float SAMPLE_TIME_LEFT = 0.7f;
@@ -172,8 +182,9 @@ public class ComboModule extends HudModule {
         SimpleCPSConfig config = SimpleCPSConfig.instance;
         config.comboScale = 100;
         config.comboColor = 0xFFFFFF;
-        config.comboRainbow = false;
-        config.comboText = "Combo";
+        config.comboColorMode = SimpleCPSConfig.ComboColorMode.STATIC;
+        config.comboFormat = SimpleCPSConfig.DEFAULT_COMBO_FORMAT;
+        config.comboStyle = SimpleCPSConfig.ComboStyle.TEXT;
         config.comboShowBackground = false;
         config.comboBackgroundColor = 0x000000;
         config.comboBackgroundOpacity = 128;
@@ -181,8 +192,12 @@ public class ComboModule extends HudModule {
         config.comboResetOnAnyDamage = true;
         config.comboContinueOnSwitch = true;
         config.comboHideWhenInactive = false;
-        config.comboHeatmap = false;
         config.comboHeatmapMode = SimpleCPSConfig.HeatmapMode.MEDIUM;
+        config.comboHeatTier1 = 5;
+        config.comboHeatTier2 = 8;
+        config.comboHeatTier3 = 12;
+        config.comboHeatColorMid = 0xFF0000;
+        config.comboHeatColorTop = 0x550000;
         config.comboOnlyPlayers = true;
         config.combatMode = SimpleCPSConfig.CombatMode.MODERN;
         config.comboHitDetection = SimpleCPSConfig.HitDetection.SERVER;
@@ -201,10 +216,22 @@ public class ComboModule extends HudModule {
         settings.addAll(java.util.List.of(
             new com.eymistaken.simplecps.api.BooleanSetting("Enable Combo", () -> config.showCombo, v -> config.showCombo = v),
             new com.eymistaken.simplecps.api.BooleanSetting("Always Show", () -> !config.comboHideWhenInactive, v -> config.comboHideWhenInactive = !v),
+            cycle("Color Mode", SimpleCPSConfig.ComboColorMode.values(),
+                config::resolvedComboColorMode, v -> config.comboColorMode = v),
+            cycle("Style", SimpleCPSConfig.ComboStyle.values(), () -> config.comboStyle, v -> config.comboStyle = v),
             new com.eymistaken.simplecps.api.ColorSetting("Text Color", () -> config.comboColor, v -> config.comboColor = v),
-            new com.eymistaken.simplecps.api.TextSetting("Suffix Text", () -> config.comboText, v -> config.comboText = v)
+            new com.eymistaken.simplecps.api.TextSetting("Format", config::resolvedComboFormat, v -> config.comboFormat = v)
         ));
         return settings;
+    }
+
+    /** A menu cycle over an enum. The menu counts in indices; a missing value reads as the first. */
+    private static <E extends Enum<E>> com.eymistaken.simplecps.api.CycleSetting cycle(String name, E[] values,
+            java.util.function.Supplier<E> get, java.util.function.Consumer<E> set) {
+        List<String> names = java.util.Arrays.stream(values).map(Enum::name).toList();
+        return new com.eymistaken.simplecps.api.CycleSetting(name, names,
+            () -> get.get() == null ? 0 : get.get().ordinal(),
+            index -> set.accept(values[Math.floorMod(index, values.length)]));
     }
 
     @Override
@@ -249,7 +276,7 @@ public class ComboModule extends HudModule {
         // plays; everywhere else the content is exactly what is shown.
         int shownW = contentWidth(rows, config);
         int contentW = stage == preview ? demoWidth(config, heatmap) : shownW;
-        int line = client.font.lineHeight;
+        int row = rowHeight(config);
         long clock = feel == null ? 0L : feel.now();
 
         context.pose().pushMatrix();
@@ -269,43 +296,23 @@ public class ComboModule extends HudModule {
         float alpha = rows.lingering() ? lingerAlpha(rows.lingerMs()) : 1f;
 
         if (rows.ownShown()) {
-            String text = ownText(rows.own(), config);
-            int width = textWidth(text);
-            int left = padding + align(contentW, width);
-            float pulse = feel == null ? 1f : feel.pulse();
             // A combo past the top tier shakes, and every hitstop freezes that shake mid-motion
             // along with the rest of the counter. A finished combo lingers still.
             float amplitude = feel == null || rows.lingering() ? 0f
                 : ComboFeel.ownShake(rows.own(), heatmap) * shake * scale;
-
-            context.pose().pushMatrix();
-            shift(context, ComboFeel.shakeOffset(amplitude, clock, ComboFeel.OWN_PHASE), scale);
-            if (pulse != 1f) {
-                // Grow from the middle of the number, not from its corner.
-                float centerX = left + width / 2f;
-                float centerY = padding + line / 2f;
-                context.pose().translate(centerX, centerY);
-                context.pose().scale(pulse, pulse);
-                context.pose().translate(-centerX, -centerY);
-            }
-            drawEdgedText(context, text, left, padding, color, alpha);
-            // Inside the row's transform, so the tag punches, shakes and freezes along with the count.
+            int[] offset = ComboFeel.shakeOffset(amplitude, clock, ComboFeel.OWN_PHASE);
+            float pulse = feel == null ? 1f : feel.pulse();
             float tag = feel == null ? 0f : feel.bestTag();
-            if (tag > 0f) drawBestTag(context, left, width, padding, alpha * tag);
-            context.pose().popMatrix();
+            drawRow(context, config, rows.own(), contentW, padding, padding, color, alpha, offset, pulse, tag);
         }
 
-        drawLine(context, stage, rows, config, real, shownW, contentW, padding, padding + line + 1, color, alpha);
+        drawLine(context, stage, rows, config, real, shownW, contentW, padding, padding + row + 1, color, alpha);
 
         if (rows.receivedShown()) {
-            String text = receivedText(rows.received(), config);
             int receivedColor = feel == null ? ComboFeel.colorFor(rows.received(), heatmap) : feel.receivedColor();
-            int top = padding + (rows.stacked() ? line + ROW_GAP : 0);
-
-            context.pose().pushMatrix();
-            if (feel != null) shift(context, feel.shake(rows.received(), heatmap, scale, shake, jolt), scale);
-            drawEdgedText(context, text, padding + align(contentW, textWidth(text)), top, receivedColor, 1f);
-            context.pose().popMatrix();
+            int top = padding + (rows.stacked() ? row + ROW_GAP : 0);
+            int[] offset = feel == null ? STILL : feel.shake(rows.received(), heatmap, scale, shake, jolt);
+            drawRow(context, config, -rows.received(), contentW, padding, top, receivedColor, 1f, offset, 1f, 0f);
         }
 
         context.pose().popMatrix();
@@ -446,6 +453,45 @@ public class ComboModule extends HudModule {
         return stage == live && renderAlpha < 1f ? lastRows : EMPTY;
     }
 
+    /**
+     * One row: its count, with the rest of the format beside it or, in the BIG style, under it. The
+     * count shakes by {@code offset} and punches up by {@code pulse} from its middle, carrying the
+     * BEST tag with it; a BIG row's label holds still under it, so it stays readable.
+     */
+    private void drawRow(GuiGraphicsExtractor context, SimpleCPSConfig config, int count, int contentW,
+                         int padding, int top, int color, float alpha, int[] offset, float pulse, float tag) {
+        boolean big = big(config);
+        String text = big ? String.valueOf(count) : lineText(count, config);
+        int size = big ? BIG_SCALE : 1;
+        int width = textWidth(text) * size;
+        int left = padding + align(contentW, width);
+
+        context.pose().pushMatrix();
+        shift(context, offset, config.comboScale / 100f);
+        if (pulse != 1f) {
+            // Grow from the middle of the number, not from its corner.
+            float centerX = left + width / 2f;
+            float centerY = top + client.font.lineHeight * size / 2f;
+            context.pose().translate(centerX, centerY);
+            context.pose().scale(pulse, pulse);
+            context.pose().translate(-centerX, -centerY);
+        }
+        context.pose().pushMatrix();
+        context.pose().translate((float) left, (float) top);
+        context.pose().scale(size, size);
+        drawEdgedText(context, text, 0, 0, color, alpha);
+        context.pose().popMatrix();
+        // Inside the count's transform, so the tag punches, shakes and freezes along with it.
+        if (tag > 0f) drawBestTag(context, left, width, top, size, alpha * tag);
+        context.pose().popMatrix();
+
+        String label = big ? bigLabel(config) : "";
+        if (!label.isEmpty()) {
+            int labelTop = top + client.font.lineHeight * BIG_SCALE - BIG_LABEL_RISE;
+            drawEdgedText(context, label, padding + align(contentW, textWidth(label)), labelTop, color, alpha);
+        }
+    }
+
     /** Full strength while the ending lands, then easing down to dim. */
     private static float lingerAlpha(long lingerMs) {
         float dim = Easings.clamp01((lingerMs - LINGER_BRIGHT_MS) / (float) LINGER_DIM_MS);
@@ -563,34 +609,68 @@ public class ComboModule extends HudModule {
         return Boolean.TRUE.equals(config.comboDecay) || !config.comboResetOnAnyDamage;
     }
 
-    private static String ownText(int combo, SimpleCPSConfig config) {
-        return combo + " " + config.comboText;
+    private static boolean big(SimpleCPSConfig config) {
+        return config.comboStyle == SimpleCPSConfig.ComboStyle.BIG;
     }
 
-    private static String receivedText(int received, SimpleCPSConfig config) {
-        return "-" + received + " " + config.comboText;
+    /**
+     * The format the rows are written from. One that names no count gets it in front, so an edit to
+     * the format can never lose the number.
+     */
+    private static String template(SimpleCPSConfig config) {
+        String format = config.resolvedComboFormat();
+        if (format.contains(COMBO_TOKEN)) return format;
+        return format.isBlank() ? COMBO_TOKEN : COMBO_TOKEN + " " + format;
+    }
+
+    /** A row on one line: the format with {@code count} in it, negative for a combo landed on us. */
+    private static String lineText(int count, SimpleCPSConfig config) {
+        return fill(template(config), count);
+    }
+
+    /** What a BIG count carries under it: the rest of the format, trimmed, or nothing. */
+    private static String bigLabel(SimpleCPSConfig config) {
+        return fill(template(config).replace(COMBO_TOKEN, ""), 0).strip();
+    }
+
+    private static String fill(String template, int count) {
+        return template.replace(COMBO_TOKEN, String.valueOf(count))
+            .replace(BEST_TOKEN, String.valueOf(ComboStats.getBest()));
+    }
+
+    private int rowWidth(int count, SimpleCPSConfig config) {
+        if (!big(config)) return textWidth(lineText(count, config));
+        return Math.max(textWidth(String.valueOf(count)) * BIG_SCALE, textWidth(bigLabel(config)));
+    }
+
+    /** A line of text, or a BIG count with its label, when it has one, tucked under it. */
+    private int rowHeight(SimpleCPSConfig config) {
+        int line = client.font.lineHeight;
+        if (!big(config)) return line;
+        int count = line * BIG_SCALE - BIG_LABEL_RISE;
+        return bigLabel(config).isEmpty() ? count : count + line;
     }
 
     private int contentWidth(Rows rows, SimpleCPSConfig config) {
-        // Nothing on screen still measures as "0 Combo": the slot stays reserved, so the
+        // Nothing on screen still measures as a count of 0: the slot stays reserved, so the
         // modules stacked around this one do not jump when it appears.
-        if (rows.empty()) return textWidth(ownText(0, config));
-        int width = rows.ownShown() ? textWidth(ownText(rows.own(), config)) : 0;
-        if (rows.receivedShown()) width = Math.max(width, textWidth(receivedText(rows.received(), config)));
+        if (rows.empty()) return rowWidth(0, config);
+        int width = rows.ownShown() ? rowWidth(rows.own(), config) : 0;
+        if (rows.receivedShown()) width = Math.max(width, rowWidth(-rows.received(), config));
         return width;
     }
 
     /** The widest the demo gets, so the preview card keeps one size while it plays. */
     private int demoWidth(SimpleCPSConfig config, ComboHeatmap heatmap) {
-        return Math.max(textWidth(ownText(ComboDemo.ownPeak(heatmap), config)),
-            textWidth(receivedText(ComboDemo.receivedPeak(heatmap), config)));
+        return Math.max(rowWidth(ComboDemo.ownPeak(heatmap), config),
+            rowWidth(-ComboDemo.receivedPeak(heatmap), config));
     }
 
     /** Two rows with the divider between them, or one row with room under it for its lines. */
     private int contentHeight(boolean stacked, SimpleCPSConfig config) {
-        int line = client.font.lineHeight;
-        if (stacked) return line * 2 + ROW_GAP;
-        return line + LINE_SPACE * lineCount(config);
+        int row = rowHeight(config);
+        if (stacked) return row * 2 + ROW_GAP;
+        return row + LINE_SPACE * lineCount(config);
     }
 
     /** How many lines sit under a lone row: none, one, or the timeout line with the hits under it. */
@@ -616,38 +696,45 @@ public class ComboModule extends HudModule {
     }
 
     /**
-     * The tag a new best wears: a half-size word level with the top of our row, on the side away
+     * The tag a new best wears: a word half the count's size, level with its top, on the side away
      * from the anchor. It overflows the module rather than growing it, and that side keeps it on
      * screen; toward the anchor it would run off the edge the module is pinned to.
      */
-    private void drawBestTag(GuiGraphicsExtractor context, int left, int width, int top, float alpha) {
-        float tagWidth = textWidth(BEST_TAG) * BEST_TAG_SCALE;
+    private void drawBestTag(GuiGraphicsExtractor context, int left, int width, int top, int size, float alpha) {
+        float tagScale = BEST_TAG_SCALE * size;
+        float tagWidth = textWidth(BEST_TAG) * tagScale;
         float tagX = anchoredRight() ? left - BEST_TAG_GAP - tagWidth : left + width + BEST_TAG_GAP;
         context.pose().pushMatrix();
         context.pose().translate(tagX, (float) top);
-        context.pose().scale(BEST_TAG_SCALE, BEST_TAG_SCALE);
+        context.pose().scale(tagScale, tagScale);
         drawEdgedText(context, BEST_TAG, 0, 0, BEST_GOLD, alpha);
         context.pose().popMatrix();
     }
 
     private int ownColor(int combo, SimpleCPSConfig config, ComboHeatmap heatmap) {
-        int color = config.comboColor;
-        if (config.comboHeatmap) {
-            int t1 = heatmap.tier1();
-            int t2 = heatmap.tier2();
-            int t3 = heatmap.tier3();
-            if (combo >= t2) {
-                float progress = Math.min((float) (combo - t2) / (float) (t3 - t2), 1.0f);
-                color = interpolateColor(0xFFFF0000, 0xFF550000, progress);
-            } else if (combo >= t1) {
-                float progress = (float) (combo - t1) / (float) (t2 - t1);
-                color = interpolateColor(config.comboColor, 0xFFFF0000, progress);
-            }
-        } else if (config.comboRainbow) {
-            color = getRainbowColor();
-        }
+        int color = switch (config.resolvedComboColorMode()) {
+            case STATIC -> config.comboColor;
+            case RAINBOW -> getRainbowColor();
+            case HEATMAP -> heatColor(combo, config, heatmap);
+        };
         if ((color & 0xFF000000) == 0) color |= 0xFF000000;
         return color;
+    }
+
+    /** The text color up to tier 1, turning into the mid color by tier 2 and the top color by tier 3. */
+    private int heatColor(int combo, SimpleCPSConfig config, ComboHeatmap heatmap) {
+        int t1 = heatmap.tier1();
+        int t2 = heatmap.tier2();
+        int t3 = heatmap.tier3();
+        if (combo >= t2) {
+            float progress = Math.min((float) (combo - t2) / (float) (t3 - t2), 1.0f);
+            return interpolateColor(config.comboHeatColorMid, config.comboHeatColorTop, progress);
+        }
+        if (combo >= t1) {
+            float progress = (float) (combo - t1) / (float) (t2 - t1);
+            return interpolateColor(config.comboColor, config.comboHeatColorMid, progress);
+        }
+        return config.comboColor;
     }
 
     /**

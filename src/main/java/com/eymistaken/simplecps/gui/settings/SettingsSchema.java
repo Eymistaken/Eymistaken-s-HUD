@@ -660,16 +660,34 @@ public final class SettingsSchema {
                             + "Landing a hit stops the drain.",
                         c -> Boolean.TRUE.equals(c.comboDecay), (c, v) -> c.comboDecay = v))),
                 new Tab("style", "STYLE", List.of(
-                    text("combo.suffix", "Suffix Text", "Text displayed after the combo count.",
-                        c -> c.comboText, (c, v) -> c.comboText = v),
-                    bool("combo.heatmap", "Heatmap Mode",
-                        "Colors your count from the text color through red to dark red as it climbs. "
-                            + "Overrides Rainbow.",
-                        c -> c.comboHeatmap, (c, v) -> c.comboHeatmap = v),
+                    text("combo.format", "Format",
+                        "What your count reads. {combo} is the count, negative for a combo landed on you, "
+                            + "and {best} your best combo. Without {combo}, the count goes in front.",
+                        SimpleCPSConfig::resolvedComboFormat, (c, v) -> c.comboFormat = v),
+                    enumRow("combo.style", "Style",
+                        "TEXT keeps the count and the rest of the format on one line. BIG draws the count "
+                            + "twice as large, with the rest of the format under it.",
+                        SimpleCPSConfig.ComboStyle.class,
+                        c -> c.comboStyle, (c, v) -> c.comboStyle = v),
+                    enumRow("combo.line", "Line",
+                        "The thin line under your count. TIMEOUT shrinks with the time left before the "
+                            + "combo ends. HITS shows your last 8 hits: gray, white for a sprint hit, gold "
+                            + "for a critical one. BOTH puts the hits under the timeout. When a combo landed "
+                            + "on you stacks under yours, the line becomes the divider between them.",
+                        SimpleCPSConfig.ComboLine.class,
+                        c -> c.comboLine, (c, v) -> c.comboLine = v),
+                    enumRow("combo.colorMode", "Color Mode",
+                        "STATIC keeps your count in the text color. RAINBOW cycles it through every hue. "
+                            + "HEATMAP turns it from the text color to the mid color and on to the top color "
+                            + "as it climbs the heatmap tiers.",
+                        SimpleCPSConfig.ComboColorMode.class,
+                        SimpleCPSConfig::resolvedComboColorMode, (c, v) -> c.comboColorMode = v),
+                    color("combo.textColor", "Text Color", TEXT_COLOR_DESC,
+                        c -> c.comboColor, (c, v) -> c.comboColor = v),
                     enumRow("combo.heatmapMode", "Heatmap Difficulty",
                         "Hits per tier: where the heatmap colors change, where your count starts to "
-                            + "shake, and how fast a combo landed on you darkens and shakes. Resets the "
-                            + "combo on change.",
+                            + "shake, and how fast a combo landed on you darkens and shakes. CUSTOM uses "
+                            + "the three custom tiers below. Resets the combo on change.",
                         SimpleCPSConfig.HeatmapMode.class,
                         c -> c.comboHeatmapMode,
                         (c, v) -> {
@@ -678,17 +696,27 @@ public final class SettingsSchema {
                             if (c.comboHeatmapMode != v) ComboTracker.reset();
                             c.comboHeatmapMode = v;
                         }),
-                    color("combo.textColor", "Text Color", TEXT_COLOR_DESC,
-                        c -> c.comboColor, (c, v) -> c.comboColor = v),
-                    bool("combo.rainbow", "Rainbow", "Enable the rainbow text effect.",
-                        c -> c.comboRainbow, (c, v) -> c.comboRainbow = v),
-                    enumRow("combo.line", "Line",
-                        "The thin line under your count. TIMEOUT shrinks with the time left before the "
-                            + "combo ends. HITS shows your last 8 hits: gray, white for a sprint hit, gold "
-                            + "for a critical one. BOTH puts the hits under the timeout. When a combo landed "
-                            + "on you stacks under yours, the line becomes the divider between them.",
-                        SimpleCPSConfig.ComboLine.class,
-                        c -> c.comboLine, (c, v) -> c.comboLine = v))),
+                    stepper("combo.heatTier1", "Custom Tier 1",
+                        "With CUSTOM difficulty: the hit where your count starts turning toward the mid "
+                            + "color. Each tier stays above the one before it.",
+                        1, SimpleCPSConfig.MAX_HEAT_TIER - 2,
+                        c -> c.comboHeatTier1, (c, v) -> setHeatTier(c, 1, v)),
+                    stepper("combo.heatTier2", "Custom Tier 2",
+                        "With CUSTOM difficulty: the hit where your count reaches the mid color, and "
+                            + "from which a new best flashes.",
+                        2, SimpleCPSConfig.MAX_HEAT_TIER - 1,
+                        c -> c.comboHeatTier2, (c, v) -> setHeatTier(c, 2, v)),
+                    stepper("combo.heatTier3", "Custom Tier 3",
+                        "With CUSTOM difficulty: the hit where your count reaches the top color and "
+                            + "starts to shake.",
+                        3, SimpleCPSConfig.MAX_HEAT_TIER,
+                        c -> c.comboHeatTier3, (c, v) -> setHeatTier(c, 3, v)),
+                    color("combo.heatMid", "Heatmap Mid Color", "The heatmap color at the second tier.",
+                        c -> c.comboHeatColorMid, (c, v) -> c.comboHeatColorMid = v),
+                    color("combo.heatTop", "Heatmap Top Color",
+                        "The heatmap color at the top tier. The count's edge warms to a dim red as it "
+                            + "darkens, so even black stays readable.",
+                        c -> c.comboHeatColorTop, (c, v) -> c.comboHeatColorTop = v))),
                 // One slider per part of the motion, each in percent of its stock size, so any of
                 // them can be tuned or switched off without touching the others.
                 new Tab("anim", "ANIMATION", List.of(
@@ -715,6 +743,20 @@ public final class SettingsSchema {
             false, false,
             () -> SimpleCPSConfig.instance.showCombo,
             v -> SimpleCPSConfig.instance.showCombo = v);
+    }
+
+    /**
+     * Sets a CUSTOM tier through the config, which keeps the three in order. Like Heatmap
+     * Difficulty, moving the tiers in use resets the combo that was being scored on them.
+     */
+    private static void setHeatTier(SimpleCPSConfig config, int tier, int value) {
+        int tier1 = config.comboHeatTier1;
+        int tier2 = config.comboHeatTier2;
+        int tier3 = config.comboHeatTier3;
+        config.setComboHeatTier(tier, value);
+        boolean moved = tier1 != config.comboHeatTier1 || tier2 != config.comboHeatTier2
+            || tier3 != config.comboHeatTier3;
+        if (moved && config.comboHeatmapMode == SimpleCPSConfig.HeatmapMode.CUSTOM) ComboTracker.reset();
     }
 
     private static Page reach() {
