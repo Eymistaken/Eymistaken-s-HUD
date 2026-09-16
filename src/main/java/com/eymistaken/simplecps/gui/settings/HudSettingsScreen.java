@@ -23,6 +23,7 @@ import com.eymistaken.simplecps.util.HudActions;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
+import com.mojang.blaze3d.platform.InputConstants;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -2477,7 +2478,7 @@ public class HudSettingsScreen extends ScaledDesignScreen implements SettingsSch
             handleDialogClick(mouseX, mouseY, button);
             return true;
         }
-        if (button != 0 && button != 1) return super.mouseClicked(click, doubled);
+        if (button != InputConstants.MOUSE_BUTTON_LEFT && button != InputConstants.MOUSE_BUTTON_RIGHT) return super.mouseClicked(click, doubled);
 
         Focus previousFocus = focus;
         boolean consumed = routeClick(mouseX, mouseY, button);
@@ -2539,7 +2540,7 @@ public class HudSettingsScreen extends ScaledDesignScreen implements SettingsSch
         }
 
         // Scrollbars sit on top of their lists, so they get first refusal.
-        if (button == 0 && handleScrollbarPress(mouseX, mouseY)) return true;
+        if (button == InputConstants.MOUSE_BUTTON_LEFT && handleScrollbarPress(mouseX, mouseY)) return true;
 
         // Right panel first: when collapsed it is drawn over the content column.
         if ((!rightCollapsed || drawerOpen) && handleRightPanelClick(mouseX, mouseY)) return true;
@@ -2895,7 +2896,7 @@ public class HudSettingsScreen extends ScaledDesignScreen implements SettingsSch
         if (SettingsTheme.inside(mouseX, virtualY, hexX, hy, hexW, ctrlH)) {
             // Left click copies — that is what you nearly always want a hex code
             // for. Right click drops into the field to type or paste one.
-            if (button == 0) {
+            if (button == InputConstants.MOUSE_BUTTON_LEFT) {
                 commitFocus();
                 copyHex(row);
                 return;
@@ -3022,7 +3023,7 @@ public class HudSettingsScreen extends ScaledDesignScreen implements SettingsSch
     }
 
     private void handleDialogClick(double mouseX, double mouseY, int button) {
-        if (button != 0) return;
+        if (button != InputConstants.MOUSE_BUTTON_LEFT) return;
         int by = modalButtonY();
         int bw = modalButtonW();
         int bh = modalButtonH();

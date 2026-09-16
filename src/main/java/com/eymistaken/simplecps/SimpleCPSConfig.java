@@ -3,6 +3,7 @@ package com.eymistaken.simplecps;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.fabricmc.loader.api.FabricLoader;
 
 import java.io.File;
@@ -15,7 +16,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.lwjgl.glfw.GLFW;
 
 public class SimpleCPSConfig {
 
@@ -127,6 +127,7 @@ public class SimpleCPSConfig {
      */
     public void normalize() {
         ensureDefaults();
+        migrateKeyCodes();
         coalesceEnums();
         coalesceStrings();
         clampRanges();
@@ -134,6 +135,20 @@ public class SimpleCPSConfig {
         if (keystrokesLayout.isEmpty()) {
             resetLayout();
         }
+    }
+
+    /**
+     * Bring key codes written before Minecraft 26.3 into the numbering 26.3 reports.
+     *
+     * <p>26.3 moved the client from GLFW to SDL, which numbers keys and mouse buttons
+     * differently, so a config, preset or share code from an older build names the wrong
+     * keys until it is translated. Runs once per config: the scheme it stamps is then
+     * written back on the next save.
+     */
+    private void migrateKeyCodes() {
+        if (keyCodeScheme != null && keyCodeScheme >= KEY_CODES_SDL) return;
+        com.eymistaken.simplecps.util.InputCodes.migrate(keystrokesLayout);
+        keyCodeScheme = KEY_CODES_SDL;
     }
 
     /** A missing/unknown enum name deserializes to null; fall back to the default. */
@@ -775,6 +790,18 @@ public class SimpleCPSConfig {
 
     public List<KeyButtonData> keystrokesLayout = new ArrayList<>();
 
+    /**
+     * Which numbering the {@link KeyButtonData#keyCode}s above are written in. Null is a
+     * config from before Minecraft 26.3, whose codes are GLFW's; {@link #KEY_CODES_SDL} is
+     * the scancodes 26.3 reports. It has to be recorded, because the two numberings overlap
+     * and no code can be told apart by its value alone: GLFW's W is 87, which is SDL's
+     * keypad plus. {@link com.eymistaken.simplecps.util.InputCodes} does the translation.
+     */
+    public Integer keyCodeScheme = null;
+
+    /** The numbering Minecraft 26.3 reports, and the only one this build writes. */
+    public static final int KEY_CODES_SDL = 1;
+
     public SimpleCPSConfig() {
         // Default Layout: WASD + Space + Mouse + Modifiers
     }
@@ -785,30 +812,33 @@ public class SimpleCPSConfig {
         keystrokesLayout = new ArrayList<>();
         // WASD (Row 1 & 2)
         // W: centered in 3-key width (67px). x=23.
-        keystrokesLayout.add(new KeyButtonData("W", 23, 0, 21, 21, GLFW.GLFW_KEY_W));
-        keystrokesLayout.add(new KeyButtonData("A", 0, 23, 21, 21, GLFW.GLFW_KEY_A));
-        keystrokesLayout.add(new KeyButtonData("S", 23, 23, 21, 21, GLFW.GLFW_KEY_S));
-        keystrokesLayout.add(new KeyButtonData("D", 46, 23, 21, 21, GLFW.GLFW_KEY_D));
+        keystrokesLayout.add(new KeyButtonData("W", 23, 0, 21, 21, InputConstants.KEY_W));
+        keystrokesLayout.add(new KeyButtonData("A", 0, 23, 21, 21, InputConstants.KEY_A));
+        keystrokesLayout.add(new KeyButtonData("S", 23, 23, 21, 21, InputConstants.KEY_S));
+        keystrokesLayout.add(new KeyButtonData("D", 46, 23, 21, 21, InputConstants.KEY_D));
         
         // LMB / RMB (Row 3, Taller but slightly reduced per request)
         // Previous Height: 27. Requested 3/4 size -> ~21.
         // y = 23 + 21 + 2 = 46. Height 21.
-        KeyButtonData lmb = new KeyButtonData("LMB", 0, 46, 33, 21, 0, true);
+        KeyButtonData lmb = new KeyButtonData("LMB", 0, 46, 33, 21, InputConstants.MOUSE_BUTTON_LEFT, true);
         lmb.showCps = false; // Default off
         keystrokesLayout.add(lmb);
         
-        KeyButtonData rmb = new KeyButtonData("RMB", 34, 46, 33, 21, 1, true);
+        KeyButtonData rmb = new KeyButtonData("RMB", 34, 46, 33, 21, InputConstants.MOUSE_BUTTON_RIGHT, true);
         rmb.showCps = false; // Default off
         keystrokesLayout.add(rmb);
         
         // Space (Row 4)
         // y = 46 + 21 + 2 = 69. Width 67. Height 13.
-        keystrokesLayout.add(new KeyButtonData("-----", 0, 69, 67, 13, GLFW.GLFW_KEY_SPACE));
+        keystrokesLayout.add(new KeyButtonData("-----", 0, 69, 67, 13, InputConstants.KEY_SPACE));
         
         // Modifiers (Row 5 - Below Space)
         // y = 69 + 13 + 2 = 84. Height 13.
-        keystrokesLayout.add(new KeyButtonData("CTRL", 0, 84, 33, 13, GLFW.GLFW_KEY_LEFT_CONTROL));
-        keystrokesLayout.add(new KeyButtonData("SHIFT", 34, 84, 33, 13, GLFW.GLFW_KEY_LEFT_SHIFT));
+        keystrokesLayout.add(new KeyButtonData("CTRL", 0, 84, 33, 13, InputConstants.KEY_LCONTROL));
+        keystrokesLayout.add(new KeyButtonData("SHIFT", 34, 84, 33, 13, InputConstants.KEY_LSHIFT));
+
+        // These are written in the current numbering, so there is nothing to migrate.
+        keyCodeScheme = KEY_CODES_SDL;
     }
 
     // --- COMBO ---

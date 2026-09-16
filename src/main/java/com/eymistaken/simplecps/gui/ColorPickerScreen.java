@@ -1,6 +1,6 @@
 package com.eymistaken.simplecps.gui;
 
-import org.lwjgl.glfw.GLFW;
+import com.mojang.blaze3d.platform.InputConstants;
 import java.awt.Color;
 import java.util.function.IntConsumer;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -156,7 +156,7 @@ public class ColorPickerScreen extends Screen {
         double mouseY = click.y();
         int button = click.button();
         
-        if (button == 0) {
+        if (button == InputConstants.MOUSE_BUTTON_LEFT) {
             int totalHeight = 180;
             int cx = this.width / 2 - 100;
             int cy = (this.height - totalHeight) / 2;
@@ -213,7 +213,7 @@ public class ColorPickerScreen extends Screen {
         double mouseY = click.y();
         int button = click.button();
         
-        if (button == 0 && dragTarget != DragTarget.NONE) {
+        if (button == InputConstants.MOUSE_BUTTON_LEFT && dragTarget != DragTarget.NONE) {
             int totalHeight = 180;
             int cx = this.width / 2 - 100;
             int cy = (this.height - totalHeight) / 2;
@@ -286,8 +286,8 @@ public class ColorPickerScreen extends Screen {
         }
     }
     private boolean isCtrlDown() {
-        return GLFW.glfwGetKey(this.minecraft.getWindow().handle(), GLFW.GLFW_KEY_LEFT_CONTROL) == GLFW.GLFW_PRESS ||
-               GLFW.glfwGetKey(this.minecraft.getWindow().handle(), GLFW.GLFW_KEY_RIGHT_CONTROL) == GLFW.GLFW_PRESS;
+        return InputConstants.isKeyDown(InputConstants.KEY_LCONTROL)
+            || InputConstants.isKeyDown(InputConstants.KEY_RCONTROL);
     }
 
     @Override
@@ -296,10 +296,10 @@ public class ColorPickerScreen extends Screen {
         
         if (hexBoxActive) {
             if (isCtrlDown()) {
-                if (keyCode == GLFW.GLFW_KEY_A) {
+                if (keyCode == InputConstants.KEY_A) {
                     isAllSelected = true;
                     return true;
-                } else if (keyCode == GLFW.GLFW_KEY_V) {
+                } else if (keyCode == InputConstants.KEY_V) {
                     if (this.minecraft != null) {
                         String clipboard = this.minecraft.keyboardHandler.getClipboard();
                         if (clipboard != null) {
@@ -315,26 +315,26 @@ public class ColorPickerScreen extends Screen {
                 }
             }
 
-            if (isAllSelected && (keyCode == GLFW.GLFW_KEY_BACKSPACE || keyCode == GLFW.GLFW_KEY_ESCAPE)) {
+            if (isAllSelected && (keyCode == InputConstants.KEY_BACKSPACE || keyCode == InputConstants.KEY_ESCAPE)) {
                 isAllSelected = false;
                 return true;
             }
 
-            if (keyCode == GLFW.GLFW_KEY_BACKSPACE) {
+            if (keyCode == InputConstants.KEY_BACKSPACE) {
                 if (!hexInput.isEmpty()) {
                     hexInput = hexInput.substring(0, hexInput.length() - 1);
                     tryApplyHex();
                 }
                 return true;
             }
-            if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER || keyCode == GLFW.GLFW_KEY_ESCAPE) {
+            if (keyCode == InputConstants.KEY_RETURN || keyCode == InputConstants.KEY_NUMPADENTER || keyCode == InputConstants.KEY_ESCAPE) {
                 hexBoxActive = false;
                 isAllSelected = false;
                 return true;
             }
         }
 
-        if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
+        if (keyCode == InputConstants.KEY_ESCAPE) {
             if (this.minecraft != null) {
                 this.minecraft.gui.setScreen(parent);
             }

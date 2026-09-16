@@ -11,8 +11,10 @@ import com.eymistaken.simplecps.modules.KeystrokesRender;
 import com.eymistaken.simplecps.util.Anim;
 import com.eymistaken.simplecps.util.Easings;
 import com.eymistaken.simplecps.util.HudActions;
+import com.eymistaken.simplecps.util.InputCodes;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
+import com.mojang.blaze3d.platform.InputConstants;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -28,7 +30,6 @@ import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 
-import org.lwjgl.glfw.GLFW;
 
 /**
  * The keystrokes layout designer: an add/layers/presets rail on the left, a zoomed
@@ -1359,7 +1360,8 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
         SimpleCPSConfig.KeyButtonData k = single();
         if (k == null) return "MIXED";
         if (mode == Mode.KEYBIND) return "PRESS A KEY";
-        return k.isMouse ? (k.keyCode == 0 ? "MOUSE L" : k.keyCode == 1 ? "MOUSE R" : "MOUSE " + k.keyCode)
+        return k.isMouse ? (k.keyCode == InputConstants.MOUSE_BUTTON_LEFT ? "MOUSE L"
+            : k.keyCode == InputConstants.MOUSE_BUTTON_RIGHT ? "MOUSE R" : "MOUSE " + k.keyCode)
             : keyName(k.keyCode);
     }
 
@@ -2113,10 +2115,10 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
      * never write back into the layout.
      */
     private static final List<SimpleCPSConfig.KeyButtonData> PREVIEW_KEYS = List.of(
-        new SimpleCPSConfig.KeyButtonData("W", 15, 0, 13, 13, org.lwjgl.glfw.GLFW.GLFW_KEY_W),
+        new SimpleCPSConfig.KeyButtonData("W", 15, 0, 13, 13, InputConstants.KEY_W),
         new SimpleCPSConfig.KeyButtonData("L", 0, 15, 13, 13, 0, true),
         new SimpleCPSConfig.KeyButtonData("R", 15, 15, 13, 13, 1, true),
-        new SimpleCPSConfig.KeyButtonData("-----", 0, 30, 28, 8, org.lwjgl.glfw.GLFW.GLFW_KEY_SPACE));
+        new SimpleCPSConfig.KeyButtonData("-----", 0, 30, 28, 8, InputConstants.KEY_SPACE));
 
     /**
      * The sample buttons a card draws for a design.
@@ -2157,15 +2159,15 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
 
     private static int roleKeyCode(int role) {
         return switch (role) {
-            case KeystrokesDesign.ROLE_W -> GLFW.GLFW_KEY_W;
-            case KeystrokesDesign.ROLE_A -> GLFW.GLFW_KEY_A;
-            case KeystrokesDesign.ROLE_S -> GLFW.GLFW_KEY_S;
-            case KeystrokesDesign.ROLE_D -> GLFW.GLFW_KEY_D;
-            case KeystrokesDesign.ROLE_LMB -> 0;
-            case KeystrokesDesign.ROLE_RMB -> 1;
-            case KeystrokesDesign.ROLE_CTRL -> GLFW.GLFW_KEY_LEFT_CONTROL;
-            case KeystrokesDesign.ROLE_SHIFT -> GLFW.GLFW_KEY_LEFT_SHIFT;
-            default -> GLFW.GLFW_KEY_SPACE;
+            case KeystrokesDesign.ROLE_W -> InputConstants.KEY_W;
+            case KeystrokesDesign.ROLE_A -> InputConstants.KEY_A;
+            case KeystrokesDesign.ROLE_S -> InputConstants.KEY_S;
+            case KeystrokesDesign.ROLE_D -> InputConstants.KEY_D;
+            case KeystrokesDesign.ROLE_LMB -> InputConstants.MOUSE_BUTTON_LEFT;
+            case KeystrokesDesign.ROLE_RMB -> InputConstants.MOUSE_BUTTON_RIGHT;
+            case KeystrokesDesign.ROLE_CTRL -> InputConstants.KEY_LCONTROL;
+            case KeystrokesDesign.ROLE_SHIFT -> InputConstants.KEY_LSHIFT;
+            default -> InputConstants.KEY_SPACE;
         };
     }
 
@@ -2623,7 +2625,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
                     KeystrokesAnim.Direction[] choices = KeystrokesAnim.choicesFor(
                         linear ? KeystrokesAnim.Fill.SWEEP : KeystrokesAnim.Fill.EDGE_RUN);
                     config.keystrokesFillDirection = cycleEnum(choices, globalDirection(),
-                        button == 0 ? 1 : -1);
+                        button == InputConstants.MOUSE_BUTTON_LEFT ? 1 : -1);
                 }
                 case "ghost" -> config.keystrokesGhost = !config.keystrokesGhost;
                 case "board" -> config.keystrokesBoard = !config.keystrokesBoard;
@@ -2737,7 +2739,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
             return true;
         }
         if (galleryOpen) {
-            if (button == 0) handleGalleryClick(vmx, vmy);
+            if (button == InputConstants.MOUSE_BUTTON_LEFT) handleGalleryClick(vmx, vmy);
             return true;
         }
         if (animOpen && handleAnimPanelClick(vmx, vmy, button)) {
@@ -2752,7 +2754,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
             return true;
         }
 
-        if (button == 0) {
+        if (button == InputConstants.MOUSE_BUTTON_LEFT) {
             if (handleHeaderClick(vmx, vmy)) return true;
             if (handleToolbarClick(vmx, vmy, button)) return true;
             if (handleFooterClick(vmx, vmy)) return true;
@@ -2762,7 +2764,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
         }
 
         if (canvasContains(vmx, vmy)) return handleCanvasClick(vmx, vmy, button);
-        if (button == 0) setLabelFocus(false);
+        if (button == InputConstants.MOUSE_BUTTON_LEFT) setLabelFocus(false);
         return false;
     }
 
@@ -2785,7 +2787,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
             if (!SettingsTheme.inside(vx, vy, b.x(), b.y(), b.w(), b.h())) continue;
             // These two open panels, so a right-click on them is meaningless; the
             // rest ignore it rather than firing their left-click action.
-            if (button != 0) return false;
+            if (button != InputConstants.MOUSE_BUTTON_LEFT) return false;
             setLabelFocus(false);
             switch (b.id()) {
                 case "undo" -> undo();
@@ -2824,11 +2826,11 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
             if (!SettingsTheme.inside(vx, vy, tile.x(), tile.y(), tile.w(), tile.h())) continue;
             setLabelFocus(false);
             switch (tile.id()) {
-                case "key" -> addButton("K", 0, 0, 21, 21, GLFW.GLFW_KEY_UNKNOWN, false, false);
-                case "mod" -> addButton("MOD", 0, 80, 33, 13, GLFW.GLFW_KEY_LEFT_CONTROL, false, false);
-                case "lmb" -> addButton("LMB", 0, 60, 33, 21, 0, true, true);
-                case "rmb" -> addButton("RMB", 33, 60, 33, 21, 1, true, true);
-                case "space" -> addButton("-----", 0, 40, 67, 13, GLFW.GLFW_KEY_SPACE, false, false);
+                case "key" -> addButton("K", 0, 0, 21, 21, InputCodes.UNBOUND, false, false);
+                case "mod" -> addButton("MOD", 0, 80, 33, 13, InputConstants.KEY_LCONTROL, false, false);
+                case "lmb" -> addButton("LMB", 0, 60, 33, 21, InputConstants.MOUSE_BUTTON_LEFT, true, true);
+                case "rmb" -> addButton("RMB", 33, 60, 33, 21, InputConstants.MOUSE_BUTTON_RIGHT, true, true);
+                case "space" -> addButton("-----", 0, 40, 67, 13, InputConstants.KEY_SPACE, false, false);
                 default -> { }
             }
             return true;
@@ -3022,7 +3024,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
         setLabelFocus(false);
         SimpleCPSConfig.KeyButtonData hit = keyAt(vmx, vmy);
 
-        if (button == 0) {
+        if (button == InputConstants.MOUSE_BUTTON_LEFT) {
             long now = System.currentTimeMillis();
             boolean doubleClick = hit != null && hit == lastClickTarget
                 && now - lastClickMillis < DOUBLE_CLICK_MILLIS;
@@ -3064,7 +3066,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
             return true;
         }
 
-        if (button == 1) {
+        if (button == InputConstants.MOUSE_BUTTON_RIGHT) {
             if (hit != null) {
                 // Opening is deferred to the release so that holding and dragging
                 // moves the label instead.
@@ -3102,7 +3104,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
             updateColorDrag(vmx, vmy);
             return true;
         }
-        if (button == 0 && marqueeActive) {
+        if (button == InputConstants.MOUSE_BUTTON_LEFT && marqueeActive) {
             marqueeX = vmx;
             marqueeY = vmy;
             int slop = d(3, 1);
@@ -3112,11 +3114,11 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
             updateMarqueeSelection();
             return true;
         }
-        if (button == 0 && dragArmed) {
+        if (button == InputConstants.MOUSE_BUTTON_LEFT && dragArmed) {
             updateDrag(vmx, vmy);
             return true;
         }
-        if (button == 1 && rightTarget != null) {
+        if (button == InputConstants.MOUSE_BUTTON_RIGHT && rightTarget != null) {
             updateRightDrag(vmx, vmy);
             return true;
         }
@@ -3258,7 +3260,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
             cpDrag = CpDrag.NONE;
             return true;
         }
-        if (button == 0) {
+        if (button == InputConstants.MOUSE_BUTTON_LEFT) {
             if (marqueeActive) {
                 marqueeActive = false;
                 marqueeMoved = false;
@@ -3273,7 +3275,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
                 snapY = null;
                 return true;
             }
-        } else if (button == 1 && rightTarget != null) {
+        } else if (button == InputConstants.MOUSE_BUTTON_RIGHT && rightTarget != null) {
             if (!rightDragging) openMenuAt(vmx, vmy, rightTarget);
             rightTarget = null;
             rightDragging = false;
@@ -3385,15 +3387,15 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
         }
 
         boolean ctrl = keyInput.hasControlDownWithQuirk();
-        if (ctrl && keyCode == GLFW.GLFW_KEY_Z) {
+        if (ctrl && keyCode == InputConstants.KEY_Z) {
             undo();
             return true;
         }
-        if (ctrl && keyCode == GLFW.GLFW_KEY_Y) {
+        if (ctrl && keyCode == InputConstants.KEY_Y) {
             redo();
             return true;
         }
-        if (ctrl && keyCode == GLFW.GLFW_KEY_D) {
+        if (ctrl && keyCode == InputConstants.KEY_D) {
             duplicateSelection();
             return true;
         }
@@ -3405,11 +3407,11 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
             int anchorX = k.labelX == -1 ? Math.round((k.w - size[0]) / 2f) : k.labelX;
             int anchorY = k.labelY == -1 ? Math.round((k.h - size[1]) / 2f) : k.labelY;
             switch (keyCode) {
-                case GLFW.GLFW_KEY_UP -> { k.labelY = anchorY - step; dirty = true; return true; }
-                case GLFW.GLFW_KEY_DOWN -> { k.labelY = anchorY + step; dirty = true; return true; }
-                case GLFW.GLFW_KEY_LEFT -> { k.labelX = anchorX - step; dirty = true; return true; }
-                case GLFW.GLFW_KEY_RIGHT -> { k.labelX = anchorX + step; dirty = true; return true; }
-                case GLFW.GLFW_KEY_BACKSPACE -> {
+                case InputConstants.KEY_UP -> { k.labelY = anchorY - step; dirty = true; return true; }
+                case InputConstants.KEY_DOWN -> { k.labelY = anchorY + step; dirty = true; return true; }
+                case InputConstants.KEY_LEFT -> { k.labelX = anchorX - step; dirty = true; return true; }
+                case InputConstants.KEY_RIGHT -> { k.labelX = anchorX + step; dirty = true; return true; }
+                case InputConstants.KEY_BACKSPACE -> {
                     if (k.label != null && !k.label.isEmpty()) {
                         k.label = k.label.substring(0, k.label.length() - 1);
                         dirty = true;
@@ -3430,10 +3432,10 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
             int dx = 0;
             int dy = 0;
             switch (keyCode) {
-                case GLFW.GLFW_KEY_UP -> dy = -step;
-                case GLFW.GLFW_KEY_DOWN -> dy = step;
-                case GLFW.GLFW_KEY_LEFT -> dx = -step;
-                case GLFW.GLFW_KEY_RIGHT -> dx = step;
+                case InputConstants.KEY_UP -> dy = -step;
+                case InputConstants.KEY_DOWN -> dy = step;
+                case InputConstants.KEY_LEFT -> dx = -step;
+                case InputConstants.KEY_RIGHT -> dx = step;
                 default -> { }
             }
             if (dx != 0 || dy != 0) {
@@ -3450,11 +3452,11 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
                 dirty = true;
                 return true;
             }
-            if (keyCode == GLFW.GLFW_KEY_DELETE) {
+            if (keyCode == InputConstants.KEY_DELETE) {
                 deleteSelection();
                 return true;
             }
-            if (keyCode == GLFW.GLFW_KEY_F2) {
+            if (keyCode == InputConstants.KEY_F2) {
                 if (single() != null) mode = Mode.LABEL;
                 return true;
             }
@@ -3545,7 +3547,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
             colorOpen = false;
             return;
         }
-        if (button != 0) return;
+        if (button != InputConstants.MOUSE_BUTTON_LEFT) return;
 
         if (insideRect(cpCloseRect(), vx, vy)) {
             colorOpen = false;
@@ -3627,7 +3629,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
     }
 
     private void handleImportClick(int vx, int vy, int button) {
-        if (button != 0) return;
+        if (button != InputConstants.MOUSE_BUTTON_LEFT) return;
         int[] panel = importPanelRect();
         if (!SettingsTheme.inside(vx, vy, panel[0], panel[1], panel[2], panel[3])) return;
 
@@ -3706,12 +3708,12 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
 
     private List<SimpleCPSConfig.KeyButtonData> fullPreset() {
         List<SimpleCPSConfig.KeyButtonData> keys = new ArrayList<>();
-        keys.add(new SimpleCPSConfig.KeyButtonData("Q", 0, 0, 21, 21, GLFW.GLFW_KEY_Q));
-        keys.add(new SimpleCPSConfig.KeyButtonData("W", 23, 0, 21, 21, GLFW.GLFW_KEY_W));
-        keys.add(new SimpleCPSConfig.KeyButtonData("E", 46, 0, 21, 21, GLFW.GLFW_KEY_E));
-        keys.add(new SimpleCPSConfig.KeyButtonData("A", 0, 23, 21, 21, GLFW.GLFW_KEY_A));
-        keys.add(new SimpleCPSConfig.KeyButtonData("S", 23, 23, 21, 21, GLFW.GLFW_KEY_S));
-        keys.add(new SimpleCPSConfig.KeyButtonData("D", 46, 23, 21, 21, GLFW.GLFW_KEY_D));
+        keys.add(new SimpleCPSConfig.KeyButtonData("Q", 0, 0, 21, 21, InputConstants.KEY_Q));
+        keys.add(new SimpleCPSConfig.KeyButtonData("W", 23, 0, 21, 21, InputConstants.KEY_W));
+        keys.add(new SimpleCPSConfig.KeyButtonData("E", 46, 0, 21, 21, InputConstants.KEY_E));
+        keys.add(new SimpleCPSConfig.KeyButtonData("A", 0, 23, 21, 21, InputConstants.KEY_A));
+        keys.add(new SimpleCPSConfig.KeyButtonData("S", 23, 23, 21, 21, InputConstants.KEY_S));
+        keys.add(new SimpleCPSConfig.KeyButtonData("D", 46, 23, 21, 21, InputConstants.KEY_D));
 
         SimpleCPSConfig.KeyButtonData lmb = new SimpleCPSConfig.KeyButtonData("LMB", 0, 46, 33, 21, 0, true);
         lmb.showCps = true;
@@ -3721,14 +3723,14 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
         keys.add(rmb);
 
         SimpleCPSConfig.KeyButtonData space =
-            new SimpleCPSConfig.KeyButtonData("-----", 0, 69, 67, 13, GLFW.GLFW_KEY_SPACE);
+            new SimpleCPSConfig.KeyButtonData("-----", 0, 69, 67, 13, InputConstants.KEY_SPACE);
         // Line mode is what the row of dashes was always imitating. The label is kept
         // so switching back to TEXT gives the familiar look rather than an empty key.
         space.labelLine = true;
         keys.add(space);
 
-        keys.add(new SimpleCPSConfig.KeyButtonData("CTRL", 0, 84, 33, 13, GLFW.GLFW_KEY_LEFT_CONTROL));
-        keys.add(new SimpleCPSConfig.KeyButtonData("SHIFT", 34, 84, 33, 13, GLFW.GLFW_KEY_LEFT_SHIFT));
+        keys.add(new SimpleCPSConfig.KeyButtonData("CTRL", 0, 84, 33, 13, InputConstants.KEY_LCONTROL));
+        keys.add(new SimpleCPSConfig.KeyButtonData("SHIFT", 34, 84, 33, 13, InputConstants.KEY_LSHIFT));
         return keys;
     }
 
@@ -4102,18 +4104,16 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
     }
 
     private boolean isCtrlDown() {
-        if (this.minecraft == null) return false;
-        long window = this.minecraft.getWindow().handle();
-        return GLFW.glfwGetKey(window, GLFW.GLFW_KEY_LEFT_CONTROL) == GLFW.GLFW_PRESS
-            || GLFW.glfwGetKey(window, GLFW.GLFW_KEY_RIGHT_CONTROL) == GLFW.GLFW_PRESS;
+        return InputConstants.isKeyDown(InputConstants.KEY_LCONTROL)
+            || InputConstants.isKeyDown(InputConstants.KEY_RCONTROL);
     }
 
     private static boolean isModifierKey(int keyCode) {
         return switch (keyCode) {
-            case GLFW.GLFW_KEY_LEFT_SHIFT, GLFW.GLFW_KEY_RIGHT_SHIFT,
-                 GLFW.GLFW_KEY_LEFT_CONTROL, GLFW.GLFW_KEY_RIGHT_CONTROL,
-                 GLFW.GLFW_KEY_LEFT_ALT, GLFW.GLFW_KEY_RIGHT_ALT,
-                 GLFW.GLFW_KEY_LEFT_SUPER, GLFW.GLFW_KEY_RIGHT_SUPER -> true;
+            case InputConstants.KEY_LSHIFT, InputConstants.KEY_RSHIFT,
+                 InputConstants.KEY_LCONTROL, InputConstants.KEY_RCONTROL,
+                 InputConstants.KEY_LALT, InputConstants.KEY_RALT,
+                 InputConstants.KEY_LGUI, InputConstants.KEY_RGUI -> true;
             default -> false;
         };
     }
@@ -4121,7 +4121,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
     /** The LAYERS column's type tag. Derived, so no extra field has to be stored. */
     private static String typeOf(SimpleCPSConfig.KeyButtonData btn) {
         if (btn.isMouse) return "MOUSE";
-        if (btn.keyCode == GLFW.GLFW_KEY_SPACE) return "SPACE";
+        if (btn.keyCode == InputConstants.KEY_SPACE) return "SPACE";
         if (isModifierKey(btn.keyCode)) return "MOD";
         return "KEY";
     }
@@ -4134,50 +4134,67 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
         return btn.label;
     }
 
+    /**
+     * Short name for a key, in the designer's own vocabulary. Anything not named here
+     * falls back to whatever the key prints on this keyboard layout, which is what the
+     * game itself shows in Controls.
+     */
     private static String keyName(int keyCode) {
-        String name = GLFW.glfwGetKeyName(keyCode, 0);
-        if (name != null) return name.toUpperCase(java.util.Locale.ROOT);
-
-        return switch (keyCode) {
-            case GLFW.GLFW_KEY_SPACE -> "SPACE";
-            case GLFW.GLFW_KEY_ESCAPE -> "ESC";
-            case GLFW.GLFW_KEY_ENTER -> "ENTER";
-            case GLFW.GLFW_KEY_TAB -> "TAB";
-            case GLFW.GLFW_KEY_BACKSPACE -> "BACK";
-            case GLFW.GLFW_KEY_INSERT -> "INS";
-            case GLFW.GLFW_KEY_DELETE -> "DEL";
-            case GLFW.GLFW_KEY_RIGHT -> "RIGHT";
-            case GLFW.GLFW_KEY_LEFT -> "LEFT";
-            case GLFW.GLFW_KEY_DOWN -> "DOWN";
-            case GLFW.GLFW_KEY_UP -> "UP";
-            case GLFW.GLFW_KEY_PAGE_UP -> "PGUP";
-            case GLFW.GLFW_KEY_PAGE_DOWN -> "PGDN";
-            case GLFW.GLFW_KEY_HOME -> "HOME";
-            case GLFW.GLFW_KEY_END -> "END";
-            case GLFW.GLFW_KEY_CAPS_LOCK -> "CAPS";
-            case GLFW.GLFW_KEY_SCROLL_LOCK -> "SCROLL";
-            case GLFW.GLFW_KEY_NUM_LOCK -> "NUM";
-            case GLFW.GLFW_KEY_PRINT_SCREEN -> "PRT";
-            case GLFW.GLFW_KEY_PAUSE -> "PAUSE";
-            case GLFW.GLFW_KEY_LEFT_SHIFT -> "LSHIFT";
-            case GLFW.GLFW_KEY_LEFT_CONTROL -> "LCTRL";
-            case GLFW.GLFW_KEY_LEFT_ALT -> "LALT";
-            case GLFW.GLFW_KEY_LEFT_SUPER -> "LSUPER";
-            case GLFW.GLFW_KEY_RIGHT_SHIFT -> "RSHIFT";
-            case GLFW.GLFW_KEY_RIGHT_CONTROL -> "RCTRL";
-            case GLFW.GLFW_KEY_RIGHT_ALT -> "RALT";
-            case GLFW.GLFW_KEY_RIGHT_SUPER -> "RSUPER";
-            case GLFW.GLFW_KEY_MENU -> "MENU";
-            default -> {
-                if (keyCode >= GLFW.GLFW_KEY_F1 && keyCode <= GLFW.GLFW_KEY_F25) {
-                    yield "F" + (keyCode - GLFW.GLFW_KEY_F1 + 1);
-                }
-                if (keyCode >= GLFW.GLFW_KEY_KP_0 && keyCode <= GLFW.GLFW_KEY_KP_9) {
-                    yield "NUM" + (keyCode - GLFW.GLFW_KEY_KP_0);
-                }
-                yield "K" + keyCode;
-            }
+        String name = switch (keyCode) {
+            case InputCodes.UNBOUND -> "NONE";
+            case InputConstants.KEY_SPACE -> "SPACE";
+            case InputConstants.KEY_ESCAPE -> "ESC";
+            case InputConstants.KEY_RETURN -> "ENTER";
+            case InputConstants.KEY_TAB -> "TAB";
+            case InputConstants.KEY_BACKSPACE -> "BACK";
+            case InputConstants.KEY_INSERT -> "INS";
+            case InputConstants.KEY_DELETE -> "DEL";
+            case InputConstants.KEY_RIGHT -> "RIGHT";
+            case InputConstants.KEY_LEFT -> "LEFT";
+            case InputConstants.KEY_DOWN -> "DOWN";
+            case InputConstants.KEY_UP -> "UP";
+            case InputConstants.KEY_PAGEUP -> "PGUP";
+            case InputConstants.KEY_PAGEDOWN -> "PGDN";
+            case InputConstants.KEY_HOME -> "HOME";
+            case InputConstants.KEY_END -> "END";
+            case InputConstants.KEY_CAPSLOCK -> "CAPS";
+            case InputConstants.KEY_SCROLLLOCK -> "SCROLL";
+            case InputConstants.KEY_NUMLOCK -> "NUM";
+            case InputConstants.KEY_PRINTSCREEN -> "PRT";
+            case InputConstants.KEY_PAUSE -> "PAUSE";
+            case InputConstants.KEY_LSHIFT -> "LSHIFT";
+            case InputConstants.KEY_LCONTROL -> "LCTRL";
+            case InputConstants.KEY_LALT -> "LALT";
+            case InputConstants.KEY_LGUI -> "LSUPER";
+            case InputConstants.KEY_RSHIFT -> "RSHIFT";
+            case InputConstants.KEY_RCONTROL -> "RCTRL";
+            case InputConstants.KEY_RALT -> "RALT";
+            case InputConstants.KEY_RGUI -> "RSUPER";
+            case InputCodes.KEY_MENU -> "MENU";
+            default -> null;
         };
+        if (name != null) return name;
+
+        // The function and keypad rows are contiguous, but not in one run: SDL puts F13
+        // far above F12, and the keypad's zero after its nine.
+        if (keyCode >= InputConstants.KEY_F1 && keyCode <= InputConstants.KEY_F12) {
+            return "F" + (keyCode - InputConstants.KEY_F1 + 1);
+        }
+        if (keyCode >= InputConstants.KEY_F13 && keyCode <= InputConstants.KEY_F24) {
+            return "F" + (keyCode - InputConstants.KEY_F13 + 13);
+        }
+        if (keyCode == InputConstants.KEY_NUMPAD0) return "NUM0";
+        if (keyCode >= InputConstants.KEY_NUMPAD1 && keyCode <= InputConstants.KEY_NUMPAD9) {
+            return "NUM" + (keyCode - InputConstants.KEY_NUMPAD1 + 1);
+        }
+
+        // What the key prints on this layout, e.g. "A" or ";". A key the system cannot
+        // name comes back as its translation key, which is worse than the raw number.
+        String printed = InputConstants.Type.KEYBOARD.getOrCreate(keyCode).getDisplayName().getString();
+        if (printed != null && !printed.isBlank() && !printed.startsWith("key.")) {
+            return printed.toUpperCase(java.util.Locale.ROOT);
+        }
+        return "K" + keyCode;
     }
 
     @Override

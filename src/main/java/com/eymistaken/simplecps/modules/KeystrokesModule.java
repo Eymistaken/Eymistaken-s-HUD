@@ -2,7 +2,7 @@ package com.eymistaken.simplecps.modules;
 
 import com.eymistaken.simplecps.SimpleCPSConfig;
 import com.eymistaken.simplecps.api.HudModule;
-import org.lwjgl.glfw.GLFW;
+import com.mojang.blaze3d.platform.InputConstants;
 import java.util.HashSet;
 import java.util.Set;
 import net.minecraft.client.Minecraft;
@@ -235,8 +235,11 @@ public class KeystrokesModule extends HudModule {
 
             String cps = null;
             if (btn.showCps && btn.isMouse) {
-                if (btn.keyCode == 0) cps = String.valueOf(CpsModule.leftClicks.size());
-                else if (btn.keyCode == 1) cps = String.valueOf(CpsModule.rightClicks.size());
+                if (btn.keyCode == InputConstants.MOUSE_BUTTON_LEFT) {
+                    cps = String.valueOf(CpsModule.leftClicks.size());
+                } else if (btn.keyCode == InputConstants.MOUSE_BUTTON_RIGHT) {
+                    cps = String.valueOf(CpsModule.rightClicks.size());
+                }
             }
 
             KeystrokesRender.drawKey(drawContext, client.font, btn, style, state,

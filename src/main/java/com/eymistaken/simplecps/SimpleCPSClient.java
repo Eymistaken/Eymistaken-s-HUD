@@ -1,6 +1,7 @@
 package com.eymistaken.simplecps;
 
 import com.eymistaken.simplecps.gui.HudEditorScreen;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
@@ -11,7 +12,6 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.resources.Identifier;
-import org.lwjgl.glfw.GLFW;
 
 public class SimpleCPSClient implements ClientModInitializer {
     private static final Identifier HUD_LAYER_ID = Identifier.fromNamespaceAndPath("simplecps", "main_hud");
@@ -54,7 +54,7 @@ public class SimpleCPSClient implements ClientModInitializer {
 
         openEditorKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
             "key.simplecps.open_editor",
-            GLFW.GLFW_KEY_RIGHT_SHIFT,
+            InputConstants.KEY_RSHIFT,
             new KeyMapping.Category(Identifier.fromNamespaceAndPath("simplecps", "categories.eymistaken"))
         ));
 

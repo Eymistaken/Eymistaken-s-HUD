@@ -7,7 +7,7 @@ import net.minecraft.network.chat.Style;
 import net.minecraft.resources.Identifier;
 
 /**
- * Resolves the user-selected HUD font. In MC 26.2 a font is chosen per text run
+ * Resolves the user-selected HUD font. In MC 26.3 a font is chosen per text run
  * via a {@link FontDescription} on the {@link Style}, not by swapping the global
  * {@code Font} object — so this only affects text we explicitly render through
  * {@link #text(String)} (HUD modules + our own editor screens), never chat or

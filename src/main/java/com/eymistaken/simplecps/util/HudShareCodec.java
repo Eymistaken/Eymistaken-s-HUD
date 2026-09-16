@@ -35,15 +35,16 @@ public final class HudShareCodec {
 
     /**
      * Payload schema, stamped per type so one payload growing does not invalidate the
-     * other. A config payload has not changed shape, so it stays at 1 and older builds
-     * go on reading it; a keystrokes payload became an object at 2, and stamping that
-     * is what makes an older build reject it with "not a valid share code" instead of
-     * half-applying it.
+     * other. A keystrokes payload became an object at 2; both types moved up again for
+     * Minecraft 26.3, which renumbered every key. A code from below these versions still
+     * imports — its key codes are translated on the way in — while stamping them is what
+     * makes an older build reject ours with "not a valid share code" rather than binding
+     * a layout to whatever keys those numbers happen to mean there.
      */
-    private static final int SCHEMA_CONFIG = 1;
-    private static final int SCHEMA_KEYSTROKES = 2;
+    private static final int SCHEMA_CONFIG = 2;
+    private static final int SCHEMA_KEYSTROKES = 3;
     /** Highest schema this build understands; anything above it was written by a newer one. */
-    private static final int MAX_SCHEMA = 2;
+    private static final int MAX_SCHEMA = 3;
 
     /** A legitimate full-config code is a couple of KB; anything near this is an attack. */
     private static final int MAX_ENCODED_CHARS = 64 * 1024;
@@ -188,6 +189,10 @@ public final class HudShareCodec {
                 case TYPE_KEYSTROKES -> {
                     SimpleCPSConfig.KeystrokesShare share = readKeystrokes(decoded.payloadJson());
                     if (share == null) return false;
+                    // A code written before 26.3 names GLFW's keys. The config payload
+                    // carries its own numbering marker and normalize() handles it; a
+                    // keystrokes payload has only the stamp on the envelope.
+                    if (decoded.schemaVersion() < SCHEMA_KEYSTROKES) InputCodes.migrate(share.layout);
                     if (!share.applyTo(SimpleCPSConfig.instance)) return false;
                     SimpleCPSConfig.instance.normalize();
                 }

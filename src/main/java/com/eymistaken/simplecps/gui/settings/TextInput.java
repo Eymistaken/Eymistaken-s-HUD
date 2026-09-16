@@ -1,11 +1,11 @@
 package com.eymistaken.simplecps.gui.settings;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.input.KeyEvent;
-import org.lwjgl.glfw.GLFW;
 
 /**
  * A single-line text field that draws itself inline, with a caret, a selection
@@ -231,10 +231,10 @@ public final class TextInput {
         }
 
         return switch (event.key()) {
-            case GLFW.GLFW_KEY_BACKSPACE -> { backspace(ctrl); yield true; }
-            case GLFW.GLFW_KEY_DELETE -> { delete(ctrl); yield true; }
-            case GLFW.GLFW_KEY_HOME -> { setCursor(0, shift); yield true; }
-            case GLFW.GLFW_KEY_END -> { setCursor(value.length(), shift); yield true; }
+            case InputConstants.KEY_BACKSPACE -> { backspace(ctrl); yield true; }
+            case InputConstants.KEY_DELETE -> { delete(ctrl); yield true; }
+            case InputConstants.KEY_HOME -> { setCursor(0, shift); yield true; }
+            case InputConstants.KEY_END -> { setCursor(value.length(), shift); yield true; }
             default -> false;
         };
     }
