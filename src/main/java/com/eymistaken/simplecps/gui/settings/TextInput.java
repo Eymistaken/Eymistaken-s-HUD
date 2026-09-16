@@ -41,6 +41,26 @@ public final class TextInput {
         }
     }
 
+    /**
+     * Tell the game whether typed text is wanted, on behalf of the screen that owns a field.
+     *
+     * <p>Minecraft 26.3 only asks the system for text while something has text focus; with it
+     * off, no character ever reaches {@link net.minecraft.client.gui.screens.Screen#charTyped}
+     * and a field looks alive — caret and all — while swallowing everything typed into it.
+     * Vanilla turns it on from {@code EditBox}'s focus, and this field is deliberately not a
+     * widget, so the screen says it instead. Passing {@code owner} means a screen can only
+     * ever turn off its own.
+     */
+    public static void setTyping(Object owner, boolean typing) {
+        Minecraft client = Minecraft.getInstance();
+        if (client == null) return;
+        if (typing) {
+            client.textInputManager().startTextInput(owner);
+        } else {
+            client.textInputManager().stopTextInput(owner);
+        }
+    }
+
     private String value = "";
     private int cursor;
     private int anchor;

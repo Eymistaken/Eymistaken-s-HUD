@@ -244,6 +244,7 @@ public class HudSettingsScreen extends ScaledDesignScreen implements SettingsSch
 
     @Override
     protected void init() {
+        TextInput.setTyping(this, true);
         builtInPages = SettingsSchema.builtInPages(this);
         pluginPages = SettingsSchema.pluginPages();
         List<Page> all = new ArrayList<>(builtInPages);
@@ -523,6 +524,7 @@ public class HudSettingsScreen extends ScaledDesignScreen implements SettingsSch
      */
     @Override
     public void removed() {
+        TextInput.setTyping(this, false);
         flushPendingSave();
         super.removed();
     }
