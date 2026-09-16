@@ -1,6 +1,7 @@
 package com.eymistaken.simplecps.modules;
 
 import com.eymistaken.simplecps.SimpleCPSConfig;
+import com.mojang.blaze3d.platform.InputConstants;
 import java.util.HashMap;
 import java.util.Map;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -288,10 +289,10 @@ public final class KeystrokesAnim {
     private static int wedgeDirOf(SimpleCPSConfig.KeyButtonData btn) {
         if (btn.isMouse) return -1;
         return switch (btn.keyCode) {
-            case org.lwjgl.glfw.GLFW.GLFW_KEY_W, org.lwjgl.glfw.GLFW.GLFW_KEY_UP -> 0;
-            case org.lwjgl.glfw.GLFW.GLFW_KEY_D, org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT -> 1;
-            case org.lwjgl.glfw.GLFW.GLFW_KEY_S, org.lwjgl.glfw.GLFW.GLFW_KEY_DOWN -> 2;
-            case org.lwjgl.glfw.GLFW.GLFW_KEY_A, org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT -> 3;
+            case InputConstants.KEY_W, InputConstants.KEY_UP -> 0;
+            case InputConstants.KEY_D, InputConstants.KEY_RIGHT -> 1;
+            case InputConstants.KEY_S, InputConstants.KEY_DOWN -> 2;
+            case InputConstants.KEY_A, InputConstants.KEY_LEFT -> 3;
             default -> -1;
         };
     }

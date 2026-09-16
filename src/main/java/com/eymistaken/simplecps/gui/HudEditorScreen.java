@@ -10,7 +10,7 @@ import com.eymistaken.simplecps.util.Anim;
 import com.eymistaken.simplecps.util.Easings;
 import com.eymistaken.simplecps.util.EymHudFonts;
 import com.eymistaken.simplecps.util.RenderUtil;
-import org.lwjgl.glfw.GLFW;
+import com.mojang.blaze3d.platform.InputConstants;
 
 import java.awt.Point;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -405,7 +405,7 @@ public class HudEditorScreen extends Screen {
         // inside the field still places the caret, so a pasted code can be corrected.
         if (textPromptActive) {
             int[] box = promptBox();
-            if (button == 0 && mouseY >= box[1] && mouseY < box[1] + box[3]
+            if (button == InputConstants.MOUSE_BUTTON_LEFT && mouseY >= box[1] && mouseY < box[1] + box[3]
                 && mouseX >= promptFieldX() && mouseX < box[0] + box[2]) {
                 textPromptInput.onClick(this.font, mouseX, promptFieldX(), false);
             }
@@ -414,7 +414,7 @@ public class HudEditorScreen extends Screen {
 
         // Font restore button (bottom-right) takes priority so it works even when
         // the enchant font makes everything else unreadable.
-        if (button == 0 && EymHudFonts.isEnchantActive()) {
+        if (button == InputConstants.MOUSE_BUTTON_LEFT && EymHudFonts.isEnchantActive()) {
             int bx = this.width - RESTORE_BTN_W - 6;
             int by = this.height - RESTORE_BTN_H - 6;
             if (mouseX >= bx && mouseX <= bx + RESTORE_BTN_W && mouseY >= by && mouseY <= by + RESTORE_BTN_H) {
@@ -435,7 +435,7 @@ public class HudEditorScreen extends Screen {
                         String name = cachedPresetNames.get(idx);
                         boolean overTrash = mouseX >= configsSubmenuX + SUBMENU_WIDTH - 20
                                          && mouseX <= configsSubmenuX + SUBMENU_WIDTH;
-                        if (button == 0) {
+                        if (button == InputConstants.MOUSE_BUTTON_LEFT) {
                             if (overTrash) {
                                 ConfigPresetManager.deletePreset(name);
                                 cachedPresetNames = ConfigPresetManager.listPresets();
@@ -448,7 +448,7 @@ public class HudEditorScreen extends Screen {
                                 globalMenuOpen = false;
                             }
                             return true;
-                        } else if (button == 1) {
+                        } else if (button == InputConstants.MOUSE_BUTTON_RIGHT) {
                             final String target = name;
                             startTextPrompt("Rename Config", name, newName -> {
                                 if (newName != null && !newName.trim().isEmpty()) {
@@ -468,7 +468,7 @@ public class HudEditorScreen extends Screen {
             int rowsTop = serverSubmenuY + 20;
             if (mouseY < rowsTop) {
                 // Title row doubles as the on/off switch for the whole feature.
-                if (button == 0) toggleServerConfigs();
+                if (button == InputConstants.MOUSE_BUTTON_LEFT) toggleServerConfigs();
                 return true;
             }
             if (!cachedServerKeys.isEmpty()) {
@@ -477,7 +477,7 @@ public class HudEditorScreen extends Screen {
                     String key = cachedServerKeys.get(idx);
                     boolean overTrash = mouseX >= serverSubmenuX + SUBMENU_WIDTH - 20
                                      && mouseX <= serverSubmenuX + SUBMENU_WIDTH;
-                    if (button == 0) {
+                    if (button == InputConstants.MOUSE_BUTTON_LEFT) {
                         if (overTrash) {
                             ServerConfigManager.deleteFor(key);
                             cachedServerKeys = ServerConfigManager.listKeys();
@@ -491,7 +491,7 @@ public class HudEditorScreen extends Screen {
                             globalMenuOpen = false;
                         }
                         return true;
-                    } else if (button == 1) {
+                    } else if (button == InputConstants.MOUSE_BUTTON_RIGHT) {
                         final String target = key;
                         startTextPrompt("Rename Server", ServerConfigManager.labelFor(key), newName -> {
                             // Only the label changes; the file keeps the address so
@@ -528,7 +528,7 @@ public class HudEditorScreen extends Screen {
                             SimpleCPSConfig.save();
                         }
                         case GLOBAL_ROW_GRID -> {
-                            if (button == 1) {
+                            if (button == InputConstants.MOUSE_BUTTON_RIGHT) {
                                 cycleGridSize();
                             } else {
                                 SimpleCPSConfig.instance.editorGridEnabled = !SimpleCPSConfig.instance.editorGridEnabled;
@@ -594,7 +594,7 @@ public class HudEditorScreen extends Screen {
         
         // After the menus (they render on top of the toolbar) but before the element
         // hit test, so pressing a button never starts a drag on whatever is beneath it.
-        if (button == 0) {
+        if (button == InputConstants.MOUSE_BUTTON_LEFT) {
             int alignIndex = alignButtonAt((int) mouseX, (int) mouseY);
             if (alignIndex >= 0) {
                 runAlignAction(alignIndex);
@@ -602,7 +602,7 @@ public class HudEditorScreen extends Screen {
             }
         }
 
-        if (button == 0) { // Left click
+        if (button == InputConstants.MOUSE_BUTTON_LEFT) { // Left click
             boolean elementClicked = false;
             for (com.eymistaken.simplecps.api.IHudElement element : getAllActiveElements()) {
                 int ex = element.getX();
@@ -657,7 +657,7 @@ public class HudEditorScreen extends Screen {
                 marqueeCurrentY = (int)mouseY;
                 return true;
             }
-        } else if (button == 1) { // Right click
+        } else if (button == InputConstants.MOUSE_BUTTON_RIGHT) { // Right click
             for (com.eymistaken.simplecps.api.IHudElement element : getAllActiveElements()) {
                 int ex = element.getX();
                 int ey = element.getY();
@@ -688,7 +688,7 @@ public class HudEditorScreen extends Screen {
     @Override
     public boolean mouseReleased(MouseButtonEvent click) {
         int button = click.button();
-        if (button == 0) {
+        if (button == InputConstants.MOUSE_BUTTON_LEFT) {
             if (isSelectingMarquee) {
                 int x1 = Math.min(marqueeStartX, marqueeCurrentX);
                 int y1 = Math.min(marqueeStartY, marqueeCurrentY);
@@ -744,7 +744,7 @@ public class HudEditorScreen extends Screen {
         double mouseY = click.y();
         int button = click.button();
         
-        if (button == 0 && draggingSlider != null) {
+        if (button == InputConstants.MOUSE_BUTTON_LEFT && draggingSlider != null) {
             int barX = contextMenuX + 78;
             int barW = 94;
             int relX = (int)mouseX - barX;
@@ -757,13 +757,13 @@ public class HudEditorScreen extends Screen {
             return true;
         }
         
-        if (button == 0 && isSelectingMarquee) {
+        if (button == InputConstants.MOUSE_BUTTON_LEFT && isSelectingMarquee) {
             marqueeCurrentX = (int)mouseX;
             marqueeCurrentY = (int)mouseY;
             return true;
         }
         
-        if (button == 0 && draggingElement != null) {
+        if (button == InputConstants.MOUSE_BUTTON_LEFT && draggingElement != null) {
             // Calculate absolute mouse displacement since drag start
             int dx = (int)(mouseX - dragStartX);
             int dy = (int)(mouseY - dragStartY);
@@ -780,9 +780,8 @@ public class HudEditorScreen extends Screen {
 
             // Apply Snapping to Leader (unless Shift is held)
             java.awt.Point snappedPos = new java.awt.Point();
-            long windowHandle = net.minecraft.client.Minecraft.getInstance().getWindow().handle();
-            boolean isShiftDown = org.lwjgl.glfw.GLFW.glfwGetKey(windowHandle, org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_SHIFT) == org.lwjgl.glfw.GLFW.GLFW_PRESS ||
-                                  org.lwjgl.glfw.GLFW.glfwGetKey(windowHandle, org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT_SHIFT) == org.lwjgl.glfw.GLFW.GLFW_PRESS;
+            boolean isShiftDown = InputConstants.isKeyDown(InputConstants.KEY_LSHIFT)
+                                  || InputConstants.isKeyDown(InputConstants.KEY_RSHIFT);
             
             if (isShiftDown) {
                 snappedPos.x = rawTargetX;
@@ -2126,15 +2125,15 @@ public class HudEditorScreen extends Screen {
             return true;
         }
         if (textEditTarget != null) {
-            if (keyCode == GLFW.GLFW_KEY_ENTER) {
+            if (keyCode == InputConstants.KEY_RETURN) {
                 textEditTarget.setter.accept(textEditBuffer);
                 SimpleCPSConfig.save();
                 textEditTarget = null;
                 return true;
-            } else if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
+            } else if (keyCode == InputConstants.KEY_ESCAPE) {
                 textEditTarget = null;
                 return true;
-            } else if (keyCode == GLFW.GLFW_KEY_BACKSPACE) {
+            } else if (keyCode == InputConstants.KEY_BACKSPACE) {
                 if (!textEditBuffer.isEmpty()) {
                     textEditBuffer = textEditBuffer.substring(0, textEditBuffer.length() - 1);
                 }
@@ -2145,13 +2144,13 @@ public class HudEditorScreen extends Screen {
         if (textEditTarget == null && !selectedElements.isEmpty()) {
             int dx = 0;
             int dy = 0;
-            if (keyCode == GLFW.GLFW_KEY_UP) {
+            if (keyCode == InputConstants.KEY_UP) {
                 dy = -1;
-            } else if (keyCode == GLFW.GLFW_KEY_DOWN) {
+            } else if (keyCode == InputConstants.KEY_DOWN) {
                 dy = 1;
-            } else if (keyCode == GLFW.GLFW_KEY_LEFT) {
+            } else if (keyCode == InputConstants.KEY_LEFT) {
                 dx = -1;
-            } else if (keyCode == GLFW.GLFW_KEY_RIGHT) {
+            } else if (keyCode == InputConstants.KEY_RIGHT) {
                 dx = 1;
             }
             

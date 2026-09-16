@@ -21,7 +21,7 @@ dependencies {
 
     // ModMenu only supplies the entrypoint that opens HudSettingsScreen; the screen
     // itself is plain Minecraft, so the mod has no GUI library dependency at runtime.
-    compileOnly "com.terraformersmc:modmenu:18.0.0-alpha.8"
+    compileOnly "com.terraformersmc:modmenu:21.0.0-beta.1"
 }
 
 processResources {

@@ -1,6 +1,7 @@
 package com.eymistaken.simplecps.modules;
 
 import com.eymistaken.simplecps.SimpleCPSConfig;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 /**
@@ -95,20 +96,20 @@ public enum KeystrokesDesign {
 
     public static int roleOf(SimpleCPSConfig.KeyButtonData btn) {
         if (btn.isMouse) {
-            if (btn.keyCode == 0) return ROLE_LMB;
-            if (btn.keyCode == 1) return ROLE_RMB;
+            if (btn.keyCode == InputConstants.MOUSE_BUTTON_LEFT) return ROLE_LMB;
+            if (btn.keyCode == InputConstants.MOUSE_BUTTON_RIGHT) return ROLE_RMB;
             return ROLE_OTHER;
         }
         return switch (btn.keyCode) {
-            case org.lwjgl.glfw.GLFW.GLFW_KEY_W, org.lwjgl.glfw.GLFW.GLFW_KEY_UP -> ROLE_W;
-            case org.lwjgl.glfw.GLFW.GLFW_KEY_A, org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT -> ROLE_A;
-            case org.lwjgl.glfw.GLFW.GLFW_KEY_S, org.lwjgl.glfw.GLFW.GLFW_KEY_DOWN -> ROLE_S;
-            case org.lwjgl.glfw.GLFW.GLFW_KEY_D, org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT -> ROLE_D;
-            case org.lwjgl.glfw.GLFW.GLFW_KEY_SPACE -> ROLE_SPACE;
-            case org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_CONTROL,
-                 org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT_CONTROL -> ROLE_CTRL;
-            case org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_SHIFT,
-                 org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT_SHIFT -> ROLE_SHIFT;
+            case InputConstants.KEY_W, InputConstants.KEY_UP -> ROLE_W;
+            case InputConstants.KEY_A, InputConstants.KEY_LEFT -> ROLE_A;
+            case InputConstants.KEY_S, InputConstants.KEY_DOWN -> ROLE_S;
+            case InputConstants.KEY_D, InputConstants.KEY_RIGHT -> ROLE_D;
+            case InputConstants.KEY_SPACE -> ROLE_SPACE;
+            case InputConstants.KEY_LCONTROL,
+                 InputConstants.KEY_RCONTROL -> ROLE_CTRL;
+            case InputConstants.KEY_LSHIFT,
+                 InputConstants.KEY_RSHIFT -> ROLE_SHIFT;
             default -> ROLE_OTHER;
         };
     }
@@ -444,10 +445,10 @@ public enum KeystrokesDesign {
     private static int wedgeDir(SimpleCPSConfig.KeyButtonData btn) {
         if (btn.isMouse) return -1;
         return switch (btn.keyCode) {
-            case org.lwjgl.glfw.GLFW.GLFW_KEY_W, org.lwjgl.glfw.GLFW.GLFW_KEY_UP -> 0;
-            case org.lwjgl.glfw.GLFW.GLFW_KEY_D, org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT -> 1;
-            case org.lwjgl.glfw.GLFW.GLFW_KEY_S, org.lwjgl.glfw.GLFW.GLFW_KEY_DOWN -> 2;
-            case org.lwjgl.glfw.GLFW.GLFW_KEY_A, org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT -> 3;
+            case InputConstants.KEY_W, InputConstants.KEY_UP -> 0;
+            case InputConstants.KEY_D, InputConstants.KEY_RIGHT -> 1;
+            case InputConstants.KEY_S, InputConstants.KEY_DOWN -> 2;
+            case InputConstants.KEY_A, InputConstants.KEY_LEFT -> 3;
             default -> -1;
         };
     }

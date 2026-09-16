@@ -5,6 +5,7 @@ import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.network.protocol.game.ClientboundAnimatePacket;
 import net.minecraft.network.protocol.game.ClientboundDamageEventPacket;
 import net.minecraft.network.protocol.game.ClientboundEntityEventPacket;
+import net.minecraft.network.protocol.game.ClientboundSwingAnimationPacket;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -32,5 +33,10 @@ public class MixinClientPacketListener {
     @Inject(method = "handleAnimate", at = @At("RETURN"))
     private void onAnimate(ClientboundAnimatePacket packet, CallbackInfo ci) {
         ComboTracker.onAnimate(packet);
+    }
+
+    @Inject(method = "handleSwingAnimation", at = @At("RETURN"))
+    private void onSwingAnimation(ClientboundSwingAnimationPacket packet, CallbackInfo ci) {
+        ComboTracker.onSwingAnimation(packet);
     }
 }

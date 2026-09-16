@@ -17,6 +17,7 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.protocol.game.ClientboundAnimatePacket;
 import net.minecraft.network.protocol.game.ClientboundDamageEventPacket;
 import net.minecraft.network.protocol.game.ClientboundEntityEventPacket;
+import net.minecraft.network.protocol.game.ClientboundSwingAnimationPacket;
 import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -193,13 +194,17 @@ public final class ComboTracker {
     }
 
     public static void onAnimate(ClientboundAnimatePacket packet) {
-        int action = packet.getAction();
-        if (action == ClientboundAnimatePacket.CRITICAL_HIT) {
+        if (packet.getAction() == ClientboundAnimatePacket.CRITICAL_HIT) {
             onCriticalHit(packet.getId());
-        } else if (!serverNamesAttackers && (action == ClientboundAnimatePacket.SWING_MAIN_HAND
-                || action == ClientboundAnimatePacket.SWING_OFF_HAND)) {
-            recentSwings.put(packet.getId(), now());
         }
+    }
+
+    /**
+     * Someone swung. Only the blame fallback needs this: a server that names the attacker in its
+     * damage events makes the guess unnecessary, and swings arrive far more often than hits.
+     */
+    public static void onSwingAnimation(ClientboundSwingAnimationPacket packet) {
+        if (!serverNamesAttackers) recentSwings.put(packet.entityId(), now());
     }
 
     public static void onTick(Minecraft client) {

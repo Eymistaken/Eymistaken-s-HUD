@@ -2,6 +2,7 @@ package com.eymistaken.simplecps.mixin;
 
 import com.eymistaken.simplecps.modules.CpsModule;
 import com.eymistaken.simplecps.modules.KeystrokesModule;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.MouseHandler;
 import net.minecraft.client.input.MouseButtonInfo;
 import org.spongepowered.asm.mixin.Mixin;
@@ -18,9 +19,9 @@ public class MixinMouse {
 
         if (action == 1) {
             KeystrokesModule.pressedKeys.add(keyId);
-            if (buttonId == 0) {
+            if (buttonId == InputConstants.MOUSE_BUTTON_LEFT) {
                 CpsModule.addLeftClick();
-            } else if (buttonId == 1) {
+            } else if (buttonId == InputConstants.MOUSE_BUTTON_RIGHT) {
                 CpsModule.addRightClick();
             }
         } else if (action == 0) {
