@@ -1864,7 +1864,16 @@ public class HudEditorScreen extends Screen {
     }
 
     @Override
+    protected void init() {
+        // The text prompt is reached from a context menu, not from a focused widget,
+        // so there is no moment left to ask for typed text once it opens.
+        com.eymistaken.simplecps.gui.settings.TextInput.setTyping(this, true);
+        super.init();
+    }
+
+    @Override
     public void removed() {
+        com.eymistaken.simplecps.gui.settings.TextInput.setTyping(this, false);
         finishGlides();
         super.removed();
     }

@@ -335,6 +335,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
 
     @Override
     protected void init() {
+        TextInput.setTyping(this, true);
         importInput.setMaxLength(4096);
         labelInput.setMaxLength(32);
         if (!snapshotTaken) {
@@ -4084,6 +4085,12 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
         // Coming from the settings screen, go back to it rather than stacking a second.
         this.minecraft.gui.setScreen(
             parent instanceof HudSettingsScreen ? parent : new HudSettingsScreen(parent));
+    }
+
+    @Override
+    public void removed() {
+        TextInput.setTyping(this, false);
+        super.removed();
     }
 
     @Override

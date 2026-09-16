@@ -352,6 +352,18 @@ public class ColorPickerScreen extends Screen {
     }
 
     @Override
+    protected void init() {
+        com.eymistaken.simplecps.gui.settings.TextInput.setTyping(this, true);
+        super.init();
+    }
+
+    @Override
+    public void removed() {
+        com.eymistaken.simplecps.gui.settings.TextInput.setTyping(this, false);
+        super.removed();
+    }
+
+    @Override
     public void onClose() {
         if (this.minecraft != null) {
             this.minecraft.gui.setScreen(parent);
