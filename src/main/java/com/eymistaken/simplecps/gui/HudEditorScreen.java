@@ -95,6 +95,20 @@ public class HudEditorScreen extends Screen {
     // the Configs fly-out above so both keep their own position and animation.
     private boolean serverSubmenuOpen = false;
     private int serverSubmenuX, serverSubmenuY;
+
+    // Menu aim. Heading for an open fly-out, the shortest path from its row cuts across the
+    // rows under it, and plain hover routing read that as pointing at them and swapped the
+    // fly-out away before the cursor got there. While the cursor stays inside the triangle
+    // from where it left the row to the fly-out's facing edge, and keeps moving, the fly-out
+    // holds and the rows it crosses are not hovered. Stopping for AIM_TIMEOUT, or turning
+    // away from the fly-out, hands the cursor back to whatever row it is over.
+    private static final long AIM_TIMEOUT = 300;
+    private boolean aimAnchored = false;
+    private int aimAnchorX, aimAnchorY;
+    private int aimPrevX = Integer.MIN_VALUE, aimPrevY;
+    private long aimLastMove = 0;
+    /** This frame's verdict: the cursor is on its way to the open fly-out. */
+    private boolean aimHolding = false;
     private java.util.List<String> cachedServerKeys = new java.util.ArrayList<>();
 
     // Menu open animations (fade + slide). Each is snapped to 0 when its menu
@@ -119,12 +133,17 @@ public class HudEditorScreen extends Screen {
         return RenderUtil.withAlpha(argb, p);
     }
 
-    // Generic text prompt overlay (renaming a config, and typing in a share code).
+    // Generic text prompt overlay: renaming a config, typing in a share code, and every
+    // text setting in a module's context menu.
     //
     // Backed by the settings screen's TextInput rather than a raw String: a share
     // code is far too long to retype, so the field has to support Ctrl+V, and a
-    // hand-rolled buffer had no paste, no caret movement and no selection.
+    // hand-rolled buffer had no paste, no caret movement and no selection. The module
+    // text settings used to run on exactly such a buffer, which meant fixing one letter
+    // near the start took deleting everything after it.
     private boolean textPromptActive = false;
+    /** A left drag that began inside the field, which selects as it goes. */
+    private boolean textPromptSelecting = false;
     private final com.eymistaken.simplecps.gui.settings.TextInput textPromptInput =
         new com.eymistaken.simplecps.gui.settings.TextInput();
     private String textPromptLabel = "";
@@ -137,10 +156,6 @@ public class HudEditorScreen extends Screen {
     private static final long COPIED_MILLIS = 1400;
     private long copiedUntil = 0;
 
-    // For text editing (Stage 4 prep)
-    private com.eymistaken.simplecps.api.TextSetting textEditTarget = null;
-    private String textEditBuffer = "";
-    
     // For slider dragging
     private com.eymistaken.simplecps.api.SliderSetting draggingSlider = null;
 
@@ -358,12 +373,14 @@ public class HudEditorScreen extends Screen {
             renderContextMenu(context, mouseX, mouseY, contextP, contextMenuRenderTarget);
         }
 
+        // Routed before the parent is drawn, so a row the cursor only crosses on its way to
+        // a fly-out is not lit up as if it were being pointed at.
+        updateSubmenuHover(mouseX, mouseY);
         float globalP = globalMenuAnim.update(globalMenuOpen ? 1f : 0f, MENU_ANIM_DURATION, Easings::expoOut);
         if (globalMenuOpen || globalP > FADE_OUT_CUTOFF) {
-            renderGlobalMenu(context, mouseX, mouseY, globalP);
+            renderGlobalMenu(context, aimHolding ? -1 : mouseX, aimHolding ? -1 : mouseY, globalP);
         }
 
-        updateSubmenuHover(mouseX, mouseY);
         float configsP = submenuAnim.update(configsSubmenuOpen ? 1f : 0f, MENU_ANIM_DURATION, Easings::expoOut);
         if (configsSubmenuOpen || configsP > FADE_OUT_CUTOFF) {
             renderConfigsSubmenu(context, mouseX, mouseY, configsP);
@@ -373,7 +390,7 @@ public class HudEditorScreen extends Screen {
             renderServerSubmenu(context, mouseX, mouseY, serverP);
         }
 
-        if (textEditTarget != null || textPromptActive) {
+        if (textPromptActive) {
             int[] box = promptBox();
             context.fill(box[0], box[1], box[0] + box[2], box[1] + box[3], 0xAA000000);
             context.fill(box[0] - 1, box[1] - 1, box[0] + box[2] + 1, box[1], 0xFFFFFFFF);
@@ -381,17 +398,12 @@ public class HudEditorScreen extends Screen {
             context.fill(box[0] - 1, box[1], box[0], box[1] + box[3], 0xFFFFFFFF);
             context.fill(box[0] + box[2], box[1], box[0] + box[2] + 1, box[1] + box[3], 0xFFFFFFFF);
 
-            String label = (textPromptActive ? textPromptLabel : textEditTarget.label) + ": ";
+            String label = textPromptLabel + ": ";
             context.text(this.font, EymHudFonts.text(label), box[0] + 4, box[1] + 6, 0xFFFFFFFF, true);
 
             int fieldX = promptFieldX();
             int fieldW = box[0] + box[2] - 4 - fieldX;
-            if (textPromptActive) {
-                textPromptInput.render(context, this.font, fieldX, box[1], fieldW, box[3], true, 0xFFFFFFFF);
-            } else {
-                context.text(this.font, EymHudFonts.text(textEditBuffer + "_"), fieldX, box[1] + 6,
-                    0xFFFFFFFF, true);
-            }
+            textPromptInput.render(context, this.font, fieldX, box[1], fieldW, box[3], true, 0xFFFFFFFF);
         }
     }
     
@@ -402,12 +414,14 @@ public class HudEditorScreen extends Screen {
         int button = click.button();
 
         // While the prompt is up, swallow all clicks (Enter/Esc dismiss it). A click
-        // inside the field still places the caret, so a pasted code can be corrected.
+        // inside the field still places the caret, so a pasted code can be corrected;
+        // Shift extends the selection to it, and dragging selects as it goes.
         if (textPromptActive) {
             int[] box = promptBox();
             if (button == InputConstants.MOUSE_BUTTON_LEFT && mouseY >= box[1] && mouseY < box[1] + box[3]
-                && mouseX >= promptFieldX() && mouseX < box[0] + box[2]) {
-                textPromptInput.onClick(this.font, mouseX, promptFieldX(), false);
+                && mouseX >= box[0] && mouseX < box[0] + box[2]) {
+                textPromptInput.onClick(this.font, Math.max(mouseX, promptFieldX()), promptFieldX(), click.hasShiftDown());
+                textPromptSelecting = true;
             }
             return true;
         }
@@ -512,6 +526,9 @@ public class HudEditorScreen extends Screen {
             if (mouseX >= globalMenuX && mouseX <= globalMenuX + menuW &&
                 mouseY >= globalMenuY && mouseY <= globalMenuY + menuH) {
                 int rowsTop = globalMenuY + 20;
+                // A row the cursor is only crossing on its way to a fly-out is not lit, so a
+                // click on it must not fire either: that could be Reset HUD.
+                if (aimHolding) return true;
                 if (mouseY >= rowsTop) {
                     int row = (int) ((mouseY - rowsTop) / 20);
                     switch (row) {
@@ -688,6 +705,10 @@ public class HudEditorScreen extends Screen {
     @Override
     public boolean mouseReleased(MouseButtonEvent click) {
         int button = click.button();
+        if (textPromptActive) {
+            textPromptSelecting = false;
+            return true;
+        }
         if (button == InputConstants.MOUSE_BUTTON_LEFT) {
             if (isSelectingMarquee) {
                 int x1 = Math.min(marqueeStartX, marqueeCurrentX);
@@ -743,6 +764,13 @@ public class HudEditorScreen extends Screen {
         double mouseX = click.x();
         double mouseY = click.y();
         int button = click.button();
+
+        if (textPromptActive) {
+            if (button == InputConstants.MOUSE_BUTTON_LEFT && textPromptSelecting) {
+                textPromptInput.onClick(this.font, Math.max(mouseX, promptFieldX()), promptFieldX(), true);
+            }
+            return true;
+        }
         
         if (button == InputConstants.MOUSE_BUTTON_LEFT && draggingSlider != null) {
             int barX = contextMenuX + 78;
@@ -1074,7 +1102,7 @@ public class HudEditorScreen extends Screen {
 
     /**
      * Drop every piece of state that points into the config we just replaced.
-     * {@code textEditTarget} and {@code draggingSlider} hold setter lambdas closed over
+     * An open text prompt and {@code draggingSlider} hold setter lambdas closed over
      * the old object, so an edit left half-finished would otherwise land in the
      * discarded config and vanish on the next save.
      */
@@ -1085,7 +1113,8 @@ public class HudEditorScreen extends Screen {
         glideMoved = false;
         selectedElements.clear();
         draggingElement = null;
-        textEditTarget = null;
+        // A text setting's prompt writes through a setter closed over the old config too.
+        if (textPromptActive) closeTextPrompt();
         draggingSlider = null;
         contextMenuOpen = false;
     }
@@ -1183,9 +1212,13 @@ public class HudEditorScreen extends Screen {
                 ));
                 contextMenuOpen = false;
             } else if (setting instanceof com.eymistaken.simplecps.api.TextSetting textSetting) {
-                textEditTarget = textSetting;
-                textEditBuffer = textSetting.getter.get();
-                contextMenuOpen = false;
+                startTextPrompt(textSetting.label, textSetting.getter.get(), value -> {
+                    textSetting.setter.accept(value);
+                    SimpleCPSConfig.save();
+                });
+                // An edit, not a replacement: start at the end as the old field did, so
+                // typing adds to the text instead of wiping it. Ctrl+A is there for that.
+                textPromptInput.moveCursorToEnd();
             } else if (setting instanceof com.eymistaken.simplecps.api.SliderSetting slider) {
                 int relX = (int)mouseX - contextMenuX;
                 if (relX >= 176 && relX <= 176 + 40) { // Reset button
@@ -1410,9 +1443,18 @@ public class HudEditorScreen extends Screen {
      * Configs" would leave two overlapping panels on screen.
      */
     private void updateSubmenuHover(int mouseX, int mouseY) {
+        long now = System.currentTimeMillis();
+        boolean moved = mouseX != aimPrevX || mouseY != aimPrevY;
+        int prevX = aimPrevX;
+        if (moved) aimLastMove = now;
+        aimPrevX = mouseX;
+        aimPrevY = mouseY;
+        aimHolding = false;
+
         if (!globalMenuOpen) {
             configsSubmenuOpen = false;
             serverSubmenuOpen = false;
+            aimAnchored = false;
             return;
         }
         // An open fly-out owns the cursor, tested before the rows underneath it. When
@@ -1423,10 +1465,16 @@ public class HudEditorScreen extends Screen {
         // mouseClicked, which has always given the fly-out first refusal.
         if (configsSubmenuOpen && insideSubmenuRect(mouseX, mouseY)) {
             serverSubmenuOpen = false;
+            aimAnchored = false;
             return;
         }
         if (serverSubmenuOpen && insideServerSubmenuRect(mouseX, mouseY)) {
             configsSubmenuOpen = false;
+            aimAnchored = false;
+            return;
+        }
+        if (aimingAtSubmenu(mouseX, mouseY, prevX, moved, now)) {
+            aimHolding = true;
             return;
         }
 
@@ -1435,6 +1483,12 @@ public class HudEditorScreen extends Screen {
         boolean overConfigsRow = hoverRow(mouseX, mouseY, globalMenuX, configsRowY, GLOBAL_MENU_WIDTH);
         boolean overServerRow = hoverRow(mouseX, mouseY, globalMenuX, serverRowY, GLOBAL_MENU_WIDTH);
 
+        if (overConfigsRow || overServerRow) {
+            // The last point on the row is where any trip to its fly-out starts from.
+            aimAnchored = true;
+            aimAnchorX = mouseX;
+            aimAnchorY = mouseY;
+        }
         if (overConfigsRow) {
             serverSubmenuOpen = false;
             if (!configsSubmenuOpen) openConfigsSubmenu();
@@ -1447,6 +1501,53 @@ public class HudEditorScreen extends Screen {
         }
         if (configsSubmenuOpen && !insideSubmenuRect(mouseX, mouseY)) configsSubmenuOpen = false;
         if (serverSubmenuOpen && !insideServerSubmenuRect(mouseX, mouseY)) serverSubmenuOpen = false;
+        if (!configsSubmenuOpen && !serverSubmenuOpen) aimAnchored = false;
+    }
+
+    /**
+     * Whether the cursor is on its way from the open fly-out's row to the fly-out: inside
+     * the triangle from the anchor to the two ends of the fly-out's edge that faces the
+     * parent menu, and still moving, not away from it. Works with the fly-out on either
+     * side; when it had to overlap the parent there is no path to protect.
+     */
+    private boolean aimingAtSubmenu(int mouseX, int mouseY, int prevX, boolean moved, long now) {
+        if (!aimAnchored || now - aimLastMove > AIM_TIMEOUT) return false;
+        int x, y, h;
+        if (configsSubmenuOpen) {
+            x = configsSubmenuX;
+            y = configsSubmenuY;
+            h = getConfigsSubmenuHeight();
+        } else if (serverSubmenuOpen) {
+            x = serverSubmenuX;
+            y = serverSubmenuY;
+            h = getServerSubmenuHeight();
+        } else {
+            return false;
+        }
+
+        int edgeX;
+        if (x >= globalMenuX + GLOBAL_MENU_WIDTH) {
+            edgeX = x;
+        } else if (x + SUBMENU_WIDTH <= globalMenuX) {
+            edgeX = x + SUBMENU_WIDTH;
+        } else {
+            return false;
+        }
+
+        // Turning back toward the parent menu ends the grace at once, so the rows answer
+        // the moment the cursor is clearly meant for them.
+        if (moved && prevX != Integer.MIN_VALUE && Math.abs(edgeX - mouseX) > Math.abs(edgeX - prevX)) return false;
+
+        return insideTriangle(mouseX, mouseY, aimAnchorX, aimAnchorY, edgeX, y, edgeX, y + h);
+    }
+
+    private static boolean insideTriangle(int px, int py, int ax, int ay, int bx, int by, int cx, int cy) {
+        long d1 = (long) (px - bx) * (ay - by) - (long) (ax - bx) * (py - by);
+        long d2 = (long) (px - cx) * (by - cy) - (long) (bx - cx) * (py - cy);
+        long d3 = (long) (px - ax) * (cy - ay) - (long) (cx - ax) * (py - ay);
+        boolean hasNeg = d1 < 0 || d2 < 0 || d3 < 0;
+        boolean hasPos = d1 > 0 || d2 > 0 || d3 > 0;
+        return !(hasNeg && hasPos);
     }
 
     private int getServerSubmenuHeight() {
@@ -1624,6 +1725,7 @@ public class HudEditorScreen extends Screen {
 
     private void closeTextPrompt() {
         textPromptActive = false;
+        textPromptSelecting = false;
         textPromptInput.setValue("");
         textPromptLabel = "";
         textPromptCallback = null;
@@ -1636,19 +1738,14 @@ public class HudEditorScreen extends Screen {
 
     /** Where the editable part of the prompt starts, just past its label. */
     private int promptFieldX() {
-        String label = (textPromptActive ? textPromptLabel : textEditTarget == null ? "" : textEditTarget.label) + ": ";
+        String label = textPromptLabel + ": ";
         return promptBox()[0] + 4 + this.font.width(EymHudFonts.text(label));
     }
 
     @Override
     public boolean charTyped(CharacterEvent charInput) {
-        char chr = (char) charInput.codepoint();
         if (textPromptActive) {
             textPromptInput.charTyped(charInput);
-            return true;
-        }
-        if (textEditTarget != null) {
-            textEditBuffer += chr;
             return true;
         }
         return super.charTyped(charInput);
@@ -1969,7 +2066,7 @@ public class HudEditorScreen extends Screen {
     // --- Align / distribute ---
 
     private boolean isAlignToolbarVisible() {
-        return selectedElements.size() >= 2 && !textPromptActive && textEditTarget == null;
+        return selectedElements.size() >= 2 && !textPromptActive;
     }
 
     private int alignToolbarWidth() {
@@ -2133,24 +2230,7 @@ public class HudEditorScreen extends Screen {
             textPromptInput.keyPressed(keyInput);
             return true;
         }
-        if (textEditTarget != null) {
-            if (keyCode == InputConstants.KEY_RETURN) {
-                textEditTarget.setter.accept(textEditBuffer);
-                SimpleCPSConfig.save();
-                textEditTarget = null;
-                return true;
-            } else if (keyCode == InputConstants.KEY_ESCAPE) {
-                textEditTarget = null;
-                return true;
-            } else if (keyCode == InputConstants.KEY_BACKSPACE) {
-                if (!textEditBuffer.isEmpty()) {
-                    textEditBuffer = textEditBuffer.substring(0, textEditBuffer.length() - 1);
-                }
-                return true;
-            }
-        }
-        
-        if (textEditTarget == null && !selectedElements.isEmpty()) {
+        if (!selectedElements.isEmpty()) {
             int dx = 0;
             int dy = 0;
             if (keyCode == InputConstants.KEY_UP) {
