@@ -3,16 +3,34 @@ package com.eymistaken.simplecps.modules;
 import com.eymistaken.simplecps.SimpleCPSConfig;
 import com.eymistaken.simplecps.api.HudModule;
 import com.eymistaken.simplecps.api.IHudElement;
+import com.eymistaken.simplecps.gui.HudEditorScreen;
+import com.eymistaken.simplecps.util.GhostIcons;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 
 public class ArmorModule extends HudModule {
 
+    // Durability tracking per slot, by ArmorSlot ordinal. Fed from tick() with the player's
+    // own gear only, so the settings preview can never disturb it. A hit is a rise in damage
+    // on the same item; anything else, from a swap to a new piece, just moves the baseline.
+    private final Item[] lastItems = new Item[6];
     private final int[] lastDamages = new int[6];
-    private final long[] flashEndTimes = new long[6];
+    private final int[] lastBarWidths = new int[6];
+    private int lastSelectedSlot = -1;
+    /** When each slot last lost durability, and how long its bar was just before. */
+    private final long[] hitTimes = new long[6];
+    private final int[] chipFromWidths = new int[6];
+
+    /** How often the settings preview pretends to take a hit, so the hit effects can be judged. */
+    private static final int PREVIEW_HIT_PERIOD = 2000;
+    /** Past this, every hit effect has finished playing. */
+    private static final long HIT_DONE = 2000;
 
     /**
      * Gear the preview wears. This module is the one built-in that draws nothing at all
@@ -157,23 +175,33 @@ public class ArmorModule extends HudModule {
         public ItemStack getItemStack() {
             if (ArmorModule.this.isPreviewing()) return previewStackFor(slot);
             if (client.player == null) return ItemStack.EMPTY;
-            switch (slot) {
-                case HELMET: return client.player.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.HEAD);
-                case CHESTPLATE: return client.player.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.CHEST);
-                case LEGGINGS: return client.player.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.LEGS);
-                case BOOTS: return client.player.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.FEET);
-                case MAIN_HAND: return client.player.getMainHandItem();
-                case OFF_HAND: return client.player.getOffhandItem();
-            }
-            return ItemStack.EMPTY;
+            return liveStack(slot);
         }
 
+        /** Whether this slot is drawn at all; {@link #getOrderedElements()} decides. */
         public boolean isEnabled() {
-            if (client.player == null && !ArmorModule.this.isPreviewing()) return false;
+            return getOrderedElements().contains(this);
+        }
+
+        /** Whether the settings let this slot appear, whatever it holds. */
+        private boolean slotShown() {
             if (slot == ArmorSlot.MAIN_HAND && !SimpleCPSConfig.instance.armorShowMainHand) return false;
             if (slot == ArmorSlot.OFF_HAND && !SimpleCPSConfig.instance.armorShowOffHand) return false;
+            return true;
+        }
+
+        private boolean hasItem() {
             ItemStack stack = getItemStack();
             return stack != null && !stack.isEmpty();
+        }
+
+        private boolean isDetached() {
+            return getXOffset() != 0 || getYOffset() != 0;
+        }
+
+        /** An empty slot the editor shows anyway, so it can still be placed. */
+        public boolean isGhost() {
+            return isEditing() && !hasItem();
         }
 
         @Override
@@ -258,6 +286,24 @@ public class ArmorModule extends HudModule {
         new ArmorElement(ArmorSlot.OFF_HAND)
     );
 
+    /**
+     * Whether the in-world editor is open over the live HUD. The settings preview is not the
+     * editor even when opened from it: it brings its own gear and never shows ghosts.
+     */
+    private boolean isEditing() {
+        return !isPreviewing() && client.gui.screen() instanceof HudEditorScreen;
+    }
+
+    /**
+     * The slots to draw, in the order they stack. In play that is whatever is worn or held.
+     *
+     * <p>The editor has to show something to place even when nothing is, so it adds ghosts
+     * by two rules. When none of the grouped slots holds anything, every grouped slot is
+     * shown as a ghost: otherwise the whole group would vanish and could not be dragged. As
+     * soon as one does, only the real items show, because that is what the HUD will look
+     * like. A detached slot is its own little module, so it always shows, as a ghost when
+     * empty, whatever the group is doing.
+     */
     private List<ArmorElement> getOrderedElements() {
         List<ArmorElement> ordered = new ArrayList<>();
         if (client.player == null && !isPreviewing()) return ordered;
@@ -273,20 +319,26 @@ public class ArmorModule extends HudModule {
         ArmorElement mainHand = subElements.get(4);
         ArmorElement offHand = subElements.get(5);
 
-        if (isRightHanded) {
-            if (offHand.isEnabled()) ordered.add(offHand);
-            if (helmet.isEnabled()) ordered.add(helmet);
-            if (chest.isEnabled()) ordered.add(chest);
-            if (legs.isEnabled()) ordered.add(legs);
-            if (boots.isEnabled()) ordered.add(boots);
-            if (mainHand.isEnabled()) ordered.add(mainHand);
-        } else {
-            if (mainHand.isEnabled()) ordered.add(mainHand);
-            if (helmet.isEnabled()) ordered.add(helmet);
-            if (chest.isEnabled()) ordered.add(chest);
-            if (legs.isEnabled()) ordered.add(legs);
-            if (boots.isEnabled()) ordered.add(boots);
-            if (offHand.isEnabled()) ordered.add(offHand);
+        List<ArmorElement> slots = isRightHanded
+            ? List.of(offHand, helmet, chest, legs, boots, mainHand)
+            : List.of(mainHand, helmet, chest, legs, boots, offHand);
+
+        boolean editing = isEditing();
+        boolean groupHasItem = false;
+        if (editing) {
+            for (ArmorElement el : slots) {
+                if (el.slotShown() && !el.isDetached() && el.hasItem()) {
+                    groupHasItem = true;
+                    break;
+                }
+            }
+        }
+
+        for (ArmorElement el : slots) {
+            if (!el.slotShown()) continue;
+            if (el.hasItem() || (editing && (el.isDetached() || !groupHasItem))) {
+                ordered.add(el);
+            }
         }
         return ordered;
     }
@@ -468,8 +520,6 @@ public class ArmorModule extends HudModule {
         boolean vertical = SimpleCPSConfig.instance.armorVertical;
         boolean showBg = SimpleCPSConfig.instance.armorShowBackgroundSlots;
         boolean showText = SimpleCPSConfig.instance.armorDurabilityText;
-        boolean damageFlash = SimpleCPSConfig.instance.armorDamageFlash;
-        
         long now = System.currentTimeMillis();
         float s = scale();
 
@@ -530,56 +580,312 @@ public class ArmorModule extends HudModule {
             }
         }
 
-        // Pass 3: Draw Items and Durability text
-        for (int i = 0; i < ordered.size(); i++) {
-            ArmorElement el = ordered.get(i);
-            ItemStack stack = el.getItemStack();
-            int elX = el.localX;
-            int elY = el.localY;
-
-            // Damage Flash Logic. Skipped while previewing: the preview's stacks are not
-            // the player's, so recording their wear here would overwrite the real
-            // baseline and swallow the next genuine hit's flash.
-            int damageIndex = el.slot.ordinal();
-            if (isPreviewing()) {
-                // nothing to track
-            } else if (damageFlash && stack.isDamageableItem()) {
-                int currentDamage = stack.getDamageValue();
-                if (currentDamage > lastDamages[damageIndex]) {
-                    if (lastDamages[damageIndex] != 0) {
-                        flashEndTimes[damageIndex] = now + 400; // 400ms flash
-                    }
-                }
-                lastDamages[damageIndex] = currentDamage;
+        // Pass 3: items, with whatever motion their effects give them
+        for (ArmorElement el : ordered) {
+            if (el.isGhost()) {
+                drawGhost(context, el, showBg);
             } else {
-                lastDamages[damageIndex] = 0;
-            }
-
-            // Draw Item
-            context.item(stack, elX + 1, elY + 1);
-            context.itemDecorations(client.font, stack, elX + 1, elY + 1);
-
-            // Damage Flash Overlay
-            if (damageFlash && !isPreviewing() && flashEndTimes[damageIndex] > now) {
-                context.fill(elX + 1, elY + 1, elX + 17, elY + 17, 0x66FF0000); // Red tint
-            }
-            
-            // Durability Text
-            if (showText && stack.isDamageableItem()) {
-                int durability = stack.getMaxDamage() - stack.getDamageValue();
-                String text = String.valueOf(durability);
-                int tw = client.font.width(com.eymistaken.simplecps.util.EymHudFonts.text(text));
-                int color = getDurabilityColor(durability, stack.getMaxDamage());
-                
-                if (vertical) {
-                    context.text(client.font, com.eymistaken.simplecps.util.EymHudFonts.text(text), elX + 20, elY + 5, color);
-                } else {
-                    context.text(client.font, com.eymistaken.simplecps.util.EymHudFonts.text(text), elX + 9 - tw / 2, elY + 20, color);
-                }
+                drawItem(context, el, now, showText, vertical);
             }
         }
 
+        // Pass 4: effects that paint over the items. Last so a badge or a spark that reaches
+        // into a neighboring slot is not covered by that slot's item.
+        for (ArmorElement el : ordered) {
+            if (!el.isGhost()) drawOverlays(context, el, now);
+        }
+
         context.pose().popMatrix();
+    }
+
+    /** The texture each slot's ghost is made from. */
+    private static Identifier ghostSource(ArmorSlot slot) {
+        String path = switch (slot) {
+            case HELMET -> "textures/item/diamond_helmet.png";
+            case CHESTPLATE -> "textures/item/diamond_chestplate.png";
+            case LEGGINGS -> "textures/item/diamond_leggings.png";
+            case BOOTS -> "textures/item/diamond_boots.png";
+            case MAIN_HAND -> "textures/item/diamond_sword.png";
+            // The shield is a 3D model with no flat texture to gray; the empty off-hand
+            // slot's own silhouette is the one shape that means "a shield goes here".
+            case OFF_HAND -> "textures/gui/sprites/container/slot/shield.png";
+        };
+        return Identifier.withDefaultNamespace(path);
+    }
+
+    /** An empty slot in the editor: a sunken dark square with the piece it takes, in gray. */
+    private void drawGhost(GuiGraphicsExtractor context, ArmorElement el, boolean showBg) {
+        int x = el.localX;
+        int y = el.localY;
+        if (showBg) {
+            // The hotbar slot is already behind it; only its inside is darkened.
+            context.fill(x + 1, y + 1, x + 17, y + 17, 0xE0181818);
+        } else {
+            context.fill(x, y, x + 18, y + 18, 0xFF5C5C5C);
+            context.fill(x, y, x + 17, y + 17, 0xFF151515);
+            context.fill(x + 1, y + 1, x + 17, y + 17, 0xFF2E2E2E);
+        }
+        if (!GhostIcons.draw(context, ghostSource(el.slot), x + 1, y + 1)) {
+            // No texture to gray (a broken pack): dim the real piece instead, so the slot
+            // still says what belongs in it.
+            context.item(previewStackFor(el.slot), x + 1, y + 1);
+            context.fill(x + 1, y + 1, x + 17, y + 17, 0xB0101010);
+        }
+    }
+
+    /**
+     * Milliseconds since this slot last lost durability, or {@link #HIT_DONE} when no effect
+     * is still playing. The preview takes a pretend hit every {@link #PREVIEW_HIT_PERIOD},
+     * on every damageable piece at once, which is what a real hit does to armor.
+     */
+    private long sinceHit(ArmorElement el, ItemStack stack, long now) {
+        if (!SimpleCPSConfig.instance.armorDamageFlash || !stack.isDamageableItem()) return HIT_DONE;
+        if (isPreviewing()) return now % PREVIEW_HIT_PERIOD;
+        long t = now - hitTimes[el.slot.ordinal()];
+        return t >= 0 && t < HIT_DONE ? t : HIT_DONE;
+    }
+
+    /** How long the bar was before the hit now playing, for the chip effect. */
+    private int chipFromWidth(ArmorElement el, ItemStack stack) {
+        if (isPreviewing()) return Math.min(13, stack.getBarWidth() + 3);
+        return chipFromWidths[el.slot.ordinal()];
+    }
+
+    /**
+     * How far under the low-durability threshold the item is: 0 at the threshold, 1 when
+     * it is about to break, and negative above the threshold, where the warnings stay off.
+     */
+    private static float lowness(ItemStack stack) {
+        if (!stack.isDamageableItem() || stack.getMaxDamage() <= 0) return -1f;
+        float left = 1f - (float) stack.getDamageValue() / stack.getMaxDamage();
+        float threshold = SimpleCPSConfig.instance.armorLowThreshold / 100f;
+        if (left >= threshold) return -1f;
+        return Math.min(1f, 1f - left / threshold);
+    }
+
+    private static float strength(int percent) {
+        return percent / 100f;
+    }
+
+    /**
+     * Draws one item, moved and scaled by its effects, with its bar and durability text.
+     *
+     * <p>Every motion here is a function of time alone, never of a random number or a
+     * counter stepped per frame: the same hit always plays the same way, and the preview,
+     * drawn alongside the live HUD, cannot speed it up.
+     */
+    private void drawItem(GuiGraphicsExtractor context, ArmorElement el, long now, boolean showText, boolean vertical) {
+        SimpleCPSConfig config = SimpleCPSConfig.instance;
+        ItemStack stack = el.getItemStack();
+        int elX = el.localX;
+        int elY = el.localY;
+        long t = sinceHit(el, stack, now);
+        float k = lowness(stack);
+
+        int ox = 0;
+        int oy = 0;
+        float scale = 1f;
+
+        // Shake: a short hold knocked up and over, then a ring that dies away.
+        float shake = strength(config.armorHitShake);
+        if (shake > 0 && t < 380) {
+            if (t < 70) {
+                ox += Math.round(shake);
+                oy -= Math.round(shake);
+            } else {
+                ox += Math.round(2 * shake * Math.exp(-(t - 70) / 100.0) * Math.sin((t - 70) / 22.0));
+            }
+        }
+
+        if (k >= 0) {
+            // Pulse: a red ground behind the item, breathing faster as it nears breaking.
+            float pulse = strength(config.armorLowPulse);
+            if (pulse > 0) {
+                double breath = 0.5 + 0.5 * Math.sin(now / (380.0 - 180.0 * k));
+                float a = (float) Math.min(0.9, ((0.2 + 0.35 * k) * breath + 0.08) * pulse);
+                context.fill(elX + 1, elY + 1, elX + 17, elY + 17, alpha(0xFF2828, a));
+                int ring = alpha(0xFF6E6E, Math.min(1f, a + 0.2f));
+                context.fill(elX + 1, elY + 1, elX + 17, elY + 2, ring);
+                context.fill(elX + 1, elY + 16, elX + 17, elY + 17, ring);
+                context.fill(elX + 1, elY + 2, elX + 2, elY + 16, ring);
+                context.fill(elX + 16, elY + 2, elX + 17, elY + 16, ring);
+            }
+
+            // Tremble: grown a little for as long as it is low, and shivering in bursts
+            // that come closer together the lower it gets.
+            float tremble = strength(config.armorLowTremble);
+            if (tremble > 0) {
+                scale *= 1f + 0.12f * k * tremble;
+                long period = Math.round(1500 - 800 * k);
+                long phase = now % period;
+                if (phase < 300) ox += Math.round(Math.sin(phase / 28.0) * (1 + 0.6 * k) * tremble);
+            }
+
+            // Heartbeat: a double beat whose tempo climbs from 60 to 150 a minute.
+            float heart = strength(config.armorLowHeartbeat);
+            if (heart > 0) {
+                double beat = 60000.0 / (60 + 90 * k);
+                double phase = (now % (long) beat) / beat;
+                double kick = bump(phase, 0, 0.14) + 0.6 * bump(phase, 0.22, 0.14);
+                scale *= (float) (1 + (0.06 + 0.1 * k) * heart * kick);
+            }
+        }
+
+        int ix = elX + 1;
+        int iy = elY + 1;
+        context.pose().pushMatrix();
+        context.pose().translate((float) ox, (float) oy);
+        if (scale != 1f) {
+            context.pose().translate(ix + 8f, iy + 8f);
+            context.pose().scale(scale, scale);
+            context.pose().translate(-(ix + 8f), -(iy + 8f));
+        }
+        context.item(stack, ix, iy);
+        context.itemDecorations(client.font, stack, ix, iy);
+
+        // Chip: what the hit took stays on the bar in white for a moment, then drains away,
+        // so a small loss is visible at all.
+        float chip = strength(config.armorHitChip);
+        if (chip > 0 && t < HIT_DONE && stack.isBarVisible()) {
+            int to = stack.getBarWidth();
+            int from = chipFromWidth(el, stack);
+            float hold = 250 * chip;
+            float drain = 300 * chip;
+            float shown = t < hold ? from : t < hold + drain ? from - (from - to) * ((t - hold) / drain) : to;
+            int end = Math.round(shown);
+            if (end > to) context.fill(ix + 2 + to, iy + 13, ix + 2 + end, iy + 14, 0xFFFFFFFF);
+        }
+        context.pose().popMatrix();
+
+        if (showText && stack.isDamageableItem()) {
+            int durability = stack.getMaxDamage() - stack.getDamageValue();
+            String text = String.valueOf(durability);
+            int tw = client.font.width(com.eymistaken.simplecps.util.EymHudFonts.text(text));
+            int color = getDurabilityColor(durability, stack.getMaxDamage());
+
+            if (vertical) {
+                context.text(client.font, com.eymistaken.simplecps.util.EymHudFonts.text(text), elX + 20, elY + 5, color);
+            } else {
+                context.text(client.font, com.eymistaken.simplecps.util.EymHudFonts.text(text), elX + 9 - tw / 2, elY + 20, color);
+            }
+        }
+    }
+
+    /** Sparks, warning corners and the low-durability badge, drawn over every item. */
+    private void drawOverlays(GuiGraphicsExtractor context, ArmorElement el, long now) {
+        SimpleCPSConfig config = SimpleCPSConfig.instance;
+        ItemStack stack = el.getItemStack();
+        int elX = el.localX;
+        int elY = el.localY;
+        long t = sinceHit(el, stack, now);
+
+        // Sparks: eight pixels thrown out from the item, slowing as they fade.
+        float sparks = strength(config.armorHitSparks);
+        if (sparks > 0 && t < 340) {
+            float p = t / 340f;
+            float travel = 1f - (1f - p) * (1f - p) * (1f - p);
+            float reach = 3 + 8 * travel * sparks;
+            for (int i = 0; i < 8; i++) {
+                double angle = i * Math.PI / 4 + 0.39;
+                int px = (int) Math.round(elX + 9 + Math.cos(angle) * reach);
+                int py = (int) Math.round(elY + 9 + Math.sin(angle) * reach);
+                context.fill(px, py, px + 1, py + 1, alpha(i % 2 == 0 ? 0xFF4A3A : 0xFFB03A, 1f - p));
+            }
+        }
+
+        // Corners: red brackets around the slot that blink twice, closing in on the second.
+        float corners = strength(config.armorHitCorners);
+        if (corners > 0 && (t < 90 || (t >= 170 && t < 260))) {
+            int in = t < 90 ? 0 : 1;
+            int len = Math.max(2, Math.min(7, Math.round(4 * corners)));
+            drawBrackets(context, elX + in, elY + in, elX + 17 - in, elY + 17 - in, len, 0xFFFF3B30);
+        }
+
+        // Badge: a little red "!" on the corner that hops and wiggles now and then, more
+        // often the closer the item is to breaking.
+        float badge = strength(config.armorLowBadge);
+        float k = lowness(stack);
+        if (badge > 0 && k >= 0) {
+            long period = Math.round(1600 - 800 * k);
+            long phase = now % period;
+            int dx = 0;
+            int dy = 0;
+            if (phase < 320) {
+                int[] wiggle = {-1, 1, -1, 1, 0};
+                dx = Math.round(wiggle[(int) (phase / 64)] * badge);
+                dy = phase < 160 ? -Math.max(1, Math.round(badge)) : 0;
+            }
+            int bx = elX + 13 + dx;
+            int by = elY - 3 + dy;
+            context.fill(bx, by, bx + 5, by + 8, 0xFF5A0C0C);
+            context.fill(bx + 1, by + 1, bx + 4, by + 7, 0xFFFF3B30);
+            context.fill(bx + 2, by + 2, bx + 3, by + 4, 0xFFFFFFFF);
+            context.fill(bx + 2, by + 5, bx + 3, by + 6, 0xFFFFFFFF);
+        }
+    }
+
+    /** Four L-shaped corners on the box from {@code (a, b)} to {@code (c, d)}, inclusive. */
+    private static void drawBrackets(GuiGraphicsExtractor context, int a, int b, int c, int d, int len, int color) {
+        context.fill(a, b, a + len, b + 1, color);
+        context.fill(a, b, a + 1, b + len, color);
+        context.fill(c - len + 1, b, c + 1, b + 1, color);
+        context.fill(c, b, c + 1, b + len, color);
+        context.fill(a, d, a + len, d + 1, color);
+        context.fill(a, d - len + 1, a + 1, d + 1, color);
+        context.fill(c - len + 1, d, c + 1, d + 1, color);
+        context.fill(c, d - len + 1, c + 1, d + 1, color);
+    }
+
+    /** A half-sine bump of width {@code w} starting at {@code start}, 0 outside it. */
+    private static double bump(double phase, double start, double w) {
+        return phase >= start && phase < start + w ? Math.sin(Math.PI * (phase - start) / w) : 0;
+    }
+
+    private static int alpha(int rgb, float a) {
+        int alpha = Math.max(0, Math.min(255, Math.round(a * 255)));
+        return (alpha << 24) | (rgb & 0xFFFFFF);
+    }
+
+    /**
+     * Watches the player's own gear for lost durability. Here rather than in the render
+     * path so the settings preview, which draws stand-in gear, can never move the baseline.
+     */
+    @Override
+    public void tick(Minecraft client) {
+        if (client.player == null) {
+            java.util.Arrays.fill(lastItems, null);
+            lastSelectedSlot = -1;
+            return;
+        }
+        int selected = client.player.getInventory().getSelectedSlot();
+        long now = System.currentTimeMillis();
+        for (ArmorSlot slot : ArmorSlot.values()) {
+            int i = slot.ordinal();
+            ItemStack stack = liveStack(slot);
+            Item item = stack.getItem();
+            int damage = stack.isDamageableItem() ? stack.getDamageValue() : -1;
+            // Scrolling to another sword of the same kind is a different item, not a hit.
+            boolean same = item == lastItems[i] && (slot != ArmorSlot.MAIN_HAND || selected == lastSelectedSlot);
+            if (same && lastDamages[i] >= 0 && damage > lastDamages[i]) {
+                hitTimes[i] = now;
+                chipFromWidths[i] = lastBarWidths[i];
+            }
+            lastItems[i] = item;
+            lastDamages[i] = damage;
+            lastBarWidths[i] = stack.isBarVisible() ? stack.getBarWidth() : 13;
+        }
+        lastSelectedSlot = selected;
+    }
+
+    private ItemStack liveStack(ArmorSlot slot) {
+        return switch (slot) {
+            case HELMET -> client.player.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.HEAD);
+            case CHESTPLATE -> client.player.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.CHEST);
+            case LEGGINGS -> client.player.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.LEGS);
+            case BOOTS -> client.player.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.FEET);
+            case MAIN_HAND -> client.player.getMainHandItem();
+            case OFF_HAND -> client.player.getOffhandItem();
+        };
     }
 
     private int getDurabilityColor(int durability, int max) {
@@ -620,6 +926,15 @@ public class ArmorModule extends HudModule {
         config.armorShowOffHand = false;
         config.armorDurabilityText = false;
         config.armorDamageFlash = true;
+        config.armorHitShake = 100;
+        config.armorHitSparks = 0;
+        config.armorHitCorners = 0;
+        config.armorHitChip = 0;
+        config.armorLowThreshold = 25;
+        config.armorLowTremble = 0;
+        config.armorLowBadge = 100;
+        config.armorLowHeartbeat = 0;
+        config.armorLowPulse = 0;
     }
 
     @Override
@@ -664,7 +979,7 @@ public class ArmorModule extends HudModule {
             new com.eymistaken.simplecps.api.BooleanSetting("Vertical", () -> config.armorVertical, v -> config.armorVertical = v),
             new com.eymistaken.simplecps.api.BooleanSetting("Show Background", () -> config.armorShowBackgroundSlots, v -> config.armorShowBackgroundSlots = v),
             new com.eymistaken.simplecps.api.BooleanSetting("Durability Text", () -> config.armorDurabilityText, v -> config.armorDurabilityText = v),
-            new com.eymistaken.simplecps.api.BooleanSetting("Damage Flash", () -> config.armorDamageFlash, v -> config.armorDamageFlash = v),
+            new com.eymistaken.simplecps.api.BooleanSetting("Damage Effects", () -> config.armorDamageFlash, v -> config.armorDamageFlash = v),
             new com.eymistaken.simplecps.api.BooleanSetting("Show Main Hand", () -> config.armorShowMainHand, v -> config.armorShowMainHand = v),
             new com.eymistaken.simplecps.api.BooleanSetting("Show Off Hand", () -> config.armorShowOffHand, v -> config.armorShowOffHand = v)
         ));

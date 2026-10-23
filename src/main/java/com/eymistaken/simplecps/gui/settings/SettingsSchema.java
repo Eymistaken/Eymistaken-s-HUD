@@ -818,10 +818,45 @@ public final class SettingsSchema {
                         c -> c.armorShowBackgroundSlots, (c, v) -> c.armorShowBackgroundSlots = v),
                     bool("armor.durability", "Durability Text",
                         "Display precise durability numbers next to the items.",
-                        c -> c.armorDurabilityText, (c, v) -> c.armorDurabilityText = v),
-                    bool("armor.flash", "Damage Flash",
-                        "Flash items red momentarily when durability is lost.",
-                        c -> c.armorDamageFlash, (c, v) -> c.armorDamageFlash = v)))
+                        c -> c.armorDurabilityText, (c, v) -> c.armorDurabilityText = v))),
+                // One slider per effect, each in percent of its stock size, so any of them can be
+                // tuned or switched off without touching the others. Several can play at once.
+                new Tab("effects", "EFFECTS", List.of(
+                    bool("armor.flash", "Damage Effects",
+                        "Play the hit effects below when an item loses durability. Off silences "
+                            + "all four, whatever their sliders say.",
+                        c -> c.armorDamageFlash, (c, v) -> c.armorDamageFlash = v),
+                    slider("armor.hitShake", "Hit Shake %",
+                        "How hard a hit item is knocked: a short hold, then a shake that dies away. "
+                            + "0 turns it off.",
+                        0, 200, c -> c.armorHitShake, (c, v) -> c.armorHitShake = v),
+                    slider("armor.hitSparks", "Hit Sparks %",
+                        "How far the red sparks thrown out of a hit item travel. 0 turns them off.",
+                        0, 200, c -> c.armorHitSparks, (c, v) -> c.armorHitSparks = v),
+                    slider("armor.hitCorners", "Warning Corners %",
+                        "How long the red corners that blink around a hit item are. 0 turns them off.",
+                        0, 200, c -> c.armorHitCorners, (c, v) -> c.armorHitCorners = v),
+                    slider("armor.hitChip", "Chip Damage %",
+                        "How long the durability a hit took stays on the bar in white before it "
+                            + "drains away. 0 turns it off.",
+                        0, 200, c -> c.armorHitChip, (c, v) -> c.armorHitChip = v),
+                    slider("armor.lowThreshold", "Low Durability At %",
+                        "The durability left, in percent, under which the warnings below start. "
+                            + "They grow stronger as the item nears breaking.",
+                        5, 50, c -> c.armorLowThreshold, (c, v) -> c.armorLowThreshold = v),
+                    slider("armor.lowBadge", "Warning Badge %",
+                        "How much the red \"!\" on a worn-out item hops and wiggles. 0 hides it.",
+                        0, 200, c -> c.armorLowBadge, (c, v) -> c.armorLowBadge = v),
+                    slider("armor.lowTremble", "Tremble %",
+                        "How much a worn-out item grows and shivers. 0 keeps it still.",
+                        0, 200, c -> c.armorLowTremble, (c, v) -> c.armorLowTremble = v),
+                    slider("armor.lowHeartbeat", "Heartbeat %",
+                        "How hard a worn-out item beats; the tempo climbs as it nears breaking. "
+                            + "0 turns it off.",
+                        0, 200, c -> c.armorLowHeartbeat, (c, v) -> c.armorLowHeartbeat = v),
+                    slider("armor.lowPulse", "Red Pulse %",
+                        "How bright the red ground breathing behind a worn-out item is. 0 turns it off.",
+                        0, 200, c -> c.armorLowPulse, (c, v) -> c.armorLowPulse = v)))
             ),
             false, false,
             () -> SimpleCPSConfig.instance.showArmor,

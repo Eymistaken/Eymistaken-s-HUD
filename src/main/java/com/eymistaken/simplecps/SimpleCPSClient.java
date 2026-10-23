@@ -7,11 +7,14 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
+import net.fabricmc.fabric.api.resource.v1.ResourceLoader;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.resources.Identifier;
+import net.minecraft.server.packs.PackType;
+import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
 
 public class SimpleCPSClient implements ClientModInitializer {
     private static final Identifier HUD_LAYER_ID = Identifier.fromNamespaceAndPath("simplecps", "main_hud");
@@ -57,6 +60,11 @@ public class SimpleCPSClient implements ClientModInitializer {
             InputConstants.KEY_RSHIFT,
             new KeyMapping.Category(Identifier.fromNamespaceAndPath("simplecps", "categories.eymistaken"))
         ));
+
+        // The armor HUD's gray editor icons are built from the active pack's textures.
+        ResourceLoader.get(PackType.CLIENT_RESOURCES).registerReloadListener(
+            Identifier.fromNamespaceAndPath("simplecps", "ghost_icons"),
+            (ResourceManagerReloadListener) resources -> com.eymistaken.simplecps.util.GhostIcons.invalidate());
 
         HudElementRegistry.attachElementBefore(
             VanillaHudElements.CHAT,

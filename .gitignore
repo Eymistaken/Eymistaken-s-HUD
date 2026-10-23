@@ -46,3 +46,8 @@ CLAUDE.md
 docs/
 istedigim_tasarim/
 YAPILANLAR.md
+
+# --- Changelogs (Güncel changelog taslakları ve görselleri) ---
+# Release notunun ve mağaza sayfalarının kaynağı; kalıcı kopyası release notunda
+# ve sitede durur, depoya girmez.
+changelog/

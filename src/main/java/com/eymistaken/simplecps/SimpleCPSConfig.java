@@ -254,6 +254,15 @@ public class SimpleCPSConfig {
         comboImpactStrength = clamp(comboImpactStrength, 0, 200);
         comboShakeStrength = clamp(comboShakeStrength, 0, 200);
         comboJoltStrength = clamp(comboJoltStrength, 0, 200);
+        armorHitShake = clamp(armorHitShake, 0, 200);
+        armorHitSparks = clamp(armorHitSparks, 0, 200);
+        armorHitCorners = clamp(armorHitCorners, 0, 200);
+        armorHitChip = clamp(armorHitChip, 0, 200);
+        armorLowThreshold = clamp(armorLowThreshold, 5, 50);
+        armorLowTremble = clamp(armorLowTremble, 0, 200);
+        armorLowBadge = clamp(armorLowBadge, 0, 200);
+        armorLowHeartbeat = clamp(armorLowHeartbeat, 0, 200);
+        armorLowPulse = clamp(armorLowPulse, 0, 200);
         // Each tier at least a hit past the one before it.
         comboHeatTier1 = clamp(comboHeatTier1, 1, MAX_HEAT_TIER - 2);
         comboHeatTier2 = clamp(comboHeatTier2, comboHeatTier1 + 1, MAX_HEAT_TIER - 1);
@@ -920,7 +929,22 @@ public class SimpleCPSConfig {
     public boolean armorShowMainHand = true; // Main Hand toggle
     public boolean armorShowOffHand = false; // Off Hand toggle
     public boolean armorDurabilityText = false; // Durability Text
-    public boolean armorDamageFlash = true; // Damage Flash
+    // The master switch for the hit effects below. It kept its old name because it is the
+    // on-disk key: the red flash it once toggled is gone, and a player who turned that off
+    // finds the effects that replaced it off too.
+    public boolean armorDamageFlash = true;
+    // One slider per effect, in percent of its stock size; 0 turns that effect off. The hit
+    // effects play when an item loses durability, the low ones while it sits under
+    // armorLowThreshold percent and grow stronger as it nears breaking.
+    public int armorHitShake = 100;
+    public int armorHitSparks = 0;
+    public int armorHitCorners = 0;
+    public int armorHitChip = 0;
+    public int armorLowThreshold = 25;
+    public int armorLowTremble = 0;
+    public int armorLowBadge = 100;
+    public int armorLowHeartbeat = 0;
+    public int armorLowPulse = 0;
 
     // Armor Individual Slots Offsets
     public int armorHelmetXOffset = 0;
