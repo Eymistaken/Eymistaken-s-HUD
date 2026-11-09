@@ -3,6 +3,7 @@
 A client-side PvP HUD for Fabric. Seven modules, a live drag-and-drop editor, a keystrokes designer, layouts you can share as a line of text, and a plugin API for adding modules of your own.
 
 [![Modrinth downloads](https://img.shields.io/modrinth/dt/eymistakenshud?logo=modrinth&label=Modrinth&color=00AF5C)](https://modrinth.com/mod/eymistakenshud)
+[![CurseForge downloads](https://img.shields.io/curseforge/dt/1445158?logo=curseforge&label=CurseForge&color=F16436)](https://www.curseforge.com/minecraft/mc-mods/eymistakenshud)
 [![Latest release](https://img.shields.io/github/v/release/Eymistaken/Eymistaken-s-HUD?label=release)](https://github.com/Eymistaken/Eymistaken-s-HUD/releases/latest)
 ![Minecraft 26.3](https://img.shields.io/badge/Minecraft-26.3-62B47A)
 ![Java 25](https://img.shields.io/badge/Java-25-E76F00)
