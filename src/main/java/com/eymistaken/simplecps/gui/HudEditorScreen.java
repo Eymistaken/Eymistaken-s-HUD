@@ -1238,7 +1238,11 @@ public class HudEditorScreen extends Screen {
             boolean hovered = mouseX >= x && mouseX <= x + w && mouseY >= currentY && mouseY < currentY + itemHeight;
             if (hovered) context.fill(x, currentY, x + w, currentY + itemHeight, fade(0xFF444444, p));
 
-            context.text(this.font, Component.literal(setting.label), x + 5, currentY + (itemHeight / 2) - 4, fade(0xFFFFFFFF, p), true);
+            // An action that carries its own color says "this opens something" rather
+            // than reading as one more value to toggle.
+            int labelColor = setting instanceof com.eymistaken.simplecps.api.ActionSetting act && act.color != 0
+                ? act.color : 0xFFFFFFFF;
+            context.text(this.font, Component.literal(setting.label), x + 5, currentY + (itemHeight / 2) - 4, fade(labelColor, p), true);
 
             if (setting instanceof com.eymistaken.simplecps.api.BooleanSetting boolSetting) {
                 String val = boolSetting.getter.get() ? "[ON]" : "[OFF]";
