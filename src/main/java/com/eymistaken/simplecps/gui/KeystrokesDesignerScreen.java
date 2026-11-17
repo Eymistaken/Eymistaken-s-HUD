@@ -2115,12 +2115,15 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
 
     // --- Design gallery ----------------------------------------------------
 
-    /** Cards per row. Two keeps each preview big enough to actually judge. */
-    private static final int GALLERY_COLS = 2;
+    /**
+     * Below this card width a fourth column is dropped, and below it again a third:
+     * a preview narrower than this stops being something a design can be judged by.
+     */
+    private static final int GALLERY_MIN_CARD_W = 230;
 
-    /** Nominal size of a card's preview stage, in game pixels. */
-    private static final int PREVIEW_W = 46;
-    private static final int PREVIEW_H = 30;
+    /** The scene behind every preview: a dusk sky fading into ground, top to bottom. */
+    private static final int STAGE_TOP = 0xFF4A5C73;
+    private static final int STAGE_BOTTOM = 0xFF262E38;
 
     private void openGallery() {
         galleryOpen = true;
@@ -2137,33 +2140,58 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
         return new int[] { panelX + (panelW - w) / 2, panelY + (panelH - h) / 2, w, h };
     }
 
+    /** Tall enough for a title line and a subtitle under it. */
     private int galleryHeadH() {
-        return cpHeadH();
+        return d(62, 22);
     }
 
-    /** The scrolling area, inside the panel's head and footer. */
+    /** The scrolling area, under the panel's head. */
     private int[] galleryBodyRect() {
         int[] r = galleryPanelRect();
-        int top = r[1] + galleryHeadH() + gap;
-        int bottom = r[1] + r[3] - pad - cpBtnH() - gap;
+        int top = r[1] + galleryHeadH() + pad;
+        int bottom = r[1] + r[3] - pad;
         return new int[] { r[0] + pad, top, r[2] - pad * 2, Math.max(0, bottom - top) };
+    }
+
+    private int galleryCols() {
+        int bodyW = galleryBodyRect()[2];
+        for (int cols = 4; cols > 2; cols--) {
+            if ((bodyW - gap * (cols - 1)) / cols >= d(GALLERY_MIN_CARD_W, 70)) return cols;
+        }
+        return 2;
+    }
+
+    private int galleryRows() {
+        int cols = galleryCols();
+        return (KeystrokesDesign.values().length + cols - 1) / cols;
     }
 
     private int galleryCardW() {
         int[] body = galleryBodyRect();
-        return (body[2] - gap * (GALLERY_COLS - 1)) / GALLERY_COLS;
+        int cols = galleryCols();
+        return (body[2] - gap * (cols - 1)) / cols;
+    }
+
+    /** The name-and-tagline strip under each preview. */
+    private int galleryFootH() {
+        return d(54, 22);
     }
 
     private int galleryCardH() {
-        // Room for the title bar plus a stage the arranged designs fit in: the
-        // compass and the honeycomb are far taller than a row of keys.
-        return d(26, 10) + d(150, 62);
+        // Sized so every design is on screen at once: the whole point of a gallery is
+        // comparing them side by side, and scrolling hides half of the comparison.
+        // Only when that would squeeze the previews too small does it scroll.
+        int rows = galleryRows();
+        int fit = (galleryBodyRect()[3] - gap * (rows - 1)) / rows;
+        int natural = galleryFootH() + galleryCardW() * 3 / 5;
+        return Math.max(galleryFootH() + d(110, 40), Math.min(natural, fit));
     }
 
     private int[] galleryCardRect(int index) {
         int[] body = galleryBodyRect();
-        int col = index % GALLERY_COLS;
-        int row = index / GALLERY_COLS;
+        int cols = galleryCols();
+        int col = index % cols;
+        int row = index / cols;
         int cw = galleryCardW();
         int ch = galleryCardH();
         return new int[] { body[0] + col * (cw + gap),
@@ -2171,7 +2199,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
     }
 
     private int galleryContentH() {
-        int rows = (KeystrokesDesign.values().length + GALLERY_COLS - 1) / GALLERY_COLS;
+        int rows = galleryRows();
         return rows * galleryCardH() + Math.max(0, rows - 1) * gap;
     }
 
@@ -2181,28 +2209,59 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
 
     private int[] galleryCloseRect() {
         int[] r = galleryPanelRect();
-        int w = SettingsTheme.textWidth(this.font, "CLOSE") + d(28, 8);
-        return new int[] { r[0] + r[2] - pad - w, r[1] + r[3] - pad - cpBtnH(), w, cpBtnH() };
+        int w = d(34, 12);
+        return new int[] { r[0] + r[2] - pad - w, r[1] + (galleryHeadH() - btnH) / 2, w, btnH };
+    }
+
+    /** One line on what a design is, so a card can be read before it is clicked. */
+    private static String tagline(KeystrokesDesign design) {
+        return switch (design) {
+            case BASELINE -> "Translucent block, sharp corners";
+            case FRAME -> "Hollow frame that hides nothing";
+            case BAR -> "Bare label over a thin rail";
+            case SOFT_BLOCK -> "Rounded cap lit along the top";
+            case SEGMENT -> "Stacked slices, like an equalizer";
+            case NEON -> "Dark core with a glowing halo";
+            case WEDGE -> "Arrows around the mouse buttons";
+            case TIMELINE -> "Press history scrolling past";
+            case HEX -> "Keycaps that tile into a honeycomb";
+            case PIXEL_BEVEL -> "Carved frame with gold corners";
+            case SLOT -> "Keys recessed into a board";
+        };
     }
 
     /**
-     * The sample buttons a card draws: a plain key, a mouse button and a wide one,
-     * which between them show a design's corners, its CPS slot and how it handles a
-     * bar. Throwaway instances rather than the player's real keys, so a preview can
-     * never write back into the layout.
+     * The sample buttons a card draws: the stock cluster in miniature -- WASD, both
+     * mouse buttons and the space bar -- so a card shows a design the way it will
+     * actually be worn rather than as an abstract couple of squares. Throwaway
+     * instances rather than the player's real keys, so a preview can never write
+     * back into the layout.
      */
-    private static final List<SimpleCPSConfig.KeyButtonData> PREVIEW_KEYS = List.of(
-        new SimpleCPSConfig.KeyButtonData("W", 15, 0, 13, 13, InputConstants.KEY_W),
-        new SimpleCPSConfig.KeyButtonData("L", 0, 15, 13, 13, 0, true),
-        new SimpleCPSConfig.KeyButtonData("R", 15, 15, 13, 13, 1, true),
-        new SimpleCPSConfig.KeyButtonData("-----", 0, 30, 28, 8, InputConstants.KEY_SPACE));
+    private static final List<SimpleCPSConfig.KeyButtonData> PREVIEW_KEYS = previewCluster();
+
+    private static List<SimpleCPSConfig.KeyButtonData> previewCluster() {
+        List<SimpleCPSConfig.KeyButtonData> keys = new ArrayList<>();
+        keys.add(new SimpleCPSConfig.KeyButtonData("W", 16, 0, 14, 14, InputConstants.KEY_W));
+        keys.add(new SimpleCPSConfig.KeyButtonData("A", 0, 16, 14, 14, InputConstants.KEY_A));
+        keys.add(new SimpleCPSConfig.KeyButtonData("S", 16, 16, 14, 14, InputConstants.KEY_S));
+        keys.add(new SimpleCPSConfig.KeyButtonData("D", 32, 16, 14, 14, InputConstants.KEY_D));
+        keys.add(new SimpleCPSConfig.KeyButtonData("LMB", 0, 32, 22, 14,
+            InputConstants.MOUSE_BUTTON_LEFT, true));
+        keys.add(new SimpleCPSConfig.KeyButtonData("RMB", 24, 32, 22, 14,
+            InputConstants.MOUSE_BUTTON_RIGHT, true));
+        SimpleCPSConfig.KeyButtonData space =
+            new SimpleCPSConfig.KeyButtonData("", 0, 48, 46, 8, InputConstants.KEY_SPACE);
+        space.labelLine = true;
+        keys.add(space);
+        return List.copyOf(keys);
+    }
 
     /**
      * The sample buttons a card draws for a design.
      *
      * <p>A design that arranges its own keys is previewed in that arrangement, built
      * from the very same {@code arrangement()} the click applies — so the card is not
-     * an impression of the design, it is the design. The rest get the generic cluster
+     * an impression of the design, it is the design. The rest get the stock cluster
      * above, because in game they keep whatever layout the player already has.
      */
     private static List<SimpleCPSConfig.KeyButtonData> previewKeys(KeystrokesDesign design) {
@@ -2226,8 +2285,8 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
             case KeystrokesDesign.ROLE_A -> "A";
             case KeystrokesDesign.ROLE_S -> "S";
             case KeystrokesDesign.ROLE_D -> "D";
-            case KeystrokesDesign.ROLE_LMB -> "L";
-            case KeystrokesDesign.ROLE_RMB -> "R";
+            case KeystrokesDesign.ROLE_LMB -> "LMB";
+            case KeystrokesDesign.ROLE_RMB -> "RMB";
             case KeystrokesDesign.ROLE_CTRL -> "CTRL";
             case KeystrokesDesign.ROLE_SHIFT -> "SHIFT";
             default -> "";
@@ -2269,11 +2328,11 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
      */
     private boolean previewPressed(int cardIndex, int keyIndex, int keyCount) {
         long elapsed = System.currentTimeMillis() - galleryOpenedAt;
-        long step = 700L;
+        long step = 520L;
         long cycle = step * Math.max(1, keyCount);
         // Staggered per card so the grid ripples instead of blinking in unison.
         long phase = Math.floorMod(elapsed + cardIndex * 230L, cycle);
-        return phase / step == keyIndex && phase % step < 420L;
+        return phase / step == keyIndex && phase % step < 340L;
     }
 
     private void renderGallery(GuiGraphicsExtractor ctx, int mx, int my) {
@@ -2284,11 +2343,30 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
         SettingsTheme.rect(ctx, r[0], r[1], r[2], r[3], SettingsTheme.MODAL_BG);
         SettingsTheme.raised(ctx, r[0], r[1], r[2], r[3], SettingsTheme.PANEL_BG,
             SettingsTheme.PANEL_LIGHT, SettingsTheme.PANEL_DARK);
-        SettingsTheme.rect(ctx, r[0] + 1, r[1] + 1, r[2] - 2, galleryHeadH(), SettingsTheme.CONTENT_HEAD);
-        SettingsTheme.text(ctx, this.font, "KEYSTROKE DESIGNS", r[0] + d(12, 3),
-            centerTextY(r[1], galleryHeadH()), SettingsTheme.MODAL_HEAD_FG);
-        SettingsTheme.rightText(ctx, this.font, "EACH BRINGS ITS OWN ANIMATION AND COLORS",
-            r[0] + r[2] - d(12, 3), centerTextY(r[1], galleryHeadH()), SettingsTheme.TEXT_FAINT);
+
+        // Head: what this is and what a click does, then the way out.
+        int headH = galleryHeadH();
+        SettingsTheme.rect(ctx, r[0] + 1, r[1] + 1, r[2] - 2, headH - 1, SettingsTheme.BAR_BG);
+        SettingsTheme.rect(ctx, r[0] + 1, r[1] + headH - 1, r[2] - 2, 1, SettingsTheme.BORDER);
+        int lines = this.font.lineHeight * 2 + d(6, 2);
+        int ty = r[1] + (headH - lines) / 2 + 1;
+        int tx = r[0] + pad;
+        SettingsTheme.text(ctx, this.font, "DESIGNS", tx, ty, SettingsTheme.TEXT_STRONG);
+        String count = KeystrokesDesign.values().length + " STYLES";
+        int countX = tx + SettingsTheme.textWidth(this.font, "DESIGNS") + gap * 2;
+        SettingsTheme.text(ctx, this.font, count, countX, ty, SettingsTheme.TEXT_FAINT);
+
+        int[] close = galleryCloseRect();
+        SettingsTheme.text(ctx, this.font,
+            SettingsTheme.truncate(this.font,
+                "CLICK ONE TO APPLY ITS LAYOUT, ANIMATION AND COLORS. CTRL+Z PUTS YOURS BACK.",
+                close[0] - gap - tx),
+            tx, ty + this.font.lineHeight + d(6, 2), SettingsTheme.TEXT_DIM);
+
+        boolean cHov = SettingsTheme.inside(mx, my, close[0], close[1], close[2], close[3]);
+        SettingsTheme.button(ctx, close[0], close[1], close[2], close[3], cHov);
+        SettingsTheme.closeIcon(ctx, close[0] + (close[2] - 5) / 2, close[1] + (close[3] - 5) / 2,
+            SettingsTheme.TEXT_LABEL);
 
         int[] body = galleryBodyRect();
         galleryScroll = Math.max(0, Math.min(galleryScroll, maxGalleryScroll()));
@@ -2309,14 +2387,10 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
             renderGalleryCard(ctx, designs[i], i, card, mx, my);
             ctx.disableScissor();
         }
-        renderScrollbar(ctx, body[0] + body[2] - d(4, 2), body[1], body[3],
-            galleryContentH(), galleryScroll);
-
-        int[] close = galleryCloseRect();
-        boolean hov = SettingsTheme.inside(mx, my, close[0], close[1], close[2], close[3]);
-        SettingsTheme.button(ctx, close[0], close[1], close[2], close[3], hov);
-        SettingsTheme.centeredText(ctx, this.font, "CLOSE", close[0] + close[2] / 2,
-            centerTextY(close[1], close[3]), SettingsTheme.TEXT_LABEL);
+        if (maxGalleryScroll() > 0) {
+            renderScrollbar(ctx, body[0] + body[2] + Math.max(1, pad / 2 - d(4, 2) / 2), body[1],
+                body[3], galleryContentH(), galleryScroll);
+        }
     }
 
     private void renderGalleryCard(GuiGraphicsExtractor ctx, KeystrokesDesign design, int index,
@@ -2324,39 +2398,79 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
         boolean active = globalDesign() == design;
         boolean hov = SettingsTheme.inside(mx, my, card[0], card[1], card[2], card[3]);
 
-        SettingsTheme.rect(ctx, card[0], card[1], card[2], card[3],
-            active ? SettingsTheme.SEL_BG : (hov ? SettingsTheme.BTN_BG : SettingsTheme.CARD_BG));
-        SettingsTheme.frame(ctx, card[0], card[1], card[2], card[3],
-            active ? SettingsTheme.SEL_BORDER : SettingsTheme.DIVIDER);
+        int footH = galleryFootH();
+        int[] stage = { card[0], card[1], card[2], card[3] - footH };
 
-        int headH = d(26, 10);
-        SettingsTheme.rect(ctx, card[0] + 1, card[1] + 1, card[2] - 2, headH - 1,
-            active ? SettingsTheme.TAB_ACTIVE_BG : SettingsTheme.CONTENT_HEAD);
-        SettingsTheme.text(ctx, this.font,
-            SettingsTheme.truncate(this.font, SettingsTheme.up(design.display()), card[2] - d(90, 32)),
-            card[0] + gap * 2, centerTextY(card[1], headH),
-            active ? SettingsTheme.TEXT_STRONG : SettingsTheme.TEXT_LABEL);
-
-        // Name the animation the design ships with, in its own color, so the card
-        // says what picking it will do and not only what it looks like.
-        boolean rearranges = design.isModuleWide() || design.arrangement() != null;
-        String note = rearranges
-            ? "ARRANGES KEYS"
-            : SettingsTheme.up(design.defaultFill() == KeystrokesAnim.Fill.NONE
-                ? design.defaultMotion().display() : design.defaultFill().display());
-        SettingsTheme.rightText(ctx, this.font, note, card[0] + card[2] - gap * 2,
-            centerTextY(card[1], headH),
-            rearranges ? SettingsTheme.TEXT_FAINT
-                : (design.defaultFill() == KeystrokesAnim.Fill.NONE
-                    ? motionColor(design.defaultMotion()) : fillColor(design.defaultFill())));
-
-        // The preview stage. A design carries its own background, so the plate behind
-        // it is neutral rather than the panel's glaze, and translucent bodies read
-        // against something instead of dissolving into the card.
-        int[] stage = { card[0] + 1, card[1] + headH, card[2] - 2, card[3] - headH - 1 };
-        SettingsTheme.rect(ctx, stage[0], stage[1], stage[2], stage[3], 0xFF6E90B8);
-
+        // The stage: a scene rather than a flat plate. Most designs are translucent or
+        // have no body at all, and they need something with depth behind them to read
+        // the way they will over the world.
+        ctx.fillGradient(stage[0], stage[1], stage[0] + stage[2], stage[1] + stage[3],
+            STAGE_TOP, STAGE_BOTTOM);
         renderPreviewCluster(ctx, design, index, stage);
+
+        // Footer: the name, what it is, and what it does when pressed.
+        int fy = stage[1] + stage[3];
+        SettingsTheme.rect(ctx, card[0], fy, card[2], footH,
+            hov ? SettingsTheme.BTN_BG : SettingsTheme.CARD_BG);
+        SettingsTheme.rect(ctx, card[0], fy, card[2], 1, SettingsTheme.BORDER);
+
+        int inset = d(12, 3);
+        int nameY = fy + (footH - this.font.lineHeight * 2 - d(6, 2)) / 2 + 1;
+        int right = card[0] + card[2] - inset;
+
+        // The press animation it ships with, as a tag in that animation's color.
+        String anim;
+        int animColor;
+        if (design.defaultFill() != KeystrokesAnim.Fill.NONE) {
+            anim = SettingsTheme.up(design.defaultFill().display());
+            animColor = fillColor(design.defaultFill());
+        } else if (design.defaultMotion() != KeystrokesAnim.Motion.NONE) {
+            anim = SettingsTheme.up(design.defaultMotion().display());
+            animColor = motionColor(design.defaultMotion());
+        } else {
+            anim = null;
+            animColor = SettingsTheme.TEXT_FAINT;
+        }
+        int tagH = this.font.lineHeight + d(6, 2);
+        int tagY = nameY - (tagH - this.font.lineHeight) / 2 - 1;
+        int tagLeft = right;
+        if (anim != null) {
+            int tw = SettingsTheme.textWidth(this.font, anim) + d(14, 4);
+            tagLeft = right - tw;
+            SettingsTheme.frame(ctx, tagLeft, tagY, tw, tagH, SettingsTheme.TAG_BORDER);
+            SettingsTheme.centeredText(ctx, this.font, anim, tagLeft + tw / 2,
+                centerTextY(tagY, tagH), animColor);
+        }
+
+        int nameColor = active || hov ? SettingsTheme.TEXT_STRONG : SettingsTheme.TEXT_LABEL;
+        SettingsTheme.text(ctx, this.font,
+            SettingsTheme.truncate(this.font, SettingsTheme.up(design.display()),
+                tagLeft - gap - (card[0] + inset)),
+            card[0] + inset, nameY, nameColor);
+
+        boolean rearranges = design.isModuleWide() || design.arrangement() != null;
+        String sub = SettingsTheme.up(tagline(design)) + (rearranges ? " - OWN LAYOUT" : "");
+        SettingsTheme.text(ctx, this.font,
+            SettingsTheme.truncate(this.font, sub, card[2] - inset * 2),
+            card[0] + inset, nameY + this.font.lineHeight + d(6, 2), SettingsTheme.TEXT_FAINT);
+
+        // Border last so neither the stage nor the footer paints over it. The design
+        // in use gets a bright double edge and a badge; hover gets a lighter edge.
+        if (active) {
+            thickFrame(ctx, card[0], card[1], card[2], card[3], Math.max(1, d(2, 1)),
+                SettingsTheme.DONE_BG);
+            String badge = "IN USE";
+            int bw = SettingsTheme.textWidth(this.font, badge) + d(14, 4);
+            int bh = this.font.lineHeight + d(8, 3);
+            int bx = card[0] + d(8, 2);
+            int by = card[1] + d(8, 2);
+            SettingsTheme.rect(ctx, bx, by, bw, bh, SettingsTheme.DONE_BG);
+            SettingsTheme.centeredText(ctx, this.font, badge, bx + bw / 2, centerTextY(by, bh),
+                SettingsTheme.DONE_TEXT);
+        } else {
+            SettingsTheme.frame(ctx, card[0], card[1], card[2], card[3],
+                hov ? SettingsTheme.TEXT_MUTED : SettingsTheme.DIVIDER);
+        }
     }
 
     /**
@@ -2372,18 +2486,13 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
         int cy = stage[1] + stage[3] / 2;
 
         if (design == KeystrokesDesign.TIMELINE) {
-            // The timeline has no per-key body to show, so the card says what it is
-            // rather than drawing an empty stage. On the light preview plate the
-            // muted gray was all but invisible, so it takes the design's own label
-            // color like every other card's keys do.
-            SettingsTheme.centeredText(ctx, this.font, "PRESS HISTORY", cx,
-                cy - this.font.lineHeight / 2, design.defaultColors()[0] | 0xFF000000);
+            renderTimelinePreview(ctx, design, index, stage);
             return;
         }
 
         List<SimpleCPSConfig.KeyButtonData> keys = previewKeys(design);
         int[] extent = previewExtent(design);
-        int margin = d(8, 3);
+        int margin = d(14, 4);
         // Fit rather than clip. A whole-number scale keeps the edges crisp, but the
         // arranged designs are much taller than the others, and forcing a minimum of
         // 1 made them spill out of the card and across their neighbors.
@@ -2398,7 +2507,8 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
         int bg = (palette[3] << 24) | (palette[2] & 0x00FFFFFF);
 
         ctx.pose().pushMatrix();
-        ctx.pose().translate(cx - extent[0] * scale / 2f, cy - extent[1] * scale / 2f);
+        ctx.pose().translate(Math.round(cx - extent[0] * scale / 2f),
+            Math.round(cy - extent[1] * scale / 2f));
         ctx.pose().scale(scale, scale);
 
         for (int k = 0; k < keys.size(); k++) {
@@ -2413,6 +2523,47 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
                 bg, idle, accent, false, null, null);
         }
         ctx.pose().popMatrix();
+    }
+
+    /**
+     * The timeline has no per-key body, so its card draws a few lanes of press
+     * history instead -- a plain caption on an empty stage told you nothing about
+     * what picking it would look like.
+     */
+    private void renderTimelinePreview(GuiGraphicsExtractor ctx, KeystrokesDesign design,
+                                       int index, int[] stage) {
+        String[] lanes = { "W", "A", "S", "D", "LMB" };
+        int[] palette = design.defaultColors();
+        int label = palette[0] | 0xFF000000;
+        int accent = palette[1] | 0xFF000000;
+
+        int margin = d(18, 5);
+        int laneH = Math.max(3, Math.min(d(18, 6), (stage[3] - margin * 2) / lanes.length));
+        int barH = Math.max(2, laneH / 2);
+        int labelW = SettingsTheme.textWidth(this.font, "LMB") + gap;
+        int top = stage[1] + (stage[3] - laneH * lanes.length) / 2;
+        int laneX = stage[0] + margin + labelW;
+        int laneW = Math.max(1, stage[2] - margin * 2 - labelW);
+
+        // Presses drift right to left at a steady rate, each lane with its own rhythm.
+        long t = System.currentTimeMillis() - galleryOpenedAt + index * 230L;
+        float speed = laneW / 4000f;
+        for (int i = 0; i < lanes.length; i++) {
+            int y = top + i * laneH;
+            SettingsTheme.rightText(ctx, this.font, lanes[i], laneX - gap,
+                y + (laneH - this.font.lineHeight) / 2 + 1, label);
+            SettingsTheme.rect(ctx, laneX, y + laneH / 2, laneW, 1, 0x30FFFFFF);
+            long period = 900L + i * 370L;
+            for (long start = (t / period) * period; start > t - 4000L; start -= period) {
+                int x1 = laneX + laneW - Math.round((t - start) * speed);
+                int len = Math.max(2, Math.round((180L + (i * 97L % 260L)) * speed));
+                int x0 = Math.max(laneX, x1);
+                int x2 = Math.min(laneX + laneW, x1 + len);
+                if (x2 > x0) {
+                    SettingsTheme.rect(ctx, x0, y + (laneH - barH) / 2, x2 - x0, barH, accent);
+                }
+            }
+        }
     }
 
     /**
