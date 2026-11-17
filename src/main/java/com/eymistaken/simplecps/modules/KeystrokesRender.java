@@ -72,8 +72,18 @@ public final class KeystrokesRender {
     }
 
     /**
-     * Size the label occupies once scaled, as {@code {width, height}}. Line mode is
-     * already sized in final pixels, so the scale is not applied to it twice.
+     * Rows of ink a capital letter covers in the vanilla font. {@code font.lineHeight}
+     * is 9 because it also counts the descender row and the gap to the next line, and
+     * centering on those 9 rows is what left every label one pixel too high.
+     */
+    private static final int CAP_HEIGHT = 7;
+
+    /**
+     * Size of the label's visible ink once scaled, as {@code {width, height}}: the
+     * box the letters themselves fill, which is what has to sit in the middle of the
+     * key. {@code font.width} ends with the one-pixel gap every glyph keeps to its
+     * right neighbor, and that gap is not ink. Line mode is already sized in final
+     * pixels, so the scale is not applied to it twice.
      */
     public static float[] labelSize(Font font, SimpleCPSConfig.KeyButtonData btn) {
         return labelSize(font, btn, null);
@@ -84,7 +94,31 @@ public final class KeystrokesRender {
             return new float[] { lineWidth(btn), lineHeight(btn) };
         }
         float s = scaleFactor(btn);
-        return new float[] { font.width(labelText(btn, override)) * s, font.lineHeight * s };
+        int advance = font.width(labelText(btn, override));
+        return new float[] { Math.max(0, advance - 1) * s, CAP_HEIGHT * s };
+    }
+
+    /**
+     * Where a centered label's top-left sits, relative to the key, on whole pixels.
+     *
+     * <p>When the spare room is odd the label cannot be exact, and the half pixel is
+     * given to the right and bottom: the text shadow already falls on that side, so
+     * leaning the other way keeps the letter and its shadow balanced together.
+     */
+    public static int[] centeredOffset(Font font, SimpleCPSConfig.KeyButtonData btn, String override) {
+        float[] size = labelSize(font, btn, override);
+        // A mouse button showing CPS lifts its label to make room for the number.
+        int lift = (btn.showCps && btn.isMouse) ? CPS_LABEL_LIFT : 0;
+        return new int[] { roundHalfDown((btn.w - size[0]) / 2f),
+            roundHalfDown((btn.h - size[1]) / 2f) + lift };
+    }
+
+    public static int[] centeredOffset(Font font, SimpleCPSConfig.KeyButtonData btn) {
+        return centeredOffset(font, btn, null);
+    }
+
+    private static int roundHalfDown(float v) {
+        return (int) Math.ceil(v - 0.5f);
     }
 
     /**
@@ -96,12 +130,9 @@ public final class KeystrokesRender {
     }
 
     public static float[] labelOrigin(Font font, SimpleCPSConfig.KeyButtonData btn, String override) {
-        float[] size = labelSize(font, btn, override);
-        // A mouse button showing CPS lifts its label to make room for the number.
-        int lift = (btn.showCps && btn.isMouse) ? CPS_LABEL_LIFT : 0;
-
-        float lx = btn.labelX == -1 ? btn.x + (btn.w - size[0]) / 2f : btn.x + btn.labelX;
-        float ly = btn.labelY == -1 ? btn.y + (btn.h - size[1]) / 2f + lift : btn.y + btn.labelY;
+        int[] center = centeredOffset(font, btn, override);
+        float lx = btn.x + (btn.labelX == -1 ? center[0] : btn.labelX);
+        float ly = btn.y + (btn.labelY == -1 ? center[1] : btn.labelY);
         return new float[] { lx, ly };
     }
 
@@ -252,7 +283,8 @@ public final class KeystrokesRender {
         if (!btn.showCps || !btn.isMouse) return;
 
         float small = 0.6f;
-        int width = font.width(Component.literal(cps));
+        // Less the trailing glyph gap, for the same reason as labelSize.
+        int width = Math.max(0, font.width(Component.literal(cps)) - 1);
         float cx = btn.x + (btn.w - width * small) / 2f;
         float cy = btn.y + btn.h - font.lineHeight * small - 1;
 

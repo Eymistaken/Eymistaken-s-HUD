@@ -3214,7 +3214,9 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
         labelGuideX = null;
         labelGuideY = null;
 
-        int centerX = Math.round((rightTarget.w - size[0]) / 2f);
+        // The exact pixel the HUD centers on, so snapping here and -1 cannot disagree.
+        int[] centered = KeystrokesRender.centeredOffset(this.font, rightTarget);
+        int centerX = centered[0];
         if (Math.abs(wantX - centerX) <= LABEL_SNAP) {
             // -1 keeps it centered as the label's own width changes later on.
             rightTarget.labelX = -1;
@@ -3229,7 +3231,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
             rightTarget.labelX = wantX;
         }
 
-        int centerY = Math.round((rightTarget.h - size[1]) / 2f);
+        int centerY = centered[1];
         if (Math.abs(wantY - centerY) <= LABEL_SNAP) {
             rightTarget.labelY = -1;
             labelGuideY = rightTarget.y + rightTarget.h / 2;
@@ -3404,9 +3406,9 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
         SimpleCPSConfig.KeyButtonData k = single();
         if (mode == Mode.LABEL && k != null) {
             int step = keyInput.hasShiftDown() ? 5 : 1;
-            float[] size = KeystrokesRender.labelSize(this.font, k);
-            int anchorX = k.labelX == -1 ? Math.round((k.w - size[0]) / 2f) : k.labelX;
-            int anchorY = k.labelY == -1 ? Math.round((k.h - size[1]) / 2f) : k.labelY;
+            int[] centered = KeystrokesRender.centeredOffset(this.font, k);
+            int anchorX = k.labelX == -1 ? centered[0] : k.labelX;
+            int anchorY = k.labelY == -1 ? centered[1] : k.labelY;
             switch (keyCode) {
                 case InputConstants.KEY_UP -> { k.labelY = anchorY - step; dirty = true; return true; }
                 case InputConstants.KEY_DOWN -> { k.labelY = anchorY + step; dirty = true; return true; }
