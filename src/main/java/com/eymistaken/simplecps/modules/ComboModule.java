@@ -7,7 +7,6 @@ import com.eymistaken.simplecps.api.ComboHeatmap;
 import com.eymistaken.simplecps.api.HudModule;
 import com.eymistaken.simplecps.gui.HudEditorScreen;
 import com.eymistaken.simplecps.util.Easings;
-import com.eymistaken.simplecps.util.EymHudFonts;
 import com.eymistaken.simplecps.util.RenderUtil;
 import java.util.Collection;
 import java.util.List;
@@ -744,7 +743,7 @@ public class ComboModule extends HudModule {
      */
     private void drawEdgedText(GuiGraphicsExtractor context, String text, int textX, int textY,
                                int color, float alpha) {
-        Component component = EymHudFonts.text(text);
+        Component component = Component.literal(text);
         boolean outline = SimpleCPSConfig.instance.textOutline;
         int shown = col(RenderUtil.withAlpha(color, alpha));
         int edge = col(RenderUtil.withAlpha(ComboFeel.edgeColor(color, outline), alpha));

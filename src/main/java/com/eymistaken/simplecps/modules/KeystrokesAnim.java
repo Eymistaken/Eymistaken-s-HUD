@@ -97,7 +97,7 @@ public final class KeystrokesAnim {
     /**
      * A direction the whole set can live with.
      *
-     * <p>One direction is shared by every active fill. A perimeter fill cannot honour
+     * <p>One direction is shared by every active fill. A perimeter fill cannot honor
      * "up", but {@link #coerce} maps it onto a rotation at draw time, so the stored
      * value only has to make sense for the linear fills — and if there are none, for
      * the perimeter ones.

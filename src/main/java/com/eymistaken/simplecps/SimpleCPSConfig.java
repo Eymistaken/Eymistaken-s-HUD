@@ -166,7 +166,6 @@ public class SimpleCPSConfig {
         if (comboHitDetection == null) comboHitDetection = HitDetection.SERVER;
         if (comboLine == null) comboLine = ComboLine.TIMEOUT;
         if (comboStyle == null) comboStyle = ComboStyle.TEXT;
-        if (hudFont == null) hudFont = HudFont.VANILLA;
         // Turning Reset on Any Damage off used to switch decay on as well. A config from
         // before Decay was its own setting keeps the behavior it had.
         if (comboDecay == null) comboDecay = !comboResetOnAnyDamage;
@@ -513,8 +512,6 @@ public class SimpleCPSConfig {
     public enum ComboLine { TIMEOUT, HITS, BOTH, OFF }
     public enum ComboColorMode { STATIC, RAINBOW, HEATMAP }
     public enum ComboStyle { TEXT, BIG }
-    // Custom HUD font selection (affects HUD elements + editor screens only, never vanilla text).
-    public enum HudFont { VANILLA, INTER, RUBIK, JETBRAINS_MONO, BEBAS_NEUE, ENCHANT }
 
     // --- HUD EDITOR ---
     public boolean preventOverlap = true;
@@ -527,8 +524,6 @@ public class SimpleCPSConfig {
     // --- GENERAL ---
     // Draw HUD text with a thin black outline on every side instead of the vanilla drop shadow.
     public boolean textOutline = false;
-    // Font used for HUD elements and the editor/designer screens (not the rest of Minecraft).
-    public HudFont hudFont = HudFont.VANILLA;
     // Remember the HUD per server: joining a server you have configured swaps to its
     // config silently, and edits made there are bound back to it. See ServerConfigManager.
     public boolean serverConfigsEnabled = true;

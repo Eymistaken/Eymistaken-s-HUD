@@ -44,13 +44,13 @@ public abstract class HudModule implements IHudElement {
     }
 
     /**
-     * Draw module text in the active HUD font, honouring both the current
+     * Draw module text, honoring both the current
      * {@link #renderAlpha} and the global {@code textOutline} setting (thin black
      * outline vs vanilla shadow). Modules should call this instead of
      * {@code context.text(...)} directly.
      */
     protected void drawText(GuiGraphicsExtractor context, String text, int x, int y, int color) {
-        net.minecraft.network.chat.Component comp = com.eymistaken.simplecps.util.EymHudFonts.text(text);
+        net.minecraft.network.chat.Component comp = net.minecraft.network.chat.Component.literal(text);
         if (com.eymistaken.simplecps.SimpleCPSConfig.instance.textOutline) {
             com.eymistaken.simplecps.util.RenderUtil.outlinedText(context, client.font, comp, x, y, col(color), col(0xFF000000));
         } else {
@@ -58,9 +58,9 @@ public abstract class HudModule implements IHudElement {
         }
     }
 
-    /** Width of {@code text} measured in the active HUD font. */
+    /** Width of {@code text} as it is drawn. */
     protected int textWidth(String text) {
-        return client.font.width(com.eymistaken.simplecps.util.EymHudFonts.text(text));
+        return client.font.width(net.minecraft.network.chat.Component.literal(text));
     }
 
     /**

@@ -1,6 +1,5 @@
 package com.eymistaken.simplecps.gui.settings;
 
-import com.eymistaken.simplecps.util.EymHudFonts;
 import java.util.Locale;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -207,13 +206,9 @@ public final class SettingsTheme {
 
     // --- Text --------------------------------------------------------------
 
-    /**
-     * Wrap text for drawing. Normally this honours the user's HUD font, but the
-     * ENCHANT font is deliberately unreadable and this screen is where you would
-     * go to turn it off again — so fall back to vanilla in that one case.
-     */
+    /** Wrap text for drawing, in the vanilla font. */
     public static Component label(String s) {
-        return EymHudFonts.isEnchantActive() ? Component.literal(s) : EymHudFonts.text(s);
+        return Component.literal(s);
     }
 
     public static int textWidth(Font font, String s) {

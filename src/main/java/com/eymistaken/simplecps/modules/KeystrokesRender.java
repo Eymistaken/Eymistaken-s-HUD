@@ -1,7 +1,6 @@
 package com.eymistaken.simplecps.modules;
 
 import com.eymistaken.simplecps.SimpleCPSConfig;
-import com.eymistaken.simplecps.util.EymHudFonts;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
@@ -34,7 +33,7 @@ public final class KeystrokesRender {
         return percent / 100f;
     }
 
-    /** The styled label component: the active HUD font plus this key's bold/italic/underline. */
+    /** The styled label component: the vanilla font with this key's bold/italic/underline. */
     public static MutableComponent labelText(SimpleCPSConfig.KeyButtonData btn) {
         return labelText(btn, null);
     }
@@ -48,7 +47,7 @@ public final class KeystrokesRender {
     public static MutableComponent labelText(SimpleCPSConfig.KeyButtonData btn, String override) {
         String value = override != null ? override : btn.label;
         MutableComponent text = Component.literal(value == null ? "" : value);
-        Style style = EymHudFonts.activeStyle();
+        Style style = Style.EMPTY;
         if (btn.bold) style = style.withBold(true);
         if (btn.italic) style = style.withItalic(true);
         if (btn.underlined) style = style.withUnderlined(true);
@@ -253,7 +252,7 @@ public final class KeystrokesRender {
         if (!btn.showCps || !btn.isMouse) return;
 
         float small = 0.6f;
-        int width = font.width(EymHudFonts.text(cps));
+        int width = font.width(Component.literal(cps));
         float cx = btn.x + (btn.w - width * small) / 2f;
         float cy = btn.y + btn.h - font.lineHeight * small - 1;
 
@@ -262,7 +261,7 @@ public final class KeystrokesRender {
         ctx.pose().scale(small, small);
         // Always shadowed, as it was before this drawing moved out of the module:
         // the number is small enough that dropping the shadow makes it hard to read.
-        ctx.text(font, EymHudFonts.text(cps), 0, 0, textColor);
+        ctx.text(font, Component.literal(cps), 0, 0, textColor);
         ctx.pose().popMatrix();
     }
 }

@@ -1,7 +1,7 @@
 package com.eymistaken.simplecps.modules;
 
 import com.eymistaken.simplecps.SimpleCPSConfig;
-import com.eymistaken.simplecps.util.EymHudFonts;
+import net.minecraft.network.chat.Component;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -133,8 +133,8 @@ public final class KeystrokesTimeline {
             boolean active = !lane.isEmpty() && lane.peekLast().end == -1L;
 
             String label = shortLabel(btn);
-            int textW = font.width(EymHudFonts.text(label));
-            ctx.text(font, EymHudFonts.text(label),
+            int textW = font.width(Component.literal(label));
+            ctx.text(font, Component.literal(label),
                 laneX - LABEL_GAP - textW, y + (ROW_H - font.lineHeight) / 2 + 1,
                 active ? accent : idle, true);
 

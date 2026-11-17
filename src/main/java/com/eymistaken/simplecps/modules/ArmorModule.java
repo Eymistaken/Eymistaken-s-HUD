@@ -414,7 +414,7 @@ public class ArmorModule extends HudModule {
                     ItemStack stack = sub.getItemStack();
                     if (stack.isDamageableItem()) {
                         int durability = stack.getMaxDamage() - stack.getDamageValue();
-                        maxText = Math.max(maxText, client.font.width(com.eymistaken.simplecps.util.EymHudFonts.text(String.valueOf(durability))));
+                        maxText = Math.max(maxText, client.font.width(net.minecraft.network.chat.Component.literal(String.valueOf(durability))));
                     }
                 }
                 if (maxText > 0) {
@@ -760,13 +760,13 @@ public class ArmorModule extends HudModule {
         if (showText && stack.isDamageableItem()) {
             int durability = stack.getMaxDamage() - stack.getDamageValue();
             String text = String.valueOf(durability);
-            int tw = client.font.width(com.eymistaken.simplecps.util.EymHudFonts.text(text));
+            int tw = client.font.width(net.minecraft.network.chat.Component.literal(text));
             int color = getDurabilityColor(durability, stack.getMaxDamage());
 
             if (vertical) {
-                context.text(client.font, com.eymistaken.simplecps.util.EymHudFonts.text(text), elX + 20, elY + 5, color);
+                context.text(client.font, net.minecraft.network.chat.Component.literal(text), elX + 20, elY + 5, color);
             } else {
-                context.text(client.font, com.eymistaken.simplecps.util.EymHudFonts.text(text), elX + 9 - tw / 2, elY + 20, color);
+                context.text(client.font, net.minecraft.network.chat.Component.literal(text), elX + 9 - tw / 2, elY + 20, color);
             }
         }
     }

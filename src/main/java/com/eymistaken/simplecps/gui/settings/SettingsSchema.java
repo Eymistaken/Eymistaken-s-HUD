@@ -871,10 +871,6 @@ public final class SettingsSchema {
                     bool("gen.outline", "Text Outline",
                         "Draw HUD text with a thin black outline on every side instead of a drop shadow.",
                         c -> c.textOutline, (c, v) -> c.textOutline = v),
-                    enumRow("gen.font", "HUD Font",
-                        "Font used for HUD elements and the editor screens only, never chat or other menus.",
-                        SimpleCPSConfig.HudFont.class,
-                        c -> c.hudFont, (c, v) -> c.hudFont = v),
                     slider("gen.menuScale", "Menu Scale %",
                         "Size of this settings screen. It already holds one size across every "
                             + "Minecraft GUI Scale; this nudges that baseline.", 50, 200,
