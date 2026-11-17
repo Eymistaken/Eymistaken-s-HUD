@@ -1283,15 +1283,15 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
     private List<InspRow> inspectorRows() {
         List<InspRow> rows = new ArrayList<>();
         if (selection.isEmpty()) return rows;
-        rows.add(new InspRow("#IDENTITY", sectionH));
+        rows.add(new InspRow("#KEY", sectionH));
         rows.add(new InspRow("keybind", rowH));
         rows.add(new InspRow("label", rowH));
-        rows.add(new InspRow("#GEOMETRY", sectionH));
+        rows.add(new InspRow("#BOX", sectionH));
         rows.add(new InspRow("position", rowH));
         rows.add(new InspRow("size", rowH));
         rows.add(new InspRow("#LABEL", sectionH));
-        rows.add(new InspRow("placement", rowH));
         rows.add(new InspRow("content", rowH));
+        rows.add(new InspRow("placement", rowH));
         rows.add(new InspRow("scale", rowH));
         // Only line mode has a length to set; in text mode the label's own width is it.
         if (lineMode()) rows.add(new InspRow("linewidth", rowH));
@@ -1346,20 +1346,53 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
         return rowY + (rowH - ctrlH) / 2;
     }
 
-    private int stepperW() {
-        return stepBtn * 2 + stepFieldW;
+    /**
+     * Every row label the inspector can show. The control column starts after the
+     * widest of them, so all controls share one left edge instead of each hanging off
+     * the right margin at its own width -- that ragged edge is what made the panel
+     * read as a jumble.
+     */
+    private static final String[] INSPECTOR_LABELS = {
+        "KEYBIND", "LABEL", "POSITION", "SIZE", "CONTENT", "PLACEMENT", "TEXT SIZE",
+        "THICKNESS", "LENGTH", "STYLE", "NORMAL", "PRESSED", "DESIGN", "MOTION", "FILL",
+        "DIRECTION", "SHOW CPS", "ANIMATION"
+    };
+
+    private int inspCtrlX() {
+        int widest = 0;
+        for (String label : INSPECTOR_LABELS) {
+            widest = Math.max(widest, SettingsTheme.textWidth(this.font, label));
+        }
+        // Never let the labels take more than half the rail, whatever the font does.
+        return inspLabelX() + Math.min(widest + d(16, 4), (inspRight() - inspLabelX()) / 2);
+    }
+
+    private int inspCtrlW() {
+        return Math.max(1, inspRight() - inspCtrlX());
+    }
+
+    /** The whole control column on a row. */
+    private int[] ctrlRect(int rowY) {
+        return new int[] { inspCtrlX(), ctrlY(rowY), inspCtrlW(), ctrlH };
+    }
+
+    /**
+     * One of {@code count} equal cells across the control column. Every split control
+     * uses this, so a half-width toggle lines up with the X stepper above it and the
+     * four style buttons divide the same width the two segments do.
+     */
+    private int[] cellRect(int rowY, int index, int count) {
+        int sep = Math.max(2, gap * 3 / 4);
+        int w = (inspCtrlW() - sep * (count - 1)) / count;
+        int x = inspCtrlX() + index * (w + sep);
+        // The last cell takes the rounding remainder, so the right edge is exact.
+        if (index == count - 1) w = inspRight() - x;
+        return new int[] { x, ctrlY(rowY), Math.max(1, w), ctrlH };
     }
 
     /** The X/Y (or W/H) stepper pair on a geometry row. */
     private int[][] pairStepperRects(int rowY) {
-        int w = stepperW();
-        int sep = Math.max(2, gap * 3 / 4);
-        int second = inspRight() - w;
-        int first = second - sep - w;
-        return new int[][] {
-            { first, ctrlY(rowY), w, ctrlH },
-            { second, ctrlY(rowY), w, ctrlH }
-        };
+        return new int[][] { cellRect(rowY, 0, 2), cellRect(rowY, 1, 2) };
     }
 
     /** Whether the selection is in line mode, judged by its leader. */
@@ -1368,54 +1401,36 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
     }
 
     private int[] scaleStepperRect(int rowY) {
-        int w = stepBtn * 2 + d(52, 18);
-        return new int[] { inspRight() - w, ctrlY(rowY), w, ctrlH };
+        return cellRect(rowY, 0, 2);
     }
 
     private int[] styleBtnRect(int rowY, int index) {
-        int sb = d(27, 9);
-        int sep = d(5, 1);
-        int x0 = inspRight() - (sb * 4 + sep * 3);
-        return new int[] { x0 + index * (sb + sep), ctrlY(rowY), sb, ctrlH };
+        return cellRect(rowY, index, 4);
     }
 
     private int[] segRect(int rowY, int index) {
-        int w0 = SettingsTheme.textWidth(this.font, "TEXT") + d(16, 4);
-        int w1 = SettingsTheme.textWidth(this.font, "LINE") + d(16, 4);
-        int sep = d(5, 1);
-        int x1 = inspRight() - w1;
-        int x0 = x1 - sep - w0;
-        return index == 0
-            ? new int[] { x0, ctrlY(rowY), w0, ctrlH }
-            : new int[] { x1, ctrlY(rowY), w1, ctrlH };
+        return cellRect(rowY, index, 2);
     }
 
+    /** The CENTER button, beside the readout of where the label is. */
     private int[] centerBtnRect(int rowY) {
-        int w = SettingsTheme.textWidth(this.font, "CENTER") + d(16, 4);
-        return new int[] { inspRight() - w, ctrlY(rowY), w, ctrlH };
+        return cellRect(rowY, 1, 2);
     }
 
     private int[] toggleRect(int rowY) {
-        // Wide enough that the knob and the ON/OFF label each get their own half.
-        // At the mock's 68 the knob ran over the "OFF" text at small UI scales.
-        int w = d(86, 44);
-        return new int[] { inspRight() - w, ctrlY(rowY), w, ctrlH };
+        return cellRect(rowY, 0, 2);
     }
 
     private int[] keybindRect(int rowY) {
-        int w = Math.max(d(84, 28), SettingsTheme.textWidth(this.font, keybindLabel()) + d(16, 4));
-        return new int[] { inspRight() - w, ctrlY(rowY), w, ctrlH };
+        return ctrlRect(rowY);
     }
 
     private int[] labelFieldRect(int rowY) {
-        int w = d(140, 40);
-        return new int[] { inspRight() - w, ctrlY(rowY), w, ctrlH };
+        return ctrlRect(rowY);
     }
 
     private int[] colorBtnRect(int rowY, boolean pressed) {
-        String hex = colorHexLabel(pressed);
-        int w = d(16, 6) + gap + SettingsTheme.textWidth(this.font, hex) + d(16, 4);
-        return new int[] { inspRight() - w, ctrlY(rowY), w, ctrlH };
+        return ctrlRect(rowY);
     }
 
     private String keybindLabel() {
@@ -1610,21 +1625,21 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
 
     /** The value control on a design row: same geometry as the color button. */
     private int[] designBtnRect(int rowY) {
-        int w = d(140, 52);
-        return new int[] { inspRight() - w, ctrlY(rowY), w, ctrlH };
+        return ctrlRect(rowY);
     }
 
     private void renderInspectorRow(GuiGraphicsExtractor ctx, InspRow row, int y, int mx, int my) {
         if (row.id().startsWith("#")) {
-            SettingsTheme.rect(ctx, rightX + 1, y, rightW - 1, row.h(), SettingsTheme.CONTENT_HEAD);
-            SettingsTheme.rect(ctx, rightX + 1, y, rightW - 1, 1, SettingsTheme.BORDER);
-            SettingsTheme.rect(ctx, rightX + 1, y + row.h() - 1, rightW - 1, 1, SettingsTheme.BORDER);
-            SettingsTheme.text(ctx, this.font, row.id().substring(1), rightX + d(12, 3),
-                centerTextY(y, row.h()), SettingsTheme.TEXT_FAINT);
+            // A caption and a rule rather than a full-width bar: six heavy bars broke
+            // the rail into strips and drew the eye away from the controls.
+            String title = row.id().substring(1);
+            int ty = y + row.h() - this.font.lineHeight - d(4, 1);
+            SettingsTheme.text(ctx, this.font, title, inspLabelX(), ty, SettingsTheme.TEXT_FAINT);
+            int ruleX = inspLabelX() + SettingsTheme.textWidth(this.font, title) + gap;
+            SettingsTheme.rect(ctx, ruleX, ty + this.font.lineHeight / 2 - 1,
+                Math.max(0, inspRight() - ruleX), 1, SettingsTheme.DIVIDER);
             return;
         }
-
-        SettingsTheme.rect(ctx, rightX + 1, y + row.h() - 1, rightW - 1, 1, SettingsTheme.ROW_SEPARATOR);
         SimpleCPSConfig.KeyButtonData k = single();
         int textY = centerTextY(y, row.h());
         int labelColor = SettingsTheme.TEXT_LABEL;
@@ -1687,14 +1702,14 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
 
                 String read = k == null ? "MIXED"
                     : (k.labelX == -1 && k.labelY == -1) ? "CENTERED"
-                    : "OFFSET " + k.labelX + " / " + k.labelY;
-                int rw = SettingsTheme.textWidth(this.font, read) + gap * 2;
-                int rx = btn[0] - gap - rw;
-                if (rx > inspLabelX() + SettingsTheme.textWidth(this.font, "PLACEMENT") + gap) {
-                    SettingsTheme.sunken(ctx, rx, btn[1], rw, ctrlH, SettingsTheme.FIELD_BG, SettingsTheme.FIELD_RIM);
-                    SettingsTheme.text(ctx, this.font, read, rx + gap, centerTextY(btn[1], ctrlH),
-                        SettingsTheme.TEXT_MUTED);
-                }
+                    : (k.labelX == -1 ? "X MID" : "X " + k.labelX)
+                        + " " + (k.labelY == -1 ? "Y MID" : "Y " + k.labelY);
+                int[] chip = cellRect(y, 0, 2);
+                SettingsTheme.sunken(ctx, chip[0], chip[1], chip[2], chip[3],
+                    SettingsTheme.FIELD_BG, SettingsTheme.FIELD_RIM);
+                SettingsTheme.centeredText(ctx, this.font,
+                    SettingsTheme.truncate(this.font, read, chip[2] - gap),
+                    chip[0] + chip[2] / 2, centerTextY(chip[1], chip[3]), SettingsTheme.TEXT_MUTED);
             }
             case "content" -> {
                 SettingsTheme.text(ctx, this.font, "CONTENT", inspLabelX(), textY, labelColor);
@@ -1704,7 +1719,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
             }
             case "scale" -> {
                 boolean line = lineMode();
-                SettingsTheme.text(ctx, this.font, line ? "LINE WEIGHT" : "TEXT SIZE",
+                SettingsTheme.text(ctx, this.font, line ? "THICKNESS" : "TEXT SIZE",
                     inspLabelX(), textY, labelColor);
                 String value = k == null ? "-"
                     : line ? KeystrokesRender.lineHeight(k) + " PX"
@@ -1712,7 +1727,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
                 renderStepper(ctx, scaleStepperRect(y), "", value, mx, my);
             }
             case "linewidth" -> {
-                SettingsTheme.text(ctx, this.font, "LINE WIDTH", inspLabelX(), textY, labelColor);
+                SettingsTheme.text(ctx, this.font, "LENGTH", inspLabelX(), textY, labelColor);
                 renderStepper(ctx, scaleStepperRect(y), "",
                     k == null ? "-" : k.lineWidthPercent + " %", mx, my);
             }
@@ -1789,7 +1804,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
             }
             case "color", "pressed" -> {
                 boolean isPressed = row.id().equals("pressed");
-                SettingsTheme.text(ctx, this.font, isPressed ? "PRESSED" : "TEXT",
+                SettingsTheme.text(ctx, this.font, isPressed ? "PRESSED" : "NORMAL",
                     inspLabelX(), textY, labelColor);
                 int[] r = colorBtnRect(y, isPressed);
                 boolean hov = SettingsTheme.inside(mx, my, r[0], r[1], r[2], r[3]);
