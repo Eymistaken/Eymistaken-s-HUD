@@ -271,8 +271,12 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
 
     private int layersScroll = 0;
     private int inspectorScroll = 0;
-    /** Folded away to hand the inspector its room back. Session state, like SNAP. */
-    private boolean shortcutsCollapsed = false;
+    /**
+     * Folded by default: the sheet is a reminder, and open it took a third of the
+     * inspector's height every time the designer opened. One click on its header
+     * unfolds it for the rest of the visit.
+     */
+    private boolean shortcutsCollapsed = true;
 
     // --- Smooth movement ---------------------------------------------------
     //
@@ -451,17 +455,51 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
     // --- Canvas palette ----------------------------------------------------
     //
     // The canvas is the one place that is not chrome: it stands in for the game
-    // behind the HUD, so it gets its own near-black ground rather than the panel's
-    // white glazes.
+    // behind the HUD, so it gets its own ground rather than the panel's glazes.
 
-    private static final int CANVAS_BG = 0xFF0C0C0E;
-    private static final int CHECKER = 0x09FFFFFF;
-    private static final int SAFE_BORDER = 0x21FFFFFF;
+    /**
+     * Grounds the canvas can stand on. It used to be near-black only, and the stock
+     * keys are translucent black, so they and the gaps between them disappeared
+     * into it. A mid gray is the default because it separates both a dark key and
+     * its white label; the other two are there for designs that are themselves
+     * very light or very dark.
+     */
+    private enum CanvasGround {
+        GRAY("GRAY", 0xFF5C6169, 0x0DFFFFFF),
+        LIGHT("LIGHT", 0xFFA4AAB2, 0x10FFFFFF),
+        DARK("DARK", 0xFF0C0C0E, 0x09FFFFFF);
+
+        final String label;
+        final int bg;
+        final int checker;
+
+        CanvasGround(String label, int bg, int checker) {
+            this.label = label;
+            this.bg = bg;
+            this.checker = checker;
+        }
+
+        CanvasGround next() {
+            return values()[(ordinal() + 1) % values().length];
+        }
+    }
+
+    /** Static so the choice survives reopening the designer within a game session. */
+    private static CanvasGround ground = CanvasGround.GRAY;
+
+    private static final int SAFE_BORDER = 0x30FFFFFF;
     /** Shared resting animation state; the canvas never presses a key, and drawKey only reads it. */
     private static final KeystrokesAnim.State REST = new KeystrokesAnim.State();
 
-    private static final int KEY_SEL_BORDER = 0xFFD2D2D8;
-    private static final int KEY_SEL_OUTLINE = 0x59D2D2D8;
+    /**
+     * Selection is a tint over the key plus a one-pixel line on its own edge. It used
+     * to be two thick frames drawn around the outside, which covered the gaps between
+     * neighboring keys -- the one thing you need to see while arranging them. The blue
+     * keeps it from being mistaken for a design's own white border.
+     */
+    private static final int KEY_SEL_EDGE = 0xFF5AAEFF;
+    private static final int KEY_SEL_TINT = 0x385AAEFF;
+    private static final int KEY_HOVER_EDGE = 0x80FFFFFF;
     private static final int MARQUEE_FILL = 0x1AD2D2D8;
     private static final int ACCENT = 0xFFD2D2D8;
 
@@ -921,6 +959,17 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
 
     // --- Canvas ------------------------------------------------------------
 
+    /** The canvas ground switch at the right of the canvas head. */
+    private int[] groundBtnRect() {
+        int swatch = Math.max(4, ctrlH - d(12, 4));
+        int widest = 0;
+        for (CanvasGround g : CanvasGround.values()) {
+            widest = Math.max(widest, SettingsTheme.textWidth(this.font, "BG " + g.label));
+        }
+        int w = gap * 3 + swatch + widest;
+        return new int[] { canvasX + canvasW - pad - w, bodyY + (canvasHeadH - ctrlH) / 2, w, ctrlH };
+    }
+
     /** A key's rect on the canvas, in virtual screen coordinates. */
     private int[] keyRect(SimpleCPSConfig.KeyButtonData btn) {
         return new int[] {
@@ -954,11 +1003,21 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
             SAFE_W + " x " + SAFE_H + " SAFE AREA - SHOWN AT " + zoom + "x - IN-GAME PIXELS",
             canvasX + pad, titleY + this.font.lineHeight + 4, SettingsTheme.TEXT_DIM);
 
+        int[] groundBtn = groundBtnRect();
+        boolean groundHov = SettingsTheme.inside(mx, my, groundBtn[0], groundBtn[1], groundBtn[2], groundBtn[3]);
+        SettingsTheme.button(ctx, groundBtn[0], groundBtn[1], groundBtn[2], groundBtn[3], groundHov);
+        int swatch = Math.max(4, ctrlH - d(12, 4));
+        int swatchY = groundBtn[1] + (groundBtn[3] - swatch) / 2;
+        SettingsTheme.rect(ctx, groundBtn[0] + gap, swatchY, swatch, swatch, ground.bg);
+        SettingsTheme.frame(ctx, groundBtn[0] + gap, swatchY, swatch, swatch, SettingsTheme.BORDER);
+        SettingsTheme.text(ctx, this.font, "BG " + ground.label, groundBtn[0] + gap * 2 + swatch,
+            centerTextY(groundBtn[1], groundBtn[3]), SettingsTheme.TEXT_LABEL);
+
         String status = statusText();
         int statusW = SettingsTheme.textWidth(this.font, status) + pad * 2;
-        int statusX = canvasX + canvasW - pad - statusW;
+        int statusX = groundBtn[0] - gap - statusW;
         int statusY = bodyY + (canvasHeadH - ctrlH) / 2;
-        if (statusX > canvasX + pad) {
+        if (statusX > canvasX + pad + SettingsTheme.textWidth(this.font, "LAYOUT CANVAS") + gap) {
             SettingsTheme.sunken(ctx, statusX, statusY, statusW, ctrlH,
                 SettingsTheme.FIELD_BG, SettingsTheme.FIELD_RIM);
             SettingsTheme.text(ctx, this.font, status, statusX + pad, centerTextY(statusY, ctrlH),
@@ -970,13 +1029,13 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
         // Body. Scissored so a safe area larger than the pane is cropped rather than
         // painted over the rails.
         ctx.enableScissor(canvasX, canvasY, canvasX + canvasW, canvasY + canvasH);
-        SettingsTheme.rect(ctx, canvasX, canvasY, canvasW, canvasH, CANVAS_BG);
+        SettingsTheme.rect(ctx, canvasX, canvasY, canvasW, canvasH, ground.bg);
 
         int cell = d(16, 2);
         for (int gx = 0; gx * cell < canvasW; gx++) {
             for (int gy = 0; gy * cell < canvasH; gy++) {
                 if (((gx + gy) & 1) != 0) continue;
-                SettingsTheme.rect(ctx, canvasX + gx * cell, canvasY + gy * cell, cell, cell, CHECKER);
+                SettingsTheme.rect(ctx, canvasX + gx * cell, canvasY + gy * cell, cell, cell, ground.checker);
             }
         }
 
@@ -997,7 +1056,6 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
         // The keys are drawn exactly as the HUD draws them, through the same
         // KeystrokesRender path. Picking a design is pointless if the canvas answers
         // with a generic gray box instead of what the game will show.
-        int edge = Math.max(1, zoom);
         SimpleCPSConfig config = config();
         int accent = config.keystrokesPressedColor | 0xFF000000;
         int bg = (config.keystrokesBackgroundOpacity << 24)
@@ -1030,17 +1088,20 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
             }
             ctx.pose().popMatrix();
 
-            // Selection chrome last and outside the key, so it cannot be mistaken for
-            // part of the design or be painted over by one.
+            // Selection chrome last, so a design cannot paint over it. It stays on the
+            // key's own rect and never past it, so the gaps between keys stay visible.
+            SimpleCPSConfig.KeyButtonData hovered = dragging || marqueeActive ? null : keyAt(mx, my);
             for (SimpleCPSConfig.KeyButtonData btn : layout()) {
-                if (btn.hidden || !selection.contains(btn)) continue;
+                if (btn.hidden) continue;
                 int[] r = keyRect(btn);
-                thickFrame(ctx, r[0] - edge * 2, r[1] - edge * 2,
-                    r[2] + edge * 4, r[3] + edge * 4, edge, KEY_SEL_BORDER);
-                thickFrame(ctx, r[0] - edge * 4, r[1] - edge * 4,
-                    r[2] + edge * 8, r[3] + edge * 8, edge, KEY_SEL_OUTLINE);
-                if (mode == Mode.LABEL && selection.size() == 1) {
-                    renderLabelEditMarker(ctx, btn, r);
+                if (selection.contains(btn)) {
+                    SettingsTheme.rect(ctx, r[0], r[1], r[2], r[3], KEY_SEL_TINT);
+                    thickFrame(ctx, r[0], r[1], r[2], r[3], 1, KEY_SEL_EDGE);
+                    if (mode == Mode.LABEL && selection.size() == 1) {
+                        renderLabelEditMarker(ctx, btn, r);
+                    }
+                } else if (btn == hovered) {
+                    thickFrame(ctx, r[0], r[1], r[2], r[3], 1, KEY_HOVER_EDGE);
                 }
             }
         }
@@ -2762,6 +2823,11 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
             if (handleLeftRailClick(vmx, vmy)) return true;
             if (handleShortcutsClick(vmx, vmy)) return true;
             if (handleInspectorClick(vmx, vmy)) return true;
+            int[] g = groundBtnRect();
+            if (SettingsTheme.inside(vmx, vmy, g[0], g[1], g[2], g[3])) {
+                ground = ground.next();
+                return true;
+            }
         }
 
         if (canvasContains(vmx, vmy)) return handleCanvasClick(vmx, vmy, button);
