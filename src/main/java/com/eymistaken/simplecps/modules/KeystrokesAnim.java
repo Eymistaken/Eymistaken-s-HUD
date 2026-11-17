@@ -336,32 +336,37 @@ public final class KeystrokesAnim {
         }
     }
 
-    /** The existing circular ripple, now clipped to the design's rows. */
+    /**
+     * The circular ripple, clipped to the design's shape.
+     *
+     * <p>Every fill below paints through {@link KeystrokesDesign#paintShape}, so it is
+     * cut from the same shape the body was drawn from, at the same resolution. Fills
+     * that clipped themselves to whole game-pixel rows left a stepped edge inside a
+     * hexagon whose own sides were smooth.
+     */
     private static void drawRipple(GuiGraphicsExtractor ctx, State s,
                                    KeystrokesDesign design, SimpleCPSConfig.KeyButtonData btn) {
         if (s.rippleOuter <= 0f) return;
         int color = 0x40FFFFFF;
-        int cx = btn.x + btn.w / 2;
-        int cy = btn.y + btn.h / 2;
-        int rOuter = (int) s.rippleOuter;
-        int rInner = (int) s.rippleInner;
-        for (int sy = Math.max(btn.y, cy - rOuter); sy < Math.min(btn.y + btn.h, cy + rOuter); sy++) {
-            int[] span = design.rowSpan(btn, sy - btn.y);
-            if (span == null) continue;
-            int dy = sy - cy;
-            int dxOuter = (int) Math.sqrt(Math.max(0.0, (double) rOuter * rOuter - (double) dy * dy));
-            int x1 = Math.max(span[0], cx - dxOuter);
-            int x2 = Math.min(span[1], cx + dxOuter);
-            if (rInner > 0) {
-                int dxInner = (int) Math.sqrt(Math.max(0.0, (double) rInner * rInner - (double) dy * dy));
-                int lx2 = Math.min(x2, cx - dxInner);
-                if (lx2 > x1) ctx.fill(x1, sy, lx2, sy + 1, color);
-                int rx1 = Math.max(x1, cx + dxInner);
-                if (x2 > rx1) ctx.fill(rx1, sy, x2, sy + 1, color);
-            } else if (x2 > x1) {
-                ctx.fill(x1, sy, x2, sy + 1, color);
-            }
-        }
+        float cx = btn.w / 2f;
+        float cy = btn.h / 2f;
+        float rOuter = s.rippleOuter;
+        float rInner = Math.max(0f, s.rippleInner);
+        design.paintShape(ctx, btn, cy - rOuter, cy + rOuter, (y, left, right) -> {
+            float dy = y - cy;
+            float outer = (float) Math.sqrt(Math.max(0.0, (double) rOuter * rOuter - (double) dy * dy));
+            float x1 = Math.max(left, cx - outer);
+            float x2 = Math.min(right, cx + outer);
+            if (x2 <= x1) return null;
+            if (rInner <= 0f || Math.abs(dy) >= rInner) return new float[] { x1, x2 };
+            float inner = (float) Math.sqrt((double) rInner * rInner - (double) dy * dy);
+            float lx2 = Math.min(x2, cx - inner);
+            float rx1 = Math.max(x1, cx + inner);
+            if (lx2 > x1 && x2 > rx1) return new float[] { x1, lx2, rx1, x2 };
+            if (lx2 > x1) return new float[] { x1, lx2 };
+            if (x2 > rx1) return new float[] { rx1, x2 };
+            return null;
+        }, color);
     }
 
     /**
@@ -373,45 +378,33 @@ public final class KeystrokesAnim {
                                   int accent) {
         float p = s.press;
         if (p <= 0f) return;
+        float h = btn.h;
 
-        for (int row = 0; row < btn.h; row++) {
-            int[] span = design.rowSpan(btn, row);
-            if (span == null) continue;
-            int y = btn.y + row;
-            int full = span[1] - span[0];
-
-            switch (dir) {
-                case RIGHT -> box(ctx, span[0], y, Math.round(full * p), 1, accent);
-                case LEFT -> {
-                    int w = Math.round(full * p);
-                    box(ctx, span[1] - w, y, w, 1, accent);
-                }
-                case DOWN -> {
-                    if (row < btn.h * p) box(ctx, span[0], y, full, 1, accent);
-                }
-                case UP -> {
-                    if (row >= btn.h * (1f - p)) box(ctx, span[0], y, full, 1, accent);
-                }
-                case CENTER_OUT -> {
-                    // Opens from the middle on both axes at once, so it reads as a
-                    // box growing rather than a sideways wipe.
-                    float half = btn.h / 2f;
-                    if (Math.abs(row + 0.5f - half) > half * p) continue;
-                    int w = Math.round(full * p);
-                    box(ctx, span[0] + (full - w) / 2, y, w, 1, accent);
-                }
-                case EDGES_IN -> {
-                    // The two bands are sized to meet exactly. Rounding each to half
-                    // the width independently leaves a one-pixel seam down the middle
-                    // of an odd-width key at full progress, or overlaps by one.
-                    int covered = Math.round(full * p);
-                    int leftW = Math.round(full * p / 2f);
-                    int rightW = covered - leftW;
-                    box(ctx, span[0], y, leftW, 1, accent);
-                    box(ctx, span[1] - rightW, y, rightW, 1, accent);
-                }
-                default -> box(ctx, span[0], y, full, 1, accent);
+        switch (dir) {
+            case RIGHT -> design.paintShape(ctx, btn, 0f, h,
+                (y, l, r) -> new float[] { l, l + (r - l) * p }, accent);
+            case LEFT -> design.paintShape(ctx, btn, 0f, h,
+                (y, l, r) -> new float[] { r - (r - l) * p, r }, accent);
+            case DOWN -> design.paintShape(ctx, btn, 0f, h * p, null, accent);
+            case UP -> design.paintShape(ctx, btn, h * (1f - p), h, null, accent);
+            case CENTER_OUT -> {
+                // Opens from the middle on both axes at once, so it reads as a box
+                // growing rather than a sideways wipe.
+                float half = h / 2f;
+                design.paintShape(ctx, btn, half - half * p, half + half * p, (y, l, r) -> {
+                    float w = (r - l) * p;
+                    float x0 = l + ((r - l) - w) / 2f;
+                    return new float[] { x0, x0 + w };
+                }, accent);
             }
+            case EDGES_IN -> design.paintShape(ctx, btn, 0f, h, (y, l, r) -> {
+                // The two bands are sized to meet exactly at full progress; the
+                // middle seam they used to leave came from rounding each half.
+                float half = (r - l) * p / 2f;
+                if (half * 2f >= r - l) return new float[] { l, r };
+                return new float[] { l, l + half, r - half, r };
+            }, accent);
+            default -> design.paintShape(ctx, btn, 0f, h, null, accent);
         }
     }
 
@@ -445,19 +438,13 @@ public final class KeystrokesAnim {
             int start = index * (sliceSize + gap);
 
             if (vertical) {
-                for (int row = start; row < Math.min(btn.h, start + sliceSize); row++) {
-                    int[] span = design.rowSpan(btn, row);
-                    if (span == null) continue;
-                    box(ctx, span[0], btn.y + row, span[1] - span[0], 1, color);
-                }
+                design.paintShape(ctx, btn, start, Math.min(btn.h, start + sliceSize), null, color);
             } else {
-                for (int row = 0; row < btn.h; row++) {
-                    int[] span = design.rowSpan(btn, row);
-                    if (span == null) continue;
-                    int x0 = Math.max(span[0], btn.x + start);
-                    int x1 = Math.min(span[1], btn.x + start + sliceSize);
-                    box(ctx, x0, btn.y + row, x1 - x0, 1, color);
-                }
+                float a = start, b = start + sliceSize;
+                design.paintShape(ctx, btn, 0f, btn.h, (y, l, r) -> {
+                    float x0 = Math.max(l, a), x1 = Math.min(r, b);
+                    return x1 > x0 ? new float[] { x0, x1 } : null;
+                }, color);
             }
         }
     }

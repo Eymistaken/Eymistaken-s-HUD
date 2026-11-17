@@ -365,24 +365,15 @@ public enum KeystrokesDesign {
     }
 
     /**
-     * Rounded rect, filled row by row. The corner radius is small enough that a
-     * per-row inset reads as a curve without any anti-aliasing.
+     * Horizontal inset of a rounded rect at height {@code yc} (in game pixels from its
+     * top, fractional), for a corner of radius {@code r}.
      */
-    private static float roundInset(int row, int h, int r) {
+    private static float roundInset(float yc, int h, int r) {
         if (r <= 0) return 0f;
-        float center = row + 0.5f;
+        float center = yc;
         float dy = center < r ? r - center : (center > h - r ? center - (h - r) : 0f);
         if (dy <= 0f) return 0f;
         return r - (float) Math.sqrt(Math.max(0.0, (double) r * r - (double) dy * dy));
-    }
-
-    private static void rounded(GuiGraphicsExtractor ctx, int x, int y, int w, int h, int r, int color) {
-        if (w <= 0 || h <= 0) return;
-        r = Math.max(0, Math.min(r, Math.min(w, h) / 2));
-        for (int row = 0; row < h; row++) {
-            float inset = roundInset(row, h, r);
-            rowAA(ctx, x + inset, x + w - inset, y + row, color);
-        }
     }
 
     /**
@@ -390,10 +381,10 @@ public enum KeystrokesDesign {
      * width. Kept fractional on purpose: rounding it per row is what turns a slope
      * into a staircase, and {@link #rowAA} needs the remainder to soften the edge.
      */
-    private static float hexInset(int row, int h, int w) {
+    private static float hexInset(float yc, int h, int w) {
         // Matches the source document's polygon: flat top and bottom spanning the
         // middle half, with the points reaching full width at mid-height.
-        float t = h <= 1 ? 0f : (row + 0.5f) / h;
+        float t = h <= 1 ? 0f : yc / h;
         float d = Math.abs(t - 0.5f) * 2f;   // 1 at the ends, 0 at the waist
         return w * 0.25f * d;
     }
@@ -405,36 +396,191 @@ public enum KeystrokesDesign {
     }
 
     /**
-     * Draw one row of a shape between two fractional edges, fading the partly
-     * covered pixel at each end.
+     * Draw {@code h} identical rows of a shape between two fractional edges, fading
+     * the partly covered pixel at each end.
      *
      * <p>This is the whole anti-aliasing story. Everything is still an axis-aligned
      * {@code fill()}; the only difference is that the pixel a slope passes through
-     * gets the alpha its coverage deserves instead of being all-or-nothing. Without
-     * it a 21-pixel triangle shows 21 visible stair steps.
+     * gets the alpha its coverage deserves instead of being all-or-nothing. The units
+     * are whatever the caller's transform makes them -- {@link #paintShape} hands this
+     * physical screen pixels, which is what makes a slope crisp rather than merely
+     * softened stairs.
      */
-    private static void rowAA(GuiGraphicsExtractor ctx, float x0, float x1, int y, int color) {
-        if (x1 <= x0) return;
+    private static void rowAA(GuiGraphicsExtractor ctx, float x0, float x1, int y, int h, int color) {
+        if (x1 <= x0 || h <= 0) return;
         int solidStart = (int) Math.ceil(x0);
         int solidEnd = (int) Math.floor(x1);
 
         if (solidEnd <= solidStart) {
             // Thinner than a pixel: one sliver carrying the whole coverage.
-            box(ctx, (int) Math.floor(x0), y, 1, 1, fade(color, x1 - x0));
+            box(ctx, (int) Math.floor(x0), y, 1, h, fade(color, x1 - x0));
             return;
         }
         float left = solidStart - x0;
-        if (left > 0.02f) box(ctx, solidStart - 1, y, 1, 1, fade(color, left));
-        box(ctx, solidStart, y, solidEnd - solidStart, 1, color);
+        if (left > 0.02f) box(ctx, solidStart - 1, y, 1, h, fade(color, left));
+        box(ctx, solidStart, y, solidEnd - solidStart, h, color);
         float right = x1 - solidEnd;
-        if (right > 0.02f) box(ctx, solidEnd, y, 1, 1, fade(color, right));
+        if (right > 0.02f) box(ctx, solidEnd, y, 1, h, fade(color, right));
     }
 
-    private static void hexagon(GuiGraphicsExtractor ctx, int x, int y, int w, int h, int color) {
-        for (int row = 0; row < h; row++) {
-            float inset = hexInset(row, h, w);
-            rowAA(ctx, x + inset, x + w - inset, y + row, color);
+    /**
+     * Physical screen pixels per game pixel under the current transform: the GUI scale
+     * times whatever the pose has scaled by (the HUD's own scale, the designer's zoom,
+     * a gallery card's fit).
+     *
+     * <p>A diagonal drawn one game pixel per row is a staircase of 3- or 4-pixel steps
+     * at a normal GUI scale, however well each step is anti-aliased. Drawing at this
+     * density instead puts the edge on the screen's own pixels.
+     */
+    public static int density(GuiGraphicsExtractor ctx) {
+        org.joml.Matrix3x2f m = ctx.pose();
+        double scale = Math.hypot(m.m00(), m.m01());
+        double gui = net.minecraft.client.Minecraft.getInstance().getWindow().getGuiScale();
+        long d = Math.round(scale * gui);
+        return (int) Math.max(1, Math.min(8, d));
+    }
+
+    /**
+     * Fill a rect whose left and right edges sit between game pixels, at the screen's
+     * own resolution. Anything that moves continuously -- the timeline's bars -- needs
+     * this, or it advances in whole game pixels and visibly ticks along.
+     */
+    public static void fillSmooth(GuiGraphicsExtractor ctx, float x0, float y0, float x1, float y1, int color) {
+        if (x1 <= x0 || y1 <= y0) return;
+        int d = density(ctx);
+        ctx.pose().pushMatrix();
+        ctx.pose().scale(1f / d, 1f / d);
+        int top = Math.round(y0 * d);
+        rowAA(ctx, x0 * d, x1 * d, top, Math.round(y1 * d) - top, color);
+        ctx.pose().popMatrix();
+    }
+
+    /**
+     * Which part of a shape's row to paint, given the full span the shape covers
+     * there. Coordinates are game pixels relative to the key's top-left; return the
+     * pieces to fill as {@code {start, end, start, end, ...}}, or null for none.
+     */
+    @FunctionalInterface
+    public interface Band {
+        float[] at(float y, float left, float right);
+    }
+
+    /** Whether this design has edges that are not horizontal or vertical on this key. */
+    public boolean slopes(SimpleCPSConfig.KeyButtonData btn) {
+        return switch (this) {
+            case HEX, SOFT_BLOCK -> true;
+            case WEDGE -> wedgeDir(btn) >= 0;
+            default -> false;
+        };
+    }
+
+    /**
+     * The horizontal span this design covers at height {@code yc} (fractional game
+     * pixels from the key's top), relative to the key's left edge, or null where the
+     * row is empty. The one shape definition the body and every fill are cut from.
+     */
+    private float[] spanAt(SimpleCPSConfig.KeyButtonData btn, float yc) {
+        if (yc < 0f || yc >= btn.h) return null;
+        switch (this) {
+            case TIMELINE:
+                return null;
+            case BAR: {
+                int[] rail = railRect(btn);
+                int top = rail[1] - btn.y;
+                if (yc < top || yc >= top + rail[3]) return null;
+                return new float[] { rail[0] - btn.x, rail[0] - btn.x + rail[2] };
+            }
+            case HEX: {
+                float inset = hexInset(yc, btn.h, btn.w);
+                return new float[] { inset, btn.w - inset };
+            }
+            case SOFT_BLOCK: {
+                float inset = roundInset(yc, btn.h, softRadius(btn));
+                return new float[] { inset, btn.w - inset };
+            }
+            case WEDGE: {
+                int dir = wedgeDir(btn);
+                if (dir < 0) break;
+                return wedgeSpan(btn.w, btn.h, dir, yc);
+            }
+            default:
+                break;
         }
+        return new float[] { 0f, btn.w };
+    }
+
+    private static int softRadius(SimpleCPSConfig.KeyButtonData btn) {
+        return Math.max(0, Math.min(3, Math.min(btn.w, btn.h) / 2));
+    }
+
+    /**
+     * Paint the part of this design's shape between rows {@code yFrom} and
+     * {@code yTo} (game pixels from the key's top) that {@code band} selects.
+     *
+     * <p>Shapes with slopes are drawn at the screen's own pixel density, one physical
+     * row at a time, with each edge anti-aliased across one physical pixel. That is
+     * what makes a hexagon's or a wedge's sides sharp lines instead of stairs, and
+     * because the fills go through here too, a press fills the same clean shape.
+     * Runs of identical rows -- the straight sides of a rounded block -- are merged
+     * into one fill. Rectangular designs keep whole game pixels and hard edges, which
+     * is what the pixel-art styles are made of.
+     */
+    public void paintShape(GuiGraphicsExtractor ctx, SimpleCPSConfig.KeyButtonData btn,
+                           float yFrom, float yTo, Band band, int color) {
+        boolean smooth = slopes(btn);
+        int d = smooth ? density(ctx) : 1;
+        int r0 = Math.max(0, Math.round(yFrom * d));
+        int r1 = Math.min(btn.h * d, Math.round(yTo * d));
+        if (r1 <= r0) return;
+
+        ctx.pose().pushMatrix();
+        ctx.pose().translate(btn.x, btn.y);
+        if (d > 1) ctx.pose().scale(1f / d, 1f / d);
+
+        // A pending run of identical single-piece rows, flushed as one fill.
+        float runX0 = 0f, runX1 = 0f;
+        int runStart = 0, runRows = 0;
+        for (int r = r0; r < r1; r++) {
+            float yc = (r + 0.5f) / d;
+            float[] span = spanAt(btn, yc);
+            float[] pieces = span == null ? null
+                : band == null ? span : band.at(yc, span[0], span[1]);
+            if (pieces != null && pieces.length == 2) {
+                float x0 = pieces[0] * d, x1 = pieces[1] * d;
+                if (!smooth) {
+                    x0 = Math.round(x0);
+                    x1 = Math.round(x1);
+                }
+                if (runRows > 0 && x0 == runX0 && x1 == runX1) {
+                    runRows++;
+                    continue;
+                }
+                if (runRows > 0) rowAA(ctx, runX0, runX1, runStart, runRows, color);
+                runX0 = x0;
+                runX1 = x1;
+                runStart = r;
+                runRows = 1;
+                continue;
+            }
+            if (runRows > 0) rowAA(ctx, runX0, runX1, runStart, runRows, color);
+            runRows = 0;
+            if (pieces == null) continue;
+            for (int i = 0; i + 1 < pieces.length; i += 2) {
+                float x0 = pieces[i] * d, x1 = pieces[i + 1] * d;
+                if (!smooth) {
+                    x0 = Math.round(x0);
+                    x1 = Math.round(x1);
+                }
+                rowAA(ctx, x0, x1, r, 1, color);
+            }
+        }
+        if (runRows > 0) rowAA(ctx, runX0, runX1, runStart, runRows, color);
+        ctx.pose().popMatrix();
+    }
+
+    /** The whole shape, in one color. */
+    private void paintShape(GuiGraphicsExtractor ctx, SimpleCPSConfig.KeyButtonData btn, int color) {
+        paintShape(ctx, btn, 0f, btn.h, null, color);
     }
 
     /**
@@ -457,15 +603,15 @@ public enum KeystrokesDesign {
      * The horizontal span a wedge covers on one row, as {@code {start, endExclusive}}
      * relative to the key's own left edge.
      *
-     * <p>Both the drawing and {@link #rowSpan} go through this. They used to derive
+     * <p>Both the body and every fill go through this, via {@link #spanAt}. They used to derive
      * the shape separately — the body column by column, the span row by row — and the
      * two disagreed by a few pixels along the slopes, which left a fill with a ragged
      * edge that did not follow the triangle it was supposed to be inside.
      */
-    private static float[] wedgeSpan(int w, int h, int dir, int row) {
+    private static float[] wedgeSpan(int w, int h, int dir, float yc) {
         // Sampled at the row's center so the slope is measured where the pixel is,
         // not at its top edge.
-        float t = h <= 1 ? 1f : (row + 0.5f) / h;
+        float t = h <= 1 ? 1f : yc / h;
         if (dir == 0 || dir == 2) {
             float f = dir == 2 ? 1f - t : t;
             float width = Math.max(1f, w * f);
@@ -479,65 +625,11 @@ public enum KeystrokesDesign {
         return dir == 1 ? new float[] { 0f, reach } : new float[] { w - reach, w };
     }
 
-    /** A triangle pointing in {@code dir} (0=up 1=right 2=down 3=left), row by row. */
-    private static void wedge(GuiGraphicsExtractor ctx, int x, int y, int w, int h, int dir, int color) {
-        for (int row = 0; row < h; row++) {
-            float[] span = wedgeSpan(w, h, dir, row);
-            rowAA(ctx, x + span[0], x + span[1], y + row, color);
-        }
-    }
-
     /** The rail a {@link #BAR} key draws, as {@code {x, y, w, h}}. */
     public static int[] railRect(SimpleCPSConfig.KeyButtonData btn) {
         int railH = Math.max(1, btn.h / 12 + 1);
         int inset = Math.max(1, btn.w / 8);
         return new int[] { btn.x + inset, btn.y + btn.h - railH - 1, btn.w - inset * 2, railH };
-    }
-
-    /**
-     * The horizontal span this design's shape covers on one row, as absolute
-     * {@code {startX, endXExclusive}}, or {@code null} where the row is empty.
-     *
-     * <p>Animation fills are painted row by row and clipped to this, which is what
-     * keeps a sweep inside a hexagon or on a bar's rail. Asking per row rather than
-     * per pixel is deliberate: a per-pixel test would need a {@code fill()} call per
-     * pixel, and a single 21x21 key would cost more draw calls than the whole HUD.
-     */
-    public int[] rowSpan(SimpleCPSConfig.KeyButtonData btn, int row) {
-        if (row < 0 || row >= btn.h) return null;
-        switch (this) {
-            case TIMELINE:
-                return null;
-
-            case BAR: {
-                int[] rail = railRect(btn);
-                int top = rail[1] - btn.y;
-                if (row < top || row >= top + rail[3]) return null;
-                return new int[] { rail[0], rail[0] + rail[2] };
-            }
-
-            case HEX: {
-                int inset = Math.round(hexInset(row, btn.h, btn.w));
-                return new int[] { btn.x + inset, btn.x + btn.w - inset };
-            }
-
-            case SOFT_BLOCK: {
-                int r = Math.max(0, Math.min(3, Math.min(btn.w, btn.h) / 2));
-                int inset = Math.round(roundInset(row, btn.h, r));
-                return new int[] { btn.x + inset, btn.x + btn.w - inset };
-            }
-
-            case WEDGE: {
-                int dir = wedgeDir(btn);
-                if (dir < 0) break;
-                float[] span = wedgeSpan(btn.w, btn.h, dir, row);
-                return new int[] { btn.x + Math.round(span[0]), btn.x + Math.round(span[1]) };
-            }
-
-            default:
-                break;
-        }
-        return new int[] { btn.x, btn.x + btn.w };
     }
 
     /**
@@ -563,7 +655,7 @@ public enum KeystrokesDesign {
             }
 
             case SOFT_BLOCK -> {
-                rounded(ctx, x, y, w, h, 3, body);
+                paintShape(ctx, btn, body);
                 // The top light line reads as a bevel; it goes out under a press,
                 // which is what sells the key as physically sinking.
                 if (!pressed) {
@@ -592,10 +684,10 @@ public enum KeystrokesDesign {
             case WEDGE -> {
                 int dir = wedgeDir(btn);
                 if (dir < 0) box(ctx, x, y, w, h, body);
-                else wedge(ctx, x, y, w, h, dir, body);
+                else paintShape(ctx, btn, body);
             }
 
-            case HEX -> hexagon(ctx, x, y, w, h, body);
+            case HEX -> paintShape(ctx, btn, body);
 
             case PIXEL_BEVEL -> {
                 // 3px is one "pixel" here, so every measurement is a multiple of it.
