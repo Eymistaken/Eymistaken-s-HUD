@@ -465,18 +465,27 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
      * very light or very dark.
      */
     private enum CanvasGround {
-        GRAY("GRAY", 0xFF5C6169, 0x0DFFFFFF),
-        LIGHT("LIGHT", 0xFFA4AAB2, 0x10FFFFFF),
-        DARK("DARK", 0xFF0C0C0E, 0x09FFFFFF);
+        //                       ground      checker     outside     edge        label
+        GRAY("GRAY",   0xFF5C6169, 0x0DFFFFFF, 0x24000000, 0x66FFFFFF, 0xB3FFFFFF),
+        LIGHT("LIGHT", 0xFFA4AAB2, 0x10FFFFFF, 0x1F000000, 0x59000000, 0xA6000000),
+        DARK("DARK",   0xFF0C0C0E, 0x09FFFFFF, 0x00000000, 0x38FFFFFF, 0x80FFFFFF);
 
         final String label;
         final int bg;
         final int checker;
+        /** Laid over everything outside the safe area, so the area reads as the stage. */
+        final int outside;
+        /** The safe area's border, and its caption. Taken from the ground, not the chrome. */
+        final int edge;
+        final int ink;
 
-        CanvasGround(String label, int bg, int checker) {
+        CanvasGround(String label, int bg, int checker, int outside, int edge, int ink) {
             this.label = label;
             this.bg = bg;
             this.checker = checker;
+            this.outside = outside;
+            this.edge = edge;
+            this.ink = ink;
         }
 
         CanvasGround next() {
@@ -487,7 +496,6 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
     /** Static so the choice survives reopening the designer within a game session. */
     private static CanvasGround ground = CanvasGround.GRAY;
 
-    private static final int SAFE_BORDER = 0x30FFFFFF;
     /** Shared resting animation state; the canvas never presses a key, and drawKey only reads it. */
     private static final KeystrokesAnim.State REST = new KeystrokesAnim.State();
 
@@ -1039,16 +1047,23 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
             }
         }
 
-        SettingsTheme.frame(ctx, safeX, safeY, SAFE_W * zoom, SAFE_H * zoom, SAFE_BORDER);
-        int chipH = d(22, 8);
-        int chipY = safeY - chipH - 2;
-        if (chipY > canvasY) {
-            String chip = "SAFE AREA - " + SAFE_W + " x " + SAFE_H;
-            int chipW = SettingsTheme.textWidth(this.font, chip) + gap * 2;
-            SettingsTheme.rect(ctx, safeX, chipY, chipW, chipH, SettingsTheme.FIELD_BG);
-            SettingsTheme.frame(ctx, safeX, chipY, chipW, chipH, SAFE_BORDER);
-            SettingsTheme.text(ctx, this.font, chip, safeX + gap, centerTextY(chipY, chipH),
-                SettingsTheme.TEXT_GHOST);
+        // The safe area is the stage: everything outside it is dimmed a touch, and its
+        // edge and caption are tints of the ground rather than the chrome's dark field
+        // color, which sat on the gray like a sticker from another screen.
+        int sw = SAFE_W * zoom, sh = SAFE_H * zoom;
+        if ((ground.outside >>> 24) != 0) {
+            SettingsTheme.rect(ctx, canvasX, canvasY, canvasW, Math.max(0, safeY - canvasY), ground.outside);
+            SettingsTheme.rect(ctx, canvasX, safeY + sh, canvasW,
+                Math.max(0, canvasY + canvasH - safeY - sh), ground.outside);
+            SettingsTheme.rect(ctx, canvasX, safeY, Math.max(0, safeX - canvasX), sh, ground.outside);
+            SettingsTheme.rect(ctx, safeX + sw, safeY, Math.max(0, canvasX + canvasW - safeX - sw), sh,
+                ground.outside);
+        }
+        SettingsTheme.frame(ctx, safeX, safeY, sw, sh, ground.edge);
+        int captionY = safeY - this.font.lineHeight - d(6, 2);
+        if (captionY > canvasY) {
+            SettingsTheme.text(ctx, this.font, "SAFE AREA  " + SAFE_W + " x " + SAFE_H,
+                safeX, captionY, ground.ink);
         }
 
         renderGuides(ctx);
@@ -1110,6 +1125,17 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
             renderDragTag(ctx, selection.get(0));
         }
 
+        if (marqueeActive && mx >= 0 && (mx != marqueeX || my != marqueeY)) {
+            // Follow the pointer as it is this frame, not as the last drag event left
+            // it, so the box never trails the cursor.
+            marqueeX = mx;
+            marqueeY = my;
+            int slop = d(3, 1);
+            if (Math.abs(mx - marqueeStartX) > slop || Math.abs(my - marqueeStartY) > slop) {
+                marqueeMoved = true;
+            }
+            updateMarqueeSelection();
+        }
         if (marqueeActive && marqueeMoved) {
             int x1 = Math.min(marqueeStartX, marqueeX);
             int y1 = Math.min(marqueeStartY, marqueeY);
@@ -1358,13 +1384,17 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
         "DIRECTION", "SHOW CPS", "ANIMATION"
     };
 
+    /** Widest row label, measured once: every control rect asks for it, every frame. */
+    private int inspLabelsW = -1;
+
     private int inspCtrlX() {
-        int widest = 0;
-        for (String label : INSPECTOR_LABELS) {
-            widest = Math.max(widest, SettingsTheme.textWidth(this.font, label));
+        if (inspLabelsW < 0) {
+            for (String label : INSPECTOR_LABELS) {
+                inspLabelsW = Math.max(inspLabelsW, SettingsTheme.textWidth(this.font, label));
+            }
         }
         // Never let the labels take more than half the rail, whatever the font does.
-        return inspLabelX() + Math.min(widest + d(16, 4), (inspRight() - inspLabelX()) / 2);
+        return inspLabelX() + Math.min(inspLabelsW + d(16, 4), (inspRight() - inspLabelX()) / 2);
     }
 
     private int inspCtrlW() {
@@ -2555,12 +2585,15 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
             SettingsTheme.rect(ctx, laneX, y + laneH / 2, laneW, 1, 0x30FFFFFF);
             long period = 900L + i * 370L;
             for (long start = (t / period) * period; start > t - 4000L; start -= period) {
-                int x1 = laneX + laneW - Math.round((t - start) * speed);
-                int len = Math.max(2, Math.round((180L + (i * 97L % 260L)) * speed));
-                int x0 = Math.max(laneX, x1);
-                int x2 = Math.min(laneX + laneW, x1 + len);
+                // Unrounded, for the same reason as the HUD's timeline: whole pixels
+                // make a slow scroll tick instead of glide.
+                float x1 = laneX + laneW - (t - start) * speed;
+                float len = Math.max(2f, (180L + (i * 97L % 260L)) * speed);
+                float x0 = Math.max(laneX, x1);
+                float x2 = Math.min(laneX + laneW, x1 + len);
                 if (x2 > x0) {
-                    SettingsTheme.rect(ctx, x0, y + (laneH - barH) / 2, x2 - x0, barH, accent);
+                    int by = y + (laneH - barH) / 2;
+                    KeystrokesDesign.fillSmooth(ctx, x0, by, x2, by + barH, accent);
                 }
             }
         }

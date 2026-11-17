@@ -143,14 +143,21 @@ public final class KeystrokesTimeline {
             ctx.fill(laneX + LANE_W - 1, y, laneX + LANE_W, y + ROW_H, 0x47FFFFFF);
 
             int barY = y + (ROW_H - BAR_H) / 2;
+            float laneEnd = laneX + LANE_W;
             for (Bar bar : lane) {
                 long end = bar.end == -1L ? now : bar.end;
-                int right = laneX + LANE_W - Math.round((now - end) * speed);
-                int len = Math.max(1, Math.round((end - bar.start) * speed));
-                int left = right - len;
+                // Both edges come straight from their own timestamps, unrounded. The
+                // right edge and the length used to be rounded separately, so a
+                // scrolling bar's width flickered by a pixel from frame to frame, and
+                // whole game pixels made it tick along in 3-4 pixel jumps instead of
+                // gliding. fillSmooth puts the edges on the screen's own pixels.
+                float right = laneEnd - (now - end) * speed;
+                float left = laneEnd - (now - bar.start) * speed;
+                // A tap still shows up as a sliver rather than vanishing.
+                if (right - left < 1f) left = right - 1f;
                 if (right <= laneX) continue;
                 left = Math.max(left, laneX);
-                if (right > left) ctx.fill(left, barY, right, barY + BAR_H, accent);
+                KeystrokesDesign.fillSmooth(ctx, left, barY, Math.min(right, laneEnd), barY + BAR_H, accent);
             }
         }
     }
