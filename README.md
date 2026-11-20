@@ -33,7 +33,7 @@ A client-side PvP HUD for Fabric. Seven modules, a live drag-and-drop editor, a 
 | **FPS** | Frames per second, with custom suffix, color, scale, rainbow mode and background. |
 | **Ping** | Your latency to the server, read from your own player-list entry. |
 
-Modules carry their own color, scale, background and opacity settings. Text can be drawn in vanilla or one of five bundled fonts (Inter, Rubik, JetBrains Mono, Bebas Neue and the enchanting-table font) with an optional outline in place of the vanilla shadow. Fonts apply to the HUD and the mod's own screens only, never to chat or vanilla menus.
+Modules carry their own color, scale, background and opacity settings, and text can take an optional outline in place of the vanilla shadow.
 
 ## Keystrokes designer
 
@@ -201,7 +201,7 @@ public class MyModule extends HudModule {
         context.pose().pushMatrix();
         context.pose().translate((float) x, (float) y);
         context.pose().scale(scale(), scale());
-        drawText(context, TEXT, 0, 0, 0xFFFFFFFF);  // honors the player's font and outline
+        drawText(context, TEXT, 0, 0, 0xFFFFFFFF);  // honors the player's outline setting
         context.pose().popMatrix();
     }
 }
