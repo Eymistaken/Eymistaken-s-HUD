@@ -15,12 +15,15 @@ import com.eymistaken.simplecps.util.InputCodes;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import com.mojang.blaze3d.platform.InputConstants;
+import com.mojang.blaze3d.platform.NativeImage;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -28,7 +31,9 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 
 
 /**
@@ -495,6 +500,32 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
 
     /** Static so the choice survives reopening the designer within a game session. */
     private static CanvasGround ground = CanvasGround.GRAY;
+
+    /**
+     * One 2x2 checker tile per ground, built on first use and released when the
+     * designer closes. The canvas checker is this tile repeated in a single blit:
+     * painted as one fill per cell it was some 1,500 fills a frame, which on its own
+     * held the designer to well under half the HUD editor's frame rate -- felt
+     * most while dragging a marquee, the one thing on the canvas that tracks the
+     * pointer every frame.
+     */
+    private final Map<CanvasGround, Identifier> checkerTiles = new EnumMap<>(CanvasGround.class);
+
+    private Identifier checkerTile(CanvasGround g) {
+        Identifier id = checkerTiles.get(g);
+        if (id != null || this.minecraft == null) return id;
+        NativeImage tile = new NativeImage(2, 2, true);
+        tile.setPixel(0, 0, g.checker);
+        tile.setPixel(1, 0, 0);
+        tile.setPixel(0, 1, 0);
+        tile.setPixel(1, 1, g.checker);
+        id = Identifier.fromNamespaceAndPath("simplecps",
+            "designer/checker_" + g.name().toLowerCase(Locale.ROOT));
+        Identifier name = id;
+        this.minecraft.getTextureManager().register(id, new DynamicTexture(() -> "simplecps " + name, tile));
+        checkerTiles.put(g, id);
+        return id;
+    }
 
     /** Shared resting animation state; the canvas never presses a key, and drawKey only reads it. */
     private static final KeystrokesAnim.State REST = new KeystrokesAnim.State();
@@ -1039,12 +1070,13 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
         ctx.enableScissor(canvasX, canvasY, canvasX + canvasW, canvasY + canvasH);
         SettingsTheme.rect(ctx, canvasX, canvasY, canvasW, canvasH, ground.bg);
 
-        int cell = d(16, 2);
-        for (int gx = 0; gx * cell < canvasW; gx++) {
-            for (int gy = 0; gy * cell < canvasH; gy++) {
-                if (((gx + gy) & 1) != 0) continue;
-                SettingsTheme.rect(ctx, canvasX + gx * cell, canvasY + gy * cell, cell, cell, ground.checker);
-            }
+        // The tile's sampler repeats and is nearest-filtered, and a cell is a whole
+        // number of virtual pixels, so every cell edge lands on a screen pixel edge.
+        Identifier checker = checkerTile(ground);
+        if (checker != null) {
+            int cell = d(16, 2);
+            ctx.blit(checker, canvasX, canvasY, canvasX + canvasW, canvasY + canvasH,
+                0f, canvasW / (2f * cell), 0f, canvasH / (2f * cell));
         }
 
         // The safe area is the stage: everything outside it is dimmed a touch, and its
@@ -4357,6 +4389,10 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
     @Override
     public void removed() {
         TextInput.setTyping(this, false);
+        if (this.minecraft != null) {
+            for (Identifier id : checkerTiles.values()) this.minecraft.getTextureManager().release(id);
+        }
+        checkerTiles.clear();
         super.removed();
     }
 
