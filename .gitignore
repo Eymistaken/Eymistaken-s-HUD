@@ -40,6 +40,16 @@ GEMINI.md
 .idea/
 # -------------------------
 CLAUDE.md
+# --- Local-only notes and editor tool files ---
+AGENTS.md
+AGENTS.override.md
+.claude/
+.cursor/
+.codex/
+.github/copilot-instructions.md
+/PLAN.md
+/WALKTHROUGH.md
+/WEBSITE-YAPILACAKLAR.md
 # --- Docs Staging (Siteye Aktarılacak Taslaklar) ---
 # Changelog ve API yazıları buraya yazılıp api-guide.html'e / release notuna
 # aktarılıyor; kalıcı yeri site deposu, burada durmalarına gerek yok.
