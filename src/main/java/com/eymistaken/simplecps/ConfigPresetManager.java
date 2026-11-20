@@ -100,6 +100,23 @@ public final class ConfigPresetManager {
         return true;
     }
 
+    /**
+     * Keep a copy of a config file that is about to be overwritten as a preset named
+     * {@code name} (or the next free variant of it), so it can be applied again later.
+     */
+    public static boolean copyIntoPresets(File source, String name) {
+        if (source == null || !source.isFile()) return false;
+        ensureDir();
+        File target = new File(PRESET_DIR, uniqueName(name) + ".json");
+        try {
+            Files.copy(source.toPath(), target.toPath());
+        } catch (IOException e) {
+            e.printStackTrace();
+            return false;
+        }
+        return true;
+    }
+
     /** Load a preset into {@link SimpleCPSConfig#instance} and persist it as the live config. */
     public static boolean applyPreset(String name) {
         File file = new File(PRESET_DIR, sanitize(name) + ".json");

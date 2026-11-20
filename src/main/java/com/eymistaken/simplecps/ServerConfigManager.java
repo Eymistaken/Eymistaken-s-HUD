@@ -2,6 +2,7 @@ package com.eymistaken.simplecps;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonElement;
 import com.google.gson.reflect.TypeToken;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
@@ -49,6 +50,13 @@ public final class ServerConfigManager {
 
     /** The server context as of the last {@link #pollContext}; null when not in a world. */
     private static String currentKey = null;
+
+    /**
+     * The live config as it stood when the player was last outside every world: at
+     * startup, and again each time they leave one. Comparing against it is how a join
+     * tells whether the HUD was edited from the title screen in between.
+     */
+    private static JsonElement outsideBaseline = null;
 
     private ServerConfigManager() {}
 
@@ -172,16 +180,48 @@ public final class ServerConfigManager {
     public static void pollContext(Minecraft client) {
         String key = keyFor(client);
         if (Objects.equals(key, currentKey)) return;
+        String previous = currentKey;
         currentKey = key;
 
-        if (key == null) return;                                    // left the world
+        if (key == null) {                                          // left the world
+            markOutsideBaseline();
+            return;
+        }
         if (!SimpleCPSConfig.instance.serverConfigsEnabled) return;
         if (!hasConfig(key)) return;                                // nothing bound here yet
 
+        // Edits made from the title screen are the newest thing the player did, and
+        // applying this server's stored config used to throw them away; the only copy
+        // went into a single rolling backup the next join overwrote. Keep them and bind
+        // them to this server instead, with the config it had kept as a preset.
+        if (previous == null && editedOutsideWorld()) {
+            ConfigPresetManager.copyIntoPresets(fileFor(key), "Backup "
+                + java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("MM-dd HH.mm"))
+                + " " + labelFor(key));
+            SimpleCPSConfig.save(); // mirrors the live config into this server's file
+            return;
+        }
+
         // The config we are about to drop was mirrored into its own server file on
-        // every save, so this is only really needed for edits made outside any world.
+        // every save, so this is only a safety net.
         ConfigPresetManager.savePreset(SAFETY_PRESET);
         applyFor(key);
+    }
+
+    /**
+     * Remember the live config as the one in force outside any world. Called at
+     * startup and whenever the player leaves a world.
+     */
+    public static void markOutsideBaseline() {
+        SimpleCPSConfig.collectModuleState();
+        outsideBaseline = GSON.toJsonTree(SimpleCPSConfig.instance);
+    }
+
+    /** Whether the live config changed since the player was last outside every world. */
+    private static boolean editedOutsideWorld() {
+        if (outsideBaseline == null) return false;
+        SimpleCPSConfig.collectModuleState();
+        return !outsideBaseline.equals(GSON.toJsonTree(SimpleCPSConfig.instance));
     }
 
     /**

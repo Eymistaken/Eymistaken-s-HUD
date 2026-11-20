@@ -241,7 +241,36 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
 
     // Inline color editor.
     private boolean colorOpen = false;
-    private boolean colorPressedTarget = false;
+
+    /**
+     * The three per-key colors the COLOR rows edit. The held text and the accent used
+     * to share one "PRESSED" row, and on most designs that row painted the key while
+     * the letter turned black or white by itself, so the text could not be colored.
+     */
+    private enum ColorTarget {
+        TEXT("color", "TEXT", "TEXT COLOR"),
+        PRESSED_TEXT("pressedtext", "PRESSED TEXT", "PRESSED TEXT COLOR"),
+        ACCENT("pressed", "ACCENT", "ACCENT COLOR");
+
+        final String rowId;
+        final String label;
+        final String title;
+
+        ColorTarget(String rowId, String label, String title) {
+            this.rowId = rowId;
+            this.label = label;
+            this.title = title;
+        }
+
+        static ColorTarget ofRow(String rowId) {
+            for (ColorTarget t : values()) {
+                if (t.rowId.equals(rowId)) return t;
+            }
+            return null;
+        }
+    }
+
+    private ColorTarget colorTarget = ColorTarget.TEXT;
     private float cpHue, cpSat = 1f, cpVal = 1f;
     private enum CpDrag { NONE, SV, HUE }
     private CpDrag cpDrag = CpDrag.NONE;
@@ -1128,7 +1157,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
                 // The gallery is where the pressed state is shown.
                 String override = (mode == Mode.KEYBIND && selection.contains(btn)) ? "..." : null;
                 KeystrokesRender.drawKey(ctx, this.font, btn, style, REST, bg,
-                    keyTextColor(btn), accent, false, btn.showCps && btn.isMouse ? "0" : null,
+                    keyTextColor(btn), accent, null, false, btn.showCps && btn.isMouse ? "0" : null,
                     override);
 
                 ctx.pose().popMatrix();
@@ -1328,8 +1357,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
 
     /** The key's text color as the HUD would draw it unpressed. */
     private int keyTextColor(SimpleCPSConfig.KeyButtonData btn) {
-        int color = (btn.btnColor != -1 && btn.btnColor != 0) ? btn.btnColor : config().keystrokesColor;
-        return color | 0xFF000000;
+        return SimpleCPSConfig.KeyButtonData.keyColorOr(btn.btnColor, config().keystrokesColor | 0xFF000000);
     }
 
 
@@ -1355,8 +1383,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
         if (lineMode()) rows.add(new InspRow("linewidth", rowH));
         rows.add(new InspRow("style", rowH));
         rows.add(new InspRow("#COLOR", sectionH));
-        rows.add(new InspRow("color", rowH));
-        rows.add(new InspRow("pressed", rowH));
+        for (ColorTarget target : ColorTarget.values()) rows.add(new InspRow(target.rowId, rowH));
         rows.add(new InspRow("#DESIGN", sectionH));
         rows.add(new InspRow("kdesign", rowH));
         rows.add(new InspRow("kmotion", rowH));
@@ -1412,7 +1439,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
      */
     private static final String[] INSPECTOR_LABELS = {
         "KEYBIND", "LABEL", "POSITION", "SIZE", "CONTENT", "PLACEMENT", "TEXT SIZE",
-        "THICKNESS", "LENGTH", "STYLE", "NORMAL", "PRESSED", "DESIGN", "MOTION", "FILL",
+        "THICKNESS", "LENGTH", "STYLE", "TEXT", "PRESSED TEXT", "ACCENT", "DESIGN", "MOTION", "FILL",
         "DIRECTION", "SHOW CPS", "ANIMATION"
     };
 
@@ -1491,7 +1518,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
         return ctrlRect(rowY);
     }
 
-    private int[] colorBtnRect(int rowY, boolean pressed) {
+    private int[] colorBtnRect(int rowY) {
         return ctrlRect(rowY);
     }
 
@@ -1504,19 +1531,43 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
             : keyName(k.keyCode);
     }
 
-    private String colorHexLabel(boolean pressed) {
-        SimpleCPSConfig.KeyButtonData k = single();
-        if (k == null) return "MIXED";
-        int value = pressed ? k.btnPressedColor : k.btnColor;
-        return (value == -1 || value == 0) ? "GLOBAL" : String.format("#%06X", value & 0xFFFFFF);
+    /** The key's own color for {@code target}, or null when it follows the module. */
+    private static Integer ownColor(SimpleCPSConfig.KeyButtonData k, ColorTarget target) {
+        return switch (target) {
+            case TEXT -> SimpleCPSConfig.KeyButtonData.isKeyColor(k.btnColor) ? k.btnColor : null;
+            case ACCENT -> SimpleCPSConfig.KeyButtonData.isKeyColor(k.btnPressedColor) ? k.btnPressedColor : null;
+            case PRESSED_TEXT -> k.btnPressedTextColor;
+        };
     }
 
-    private int colorSwatchValue(boolean pressed) {
+    private String colorHexLabel(ColorTarget target) {
         SimpleCPSConfig.KeyButtonData k = single();
-        int fallback = pressed ? config().keystrokesPressedColor : config().keystrokesColor;
-        if (k == null) return fallback | 0xFF000000;
-        int value = pressed ? k.btnPressedColor : k.btnColor;
-        return ((value == -1 || value == 0) ? fallback : value) | 0xFF000000;
+        if (k == null) return "MIXED";
+        Integer own = ownColor(k, target);
+        if (own != null) return String.format("#%06X", own & 0xFFFFFF);
+        // Following a module set to automatic is worth saying: no single color is
+        // being followed, the design picks one.
+        return target == ColorTarget.PRESSED_TEXT && config().keystrokesPressedTextAuto ? "AUTO" : "GLOBAL";
+    }
+
+    /** The color a key shows for {@code target}, as the HUD would resolve it. */
+    private int colorSwatchValue(ColorTarget target) {
+        SimpleCPSConfig config = config();
+        SimpleCPSConfig.KeyButtonData k = single();
+        Integer own = k == null ? null : ownColor(k, target);
+        if (own != null) return own | 0xFF000000;
+        return switch (target) {
+            case TEXT -> config.keystrokesColor | 0xFF000000;
+            case ACCENT -> config.keystrokesPressedColor | 0xFF000000;
+            case PRESSED_TEXT -> {
+                if (!config.keystrokesPressedTextAuto) yield config.keystrokesPressedTextColor | 0xFF000000;
+                int accent = k == null ? config.keystrokesPressedColor | 0xFF000000
+                    : SimpleCPSConfig.KeyButtonData.keyColorOr(k.btnPressedColor,
+                        config.keystrokesPressedColor | 0xFF000000);
+                yield k == null ? accent
+                    : KeystrokesRender.pressedLabelColor(KeystrokesRender.KeyStyle.of(config, k), accent, null);
+            }
+        };
     }
 
     private void renderInspector(GuiGraphicsExtractor ctx, int mx, int my) {
@@ -1864,18 +1915,17 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
                 caretDown(ctx, r[0] + r[2] - d(8, 3) - size, r[1] + (r[3] - size) / 2, size,
                     SettingsTheme.TEXT_MUTED);
             }
-            case "color", "pressed" -> {
-                boolean isPressed = row.id().equals("pressed");
-                SettingsTheme.text(ctx, this.font, isPressed ? "PRESSED" : "NORMAL",
-                    inspLabelX(), textY, labelColor);
-                int[] r = colorBtnRect(y, isPressed);
+            case "color", "pressedtext", "pressed" -> {
+                ColorTarget target = ColorTarget.ofRow(row.id());
+                SettingsTheme.text(ctx, this.font, target.label, inspLabelX(), textY, labelColor);
+                int[] r = colorBtnRect(y);
                 boolean hov = SettingsTheme.inside(mx, my, r[0], r[1], r[2], r[3]);
                 SettingsTheme.button(ctx, r[0], r[1], r[2], r[3], hov);
                 int sw = d(16, 6);
                 SettingsTheme.rect(ctx, r[0] + d(8, 2), r[1] + (r[3] - sw) / 2, sw, sw,
-                    colorSwatchValue(isPressed));
+                    colorSwatchValue(target));
                 SettingsTheme.frame(ctx, r[0] + d(8, 2), r[1] + (r[3] - sw) / 2, sw, sw, SettingsTheme.BORDER);
-                SettingsTheme.text(ctx, this.font, colorHexLabel(isPressed), r[0] + d(8, 2) + sw + gap,
+                SettingsTheme.text(ctx, this.font, colorHexLabel(target), r[0] + d(8, 2) + sw + gap,
                     centerTextY(r[1], r[3]), SettingsTheme.TEXT_LABEL);
             }
             case "cps", "anim" -> {
@@ -2109,7 +2159,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
             SettingsTheme.PANEL_LIGHT, SettingsTheme.PANEL_DARK);
 
         SettingsTheme.rect(ctx, r[0] + 1, r[1] + 1, r[2] - 2, cpHeadH(), SettingsTheme.CONTENT_HEAD);
-        SettingsTheme.text(ctx, this.font, colorPressedTarget ? "PRESSED COLOR" : "TEXT COLOR",
+        SettingsTheme.text(ctx, this.font, colorTarget.title,
             r[0] + d(12, 3), centerTextY(r[1], cpHeadH()), SettingsTheme.TEXT_MUTED);
         int[] close = cpCloseRect();
         SettingsTheme.closeIcon(ctx, close[0] + (close[2] - 5) / 2, close[1] + (close[3] - 5) / 2,
@@ -2582,7 +2632,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
             boolean pressed = previewPressed(index, k, keys.size());
             KeystrokesAnim.step(state, style.motions(), style.fills(), pressed, true, false, btn);
             KeystrokesRender.drawKey(ctx, this.font, btn, style, state,
-                bg, idle, accent, false, null, null);
+                bg, idle, accent, null, false, null, null);
         }
         ctx.pose().popMatrix();
     }
@@ -3287,9 +3337,8 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
             case "kdesign", "kmotion", "kfill", "kdirection" -> {
                 if (insideRect(designBtnRect(rowY), vx, vy)) cycleDesignRow(id);
             }
-            case "color", "pressed" -> {
-                boolean isPressed = id.equals("pressed");
-                if (insideRect(colorBtnRect(rowY, isPressed), vx, vy)) openColorEditor(isPressed);
+            case "color", "pressedtext", "pressed" -> {
+                if (insideRect(colorBtnRect(rowY), vx, vy)) openColorEditor(ColorTarget.ofRow(id));
             }
             case "cps" -> {
                 SimpleCPSConfig.KeyButtonData k = single();
@@ -3825,14 +3874,13 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
         menuOpen = false;
     }
 
-    private void openColorEditor(boolean pressed) {
+    private void openColorEditor(ColorTarget target) {
         SimpleCPSConfig.KeyButtonData k = single();
-        if (k == null) return;
-        colorPressedTarget = pressed;
-        int start = pressed ? k.btnPressedColor : k.btnColor;
-        if (start == -1 || start == 0) {
-            start = pressed ? config().keystrokesPressedColor : config().keystrokesColor;
-        }
+        if (k == null || target == null) return;
+        colorTarget = target;
+        // Start from what the key shows now, so opening the picker and applying at
+        // once changes nothing.
+        int start = colorSwatchValue(target);
         float[] hsb = java.awt.Color.RGBtoHSB((start >> 16) & 0xFF, (start >> 8) & 0xFF, start & 0xFF, null);
         cpHue = hsb[0];
         cpSat = hsb[1];
@@ -3873,20 +3921,26 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
             return;
         }
         if (insideRect(cpApplyRect(), vx, vy)) {
-            final int color = pickerColor();
-            final boolean pressed = colorPressedTarget;
+            final int rgb = pickerColor() & 0xFFFFFF;
+            final ColorTarget target = colorTarget;
             patchSel(b -> {
-                if (pressed) b.btnPressedColor = color;
-                else b.btnColor = color;
+                switch (target) {
+                    case TEXT -> b.btnColor = SimpleCPSConfig.KeyButtonData.encodeKeyColor(rgb);
+                    case ACCENT -> b.btnPressedColor = SimpleCPSConfig.KeyButtonData.encodeKeyColor(rgb);
+                    case PRESSED_TEXT -> b.btnPressedTextColor = rgb;
+                }
             });
             colorOpen = false;
             return;
         }
         if (insideRect(cpResetRect(), vx, vy)) {
-            final boolean pressed = colorPressedTarget;
+            final ColorTarget target = colorTarget;
             patchSel(b -> {
-                if (pressed) b.btnPressedColor = -1;
-                else b.btnColor = -1;
+                switch (target) {
+                    case TEXT -> b.btnColor = -1;
+                    case ACCENT -> b.btnPressedColor = -1;
+                    case PRESSED_TEXT -> b.btnPressedTextColor = null;
+                }
             });
             colorOpen = false;
         }
@@ -4368,7 +4422,15 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
     private void saveNow() {
         SimpleCPSConfig.save();
         dirty = false;
+        savedOnLeave = true;
     }
+
+    /**
+     * Set once one of the ways out (DONE, CANCEL, the settings button) has saved. Every
+     * other way the screen goes away -- a kick, a lost connection, the game closing --
+     * skips them, and {@link #removed()} saves instead.
+     */
+    private boolean savedOnLeave = false;
 
     private void cancel() {
         restoreLayout(openSnapshot);
@@ -4389,6 +4451,13 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
     @Override
     public void removed() {
         TextInput.setTyping(this, false);
+        // The edits are already on the live config, but only a save puts them on disk
+        // and into the current server's config. Done here, while that server is still
+        // the current one, a kick no longer throws away what was being designed.
+        if (!savedOnLeave) {
+            SimpleCPSConfig.save();
+            savedOnLeave = true;
+        }
         if (this.minecraft != null) {
             for (Identifier id : checkerTiles.values()) this.minecraft.getTextureManager().release(id);
         }

@@ -126,15 +126,19 @@ public class PingModule extends HudModule {
         context.pose().scale(scale, scale);
         
         if (config.pingShowBackground) {
-            int bgX = -padding;
-            int bgY = -padding;
+            // The background fills the module's own box, and the text sits inside it.
+            // It used to hang 2px up and left out of the box, so the editor's frame
+            // and the background visibly disagreed.
+            int bgX = 0;
+            int bgY = 0;
             int bgW_local = (int)(textWidth / scale) + (padding * 2);
             int bgH_local = (int)(textHeight / scale) + (padding * 2);
             int bgAlphaColor = (config.pingBackgroundOpacity << 24) | (config.pingBackgroundColor & 0x00FFFFFF);
             context.fill(bgX, bgY, bgX + bgW_local, bgY + bgH_local, col(bgAlphaColor));
         }
 
-        drawText(context, pingText, 0, 0, pColor);
+        int inset = config.pingShowBackground ? padding : 0;
+        drawText(context, pingText, inset, inset, pColor);
         context.pose().popMatrix();
     }
 

@@ -180,19 +180,90 @@ public class HudModuleManager {
         return moduleBounds;
     }
 
+    /**
+     * Modules that threw while ticking, being measured or drawing. They are left out
+     * from then on, until the game restarts.
+     *
+     * <p>Without this one broken module -- most likely a plugin built against a class
+     * this build no longer has -- crashed the whole game on its first frame, and the
+     * crash report named this mod. Losing one HUD element and logging why is a far
+     * smaller failure than losing the session.
+     */
+    private final Set<HudModule> failed =
+        java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+
+    /** Whether we already logged that layout failed; it would otherwise log every frame. */
+    private boolean layoutFailureLogged = false;
+
+    private void fail(HudModule module, String while_, Throwable error) {
+        if (!failed.add(module)) return;
+        String name;
+        try {
+            name = module.getName();
+        } catch (RuntimeException | LinkageError e) {
+            name = "?";
+        }
+        LOGGER.error("Module \"{}\" ({}) threw while {}; it is switched off until the game restarts.",
+            name, module.getClass().getName(), while_, error);
+    }
+
+    /**
+     * The modules safe to lay out this frame. Each is asked everything the layout
+     * engine will ask it first, so a module that throws there is dropped here, by
+     * name, rather than taking the whole layout down with it.
+     */
+    private List<HudModule> healthyModules() {
+        List<HudModule> healthy = new ArrayList<>(modules.size());
+        for (HudModule module : modules) {
+            if (failed.contains(module)) continue;
+            try {
+                module.getName();
+                module.isEnabled();
+                module.getPositionType();
+                module.getXOffset();
+                module.getYOffset();
+                module.getWidth();
+                module.getHeight();
+                module.getLayoutWidth();
+                module.getLayoutHeight();
+                healthy.add(module);
+            } catch (RuntimeException | LinkageError e) {
+                fail(module, "being measured", e);
+            }
+        }
+        return healthy;
+    }
+
     public void tickAll(Minecraft client) {
         for (HudModule module : modules) {
-            module.tick(client);
+            if (failed.contains(module)) continue;
+            try {
+                module.tick(client);
+            } catch (RuntimeException | LinkageError e) {
+                fail(module, "ticking", e);
+            }
+        }
+    }
+
+    /** Draw one module, dropping it if it throws. */
+    private void draw(HudModule module, GuiGraphicsExtractor drawContext, float tickDelta) {
+        try {
+            module.extractRenderState(drawContext, tickDelta);
+        } catch (RuntimeException | LinkageError e) {
+            fail(module, "drawing", e);
         }
     }
 
     public void renderAll(GuiGraphicsExtractor drawContext, float tickDelta) {
         Minecraft client = Minecraft.getInstance();
-        if (client.player == null || client.level == null || client.gui.hud.isHidden()) return; 
-        
+        if (client.player == null || client.level == null) return;
+
+        // The editor needs the HUD on screen to edit it. It turns F1 off while it is
+        // open (see HudEditorScreen), which is what actually gets us called: vanilla
+        // skips this whole layer while the HUD is hidden.
         boolean isEditor = client.gui.screen() instanceof HudEditorScreen;
-        if (client.gui.hud.isHidden() && !isEditor) return; 
-        
+        if (client.gui.hud.isHidden() && !isEditor) return;
+
         moduleBounds.clear();
 
         int screenWidth = drawContext.guiWidth();
@@ -200,7 +271,20 @@ public class HudModuleManager {
 
         Set<String> renderedNow = new HashSet<>();
 
-        for (HudPlacementResolver.ModulePlacement placement : HudPlacementResolver.resolveModules(modules, screenWidth, screenHeight, isEditor)) {
+        List<HudPlacementResolver.ModulePlacement> placements;
+        try {
+            placements = HudPlacementResolver.resolveModules(healthyModules(), screenWidth, screenHeight, isEditor);
+        } catch (RuntimeException | LinkageError e) {
+            // A module that passed healthyModules() and still threw. Skip the frame
+            // rather than crash; the log says so once.
+            if (!layoutFailureLogged) {
+                layoutFailureLogged = true;
+                LOGGER.error("Laying out the HUD failed; skipping frames until it succeeds.", e);
+            }
+            return;
+        }
+
+        for (HudPlacementResolver.ModulePlacement placement : placements) {
             if (!placement.shouldRender) continue;
 
             HudModule module = placement.module;
@@ -228,7 +312,7 @@ public class HudModuleManager {
 
             module.setRenderAlpha(alpha);
             module.setRenderPosition(placement.x, placement.y);
-            module.extractRenderState(drawContext, tickDelta);
+            draw(module, drawContext, tickDelta);
         }
 
         // Ghost fade-out: modules that were rendering but no longer are keep
@@ -236,7 +320,7 @@ public class HudModuleManager {
         // applies to fade-capable modules during normal gameplay (not the editor).
         if (!isEditor) {
             for (HudModule module : modules) {
-                if (!module.supportsFade()) continue;
+                if (failed.contains(module) || !module.supportsFade()) continue;
                 String name = module.getName();
                 if (renderedNow.contains(name)) continue;
 
@@ -260,7 +344,7 @@ public class HudModuleManager {
 
                 module.setRenderAlpha(alpha);
                 module.setRenderPosition(bounds.x, bounds.y);
-                module.extractRenderState(drawContext, tickDelta);
+                draw(module, drawContext, tickDelta);
             }
         }
 

@@ -40,12 +40,15 @@ public class SimpleCPSClient implements ClientModInitializer {
                         com.eymistaken.simplecps.api.EymistakenHudPlugin plugin = entrypoint.getEntrypoint();
                         plugin.registerHudModules(manager);
                         plugin.registerEvents(com.eymistaken.simplecps.api.EymistakenHudEventBus.getInstance());
-                    } catch (Exception e) {
+                    } catch (Exception | LinkageError e) {
+                        // LinkageError too: a plugin built against a class this build
+                        // no longer has fails with NoClassDefFoundError, which is not an
+                        // Exception, and used to take the game down at startup.
                         System.err.println("Failed to load HUD plugin from " + entrypoint.getProvider().getMetadata().getId());
                         e.printStackTrace();
                     }
                 });
-        } catch (Exception e) {
+        } catch (Exception | LinkageError e) {
             System.err.println("Error initializing HUD plugins");
             e.printStackTrace();
         }
@@ -54,6 +57,8 @@ public class SimpleCPSClient implements ClientModInitializer {
         // is the authoritative one, so the result stays correct if the order above ever
         // changes (e.g. config loading moving after plugin discovery).
         manager.distributeModuleState();
+        // The game starts outside any world; title-screen edits are measured from here.
+        ServerConfigManager.markOutsideBaseline();
 
         openEditorKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
             "key.simplecps.open_editor",

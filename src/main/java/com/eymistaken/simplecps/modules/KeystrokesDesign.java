@@ -209,12 +209,15 @@ public enum KeystrokesDesign {
         config.keystrokesPressedColor = palette[1];
         config.keystrokesBackgroundColor = palette[2];
         config.keystrokesBackgroundOpacity = palette[3];
+        // The palette was drawn to be read with the automatic label color.
+        config.keystrokesPressedTextAuto = true;
 
         // Per-key color overrides would sit on top of the new palette and break the
         // look the design was drawn for, so they go back to following the module.
         for (SimpleCPSConfig.KeyButtonData btn : config.keystrokesLayout) {
             btn.btnColor = -1;
             btn.btnPressedColor = -1;
+            btn.btnPressedTextColor = null;
         }
 
         java.util.List<Slot> slots = arrangement();
@@ -314,17 +317,28 @@ public enum KeystrokesDesign {
     }
 
     /**
-     * Whether the accent color paints the body rather than the label.
+     * Whether this design's body is flooded with the accent while a key is held.
      *
-     * <p>The old model only ever recolored the text. Most of these designs flood
-     * the body instead and flip the label to a readable tone against it, which is
-     * why {@link #labelOn(int)} exists rather than a second config field.
+     * <p>Only designs that really fill the body count. {@link #FRAME} paints just its
+     * border and {@link #SEGMENT} only faint slices, so the label behind them sits on
+     * an empty key; counting them turned that label dark or light over nothing.
      */
     public boolean accentPaintsBody() {
         return switch (this) {
-            case BASELINE, NEON, BAR -> false;
+            case BASELINE, NEON, BAR, FRAME, SEGMENT -> false;
             default -> true;
         };
+    }
+
+    /**
+     * Whether the accent covers the label while a key is held, by this design's body
+     * or by one of the fills. A sweep or cascade floods the key in the accent too; on
+     * {@link #BAR} they ride the rail under the label instead, so they do not count there.
+     */
+    public boolean accentCoversLabel(java.util.List<KeystrokesAnim.Fill> fills) {
+        if (accentPaintsBody()) return true;
+        if (this == BAR || this == TIMELINE || fills == null) return false;
+        return fills.contains(KeystrokesAnim.Fill.SWEEP) || fills.contains(KeystrokesAnim.Fill.CASCADE);
     }
 
     /** Perceived brightness, 0-255. Used to pick a label tone against a flooded body. */
@@ -336,12 +350,16 @@ public enum KeystrokesDesign {
     }
 
     /**
-     * The label color to use while the key is held. When the body is flooded the
-     * label has to leave the accent and go dark (or light, against a dark accent)
-     * or it disappears into its own background.
+     * The automatic label color while the key is held. When the accent covers the
+     * label it has to leave the accent and go dark (or light, against a dark accent)
+     * or it disappears into its own background; otherwise the label wears the accent.
+     *
+     * <p>It looks at the fills as well as the design: deciding by the design alone
+     * painted a Baseline key's letter in the accent while a sweep flooded the key in
+     * the same accent, and the letter vanished.
      */
-    public int labelOn(int accent) {
-        if (!accentPaintsBody()) return accent;
+    public int labelOn(int accent, java.util.List<KeystrokesAnim.Fill> fills) {
+        if (!accentCoversLabel(fills)) return accent;
         return luminance(accent) > 140 ? 0xFF0D1114 : 0xFFF2F6FA;
     }
 

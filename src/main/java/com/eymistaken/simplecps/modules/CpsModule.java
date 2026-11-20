@@ -141,15 +141,19 @@ public class CpsModule extends HudModule {
         context.pose().scale(scale, scale);
         
         if (config.cpsShowBackground) {
-            int bgX = -padding;
-            int bgY = -padding;
+            // The background fills the module's own box, and the text sits inside it.
+            // It used to hang 2px up and left out of the box, so the editor's frame
+            // and the background visibly disagreed.
+            int bgX = 0;
+            int bgY = 0;
             int bgW_local = (int)(textWidth / scale) + (padding * 2); 
             int bgH_local = (int)(textHeight / scale) + (padding * 2);
             int bgAlphaColor = (config.cpsBackgroundOpacity << 24) | (config.cpsBackgroundColor & 0x00FFFFFF);
             context.fill(bgX, bgY, bgX + bgW_local, bgY + bgH_local, col(bgAlphaColor));
         }
 
-        drawText(context, cpsText, 0, 0, color);
+        int inset = config.cpsShowBackground ? padding : 0;
+        drawText(context, cpsText, inset, inset, color);
         context.pose().popMatrix();
     }
 

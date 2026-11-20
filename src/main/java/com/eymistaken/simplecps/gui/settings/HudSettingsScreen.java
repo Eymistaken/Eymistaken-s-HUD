@@ -23,6 +23,7 @@ import com.eymistaken.simplecps.util.HudActions;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import com.mojang.blaze3d.platform.InputConstants;
 
 import java.util.ArrayList;
@@ -205,6 +206,8 @@ public class HudSettingsScreen extends ScaledDesignScreen implements SettingsSch
     private boolean drawerOpen;
 
     private JsonElement openSnapshot;
+    /** The config as it stood when a sub-screen opened; null while none has. */
+    private JsonElement subScreenEntry;
     /**
      * Whether {@link #takeSnapshot()} has run for this screen instance yet.
      *
@@ -286,6 +289,7 @@ public class HudSettingsScreen extends ScaledDesignScreen implements SettingsSch
         // onConfigReplaced() still re-baselines deliberately when a preset or share
         // code swaps the config out.
         if (!snapshotTaken) takeSnapshot();
+        else adoptSubScreenWork();
         layout();
     }
 
@@ -561,8 +565,41 @@ public class HudSettingsScreen extends ScaledDesignScreen implements SettingsSch
     private void openSubScreen(Screen screen) {
         commitFocus();
         flushPendingSave();
+        SimpleCPSConfig.collectModuleState();
+        subScreenEntry = GSON.toJsonTree(SimpleCPSConfig.instance);
         if (this.minecraft != null) {
             this.minecraft.gui.setScreen(screen);
+        }
+    }
+
+    /**
+     * Fold what a sub-screen changed into the baseline CANCEL restores.
+     *
+     * <p>The designer and the HUD editor save their own work and have their own way
+     * out without keeping it. Without this, CANCEL here undid that work too, but only
+     * if a setting had also been touched on this screen: the same visit to the
+     * designer survived or vanished depending on something unrelated. Only the fields
+     * the sub-screen changed are adopted, so edits made here before it opened can still
+     * be cancelled.
+     */
+    private void adoptSubScreenWork() {
+        JsonElement entry = subScreenEntry;
+        subScreenEntry = null;
+        if (entry == null || !entry.isJsonObject() || openSnapshot == null || !openSnapshot.isJsonObject()) return;
+
+        SimpleCPSConfig.collectModuleState();
+        JsonObject before = entry.getAsJsonObject();
+        JsonObject now = GSON.toJsonTree(SimpleCPSConfig.instance).getAsJsonObject();
+        JsonObject base = openSnapshot.getAsJsonObject();
+
+        java.util.Set<String> keys = new java.util.HashSet<>(before.keySet());
+        keys.addAll(now.keySet());
+        for (String key : keys) {
+            JsonElement was = before.get(key);
+            JsonElement is = now.get(key);
+            if (java.util.Objects.equals(was, is)) continue;
+            if (is == null) base.remove(key);
+            else base.add(key, is.deepCopy());
         }
     }
 

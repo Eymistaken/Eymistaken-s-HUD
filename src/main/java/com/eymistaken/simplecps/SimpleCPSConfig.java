@@ -32,9 +32,12 @@ public class SimpleCPSConfig {
                 SimpleCPSConfig loaded = GSON.fromJson(reader, SimpleCPSConfig.class);
                 if (loaded != null) {
                     instance = loaded;
+                } else {
+                    keepUnreadableCopy();
                 }
             } catch (IOException | RuntimeException e) {
                 e.printStackTrace();
+                keepUnreadableCopy();
             }
             instance.normalize();
         } else {
@@ -46,6 +49,29 @@ public class SimpleCPSConfig {
             // no key animation at all.
             instance.normalize();
             save(); // Create default
+        }
+    }
+
+    /**
+     * Copy a config file that could not be read to {@code simplecps.json.unreadable-<time>}
+     * before anything overwrites it.
+     *
+     * <p>The mod carries on with the defaults, and the first save used to write them
+     * over the only copy of the player's settings, leaving nothing to repair by hand.
+     * An empty file is skipped: there is nothing in it to recover.
+     */
+    private static void keepUnreadableCopy() {
+        try {
+            if (!CONFIG_FILE.isFile() || CONFIG_FILE.length() == 0) return;
+            String stamp = java.time.LocalDateTime.now()
+                .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+            File copy = new File(CONFIG_FILE.getParentFile(), CONFIG_FILE.getName() + ".unreadable-" + stamp);
+            java.nio.file.Files.copy(CONFIG_FILE.toPath(), copy.toPath(),
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            System.err.println("[Eymistaken's HUD] Could not read " + CONFIG_FILE.getName()
+                + "; starting from defaults. The unreadable file was kept as " + copy.getName());
+        } catch (IOException | RuntimeException e) {
+            e.printStackTrace();
         }
     }
 
@@ -84,7 +110,11 @@ public class SimpleCPSConfig {
     public void resetToDefaults() {
         instance = new SimpleCPSConfig();
         instance.resetLayout();
-        instance.ensureDefaults();
+        // normalize(), not just ensureDefaults(), for the same reason load() calls it
+        // on a fresh install: the design and animation fields start null and only
+        // normalize() turns them into the defaults. Without it the keys lost their
+        // squish after a reset and got it back only once the game was restarted.
+        instance.normalize();
         save();
     }
 
@@ -582,7 +612,20 @@ public class SimpleCPSConfig {
     public boolean keystrokesRainbow = false;
     public RainbowTarget keystrokesRainbowTarget = RainbowTarget.TEXT;
     public int keystrokesColor = 0xFFFFFF;
+    /**
+     * The accent: what a held key is painted with — its body, outline, fill
+     * animations and release trail. The settings screen calls it the accent color; the
+     * field keeps its old name because it is the on-disk key.
+     */
     public int keystrokesPressedColor = 0x00FF00;
+    /**
+     * Pick the held key's text color automatically: a dark or light tone against a
+     * design or fill that floods the key with the accent, the accent itself where the
+     * key stays empty. Off means {@link #keystrokesPressedTextColor} is used instead.
+     */
+    public boolean keystrokesPressedTextAuto = true;
+    /** The held key's text color while {@link #keystrokesPressedTextAuto} is off. */
+    public int keystrokesPressedTextColor = 0xFFFFFF;
     public int keystrokesBackgroundColor = 0x000000;
     public int keystrokesBackgroundOpacity = 128;
     /**
@@ -634,10 +677,18 @@ public class SimpleCPSConfig {
         public boolean italic = false;
         public boolean underlined = false;
         public int labelX = -1, labelY = -1; // -1 means center
+        /** This key's text color, or -1 to follow the module. See {@link #isKeyColor(int)}. */
         @com.google.gson.annotations.SerializedName("btnColor")
-        public int btnColor = -1; // -1 means global color
+        public int btnColor = -1;
+        /** This key's accent, or -1 to follow the module. See {@link #isKeyColor(int)}. */
         @com.google.gson.annotations.SerializedName("btnPressedColor")
-        public int btnPressedColor = -1; // -1 means global pressed color
+        public int btnPressedColor = -1;
+        /**
+         * This key's text color while held, or null to follow the module (which may
+         * itself be automatic). A nullable field rather than another -1 sentinel, so
+         * every color, white included, can be stored as itself.
+         */
+        public Integer btnPressedTextColor = null;
         public Boolean animationEnabled = null; // null means unset (treat as true)
 
         /**
@@ -687,6 +738,34 @@ public class SimpleCPSConfig {
             this.keyCode = keyCode;
             this.isMouse = isMouse;
         }
+
+        /**
+         * Whether a stored {@link #btnColor} or {@link #btnPressedColor} names a color
+         * rather than "follow the module". Both -1 and 0 mean follow: 0 is what builds
+         * from before the no-arg constructor wrote in place of -1.
+         */
+        public static boolean isKeyColor(int stored) {
+            return stored != -1 && stored != 0;
+        }
+
+        /**
+         * Encode a picked RGB color for {@link #btnColor} or {@link #btnPressedColor}.
+         *
+         * <p>Colors are stored opaque, but opaque white has the same bits as -1, the
+         * "follow the module" marker, so picking pure white used to read back as GLOBAL
+         * and the key kept the module's color. White is stored with a zero alpha byte
+         * instead; every reader draws the value with the alpha forced on, so the two
+         * look the same.
+         */
+        public static int encodeKeyColor(int rgb) {
+            int argb = 0xFF000000 | (rgb & 0xFFFFFF);
+            return argb == -1 ? 0x00FFFFFF : argb;
+        }
+
+        /** The stored per-key color as an opaque color, or {@code fallback} when it follows the module. */
+        public static int keyColorOr(int stored, int fallback) {
+            return isKeyColor(stored) ? stored | 0xFF000000 : fallback;
+        }
     }
 
     /**
@@ -721,6 +800,10 @@ public class SimpleCPSConfig {
         public RainbowTarget rainbowTarget;
         public int color = 0xFFFFFF;
         public int pressedColor = 0x00FF00;
+        // Defaulted, not null: a code from before these existed carries neither, and
+        // automatic is exactly how its sender's keys looked.
+        public boolean pressedTextAuto = true;
+        public int pressedTextColor = 0xFFFFFF;
         public int bgColor = 0x000000;
         public int bgOpacity = 128;
 
@@ -742,6 +825,8 @@ public class SimpleCPSConfig {
             s.rainbowTarget = c.keystrokesRainbowTarget;
             s.color = c.keystrokesColor;
             s.pressedColor = c.keystrokesPressedColor;
+            s.pressedTextAuto = c.keystrokesPressedTextAuto;
+            s.pressedTextColor = c.keystrokesPressedTextColor;
             s.bgColor = c.keystrokesBackgroundColor;
             s.bgOpacity = c.keystrokesBackgroundOpacity;
             return s;
@@ -786,6 +871,8 @@ public class SimpleCPSConfig {
             c.keystrokesRainbowTarget = rainbowTarget == null ? RainbowTarget.TEXT : rainbowTarget;
             c.keystrokesColor = color;
             c.keystrokesPressedColor = pressedColor;
+            c.keystrokesPressedTextAuto = pressedTextAuto;
+            c.keystrokesPressedTextColor = pressedTextColor;
             c.keystrokesBackgroundColor = bgColor;
             c.keystrokesBackgroundOpacity = clamp(bgOpacity, 0, 255);
             return true;

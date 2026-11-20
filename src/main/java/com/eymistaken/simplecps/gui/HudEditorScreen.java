@@ -152,6 +152,8 @@ public class HudEditorScreen extends Screen {
     /** How long the Export Code row reads "COPIED!" after a successful export. */
     private static final long COPIED_MILLIS = 1400;
     private long copiedUntil = 0;
+    /** Until when the Save Config row reads "Saved!"; clicks are ignored meanwhile. */
+    private long savedUntil = 0;
 
     // For slider dragging
     private com.eymistaken.simplecps.api.SliderSetting draggingSlider = null;
@@ -522,10 +524,7 @@ public class HudEditorScreen extends Screen {
                             }
                             SimpleCPSConfig.save();
                         }
-                        case GLOBAL_ROW_SAVE_CONFIG -> {
-                            ConfigPresetManager.savePreset(ConfigPresetManager.uniqueDefaultName());
-                            cachedPresetNames = ConfigPresetManager.listPresets();
-                        }
+                        case GLOBAL_ROW_SAVE_CONFIG -> saveConfigPreset();
                         case GLOBAL_ROW_CONFIGS -> { /* hover opens the fly-out; click just consumes */ }
                         case GLOBAL_ROW_SERVER_CONFIGS -> { /* hover opens the fly-out; click just consumes */ }
                         case GLOBAL_ROW_EXPORT_CODE -> exportShareCode();
@@ -1094,6 +1093,25 @@ public class HudEditorScreen extends Screen {
         shareStatusUntil = System.currentTimeMillis() + 2500;
     }
 
+    /**
+     * Store the current config as the next free "Config N" preset.
+     *
+     * <p>The row confirms the save in place and ignores clicks while it does. It used
+     * to give no sign of having worked, so people clicked it again and again and found
+     * a run of identical presets in the list afterwards.
+     */
+    private void saveConfigPreset() {
+        if (System.currentTimeMillis() < savedUntil) return;
+        String name = ConfigPresetManager.uniqueDefaultName();
+        if (ConfigPresetManager.savePreset(name)) {
+            savedUntil = System.currentTimeMillis() + COPIED_MILLIS;
+            cachedPresetNames = ConfigPresetManager.listPresets();
+            setShareStatus("Saved as \"" + name + "\"");
+        } else {
+            setShareStatus("Could not save the config");
+        }
+    }
+
     /** Copy the whole current config to the clipboard as an EYMHUD1- share code. */
     private void exportShareCode() {
         com.eymistaken.simplecps.util.HudActions.Result result =
@@ -1345,10 +1363,12 @@ public class HudEditorScreen extends Screen {
         context.text(this.font, Component.literal(gridVal), x + w - gridValW - 5, rGrid + 6,
             fade(gridOn ? 0xFF55FF55 : 0xFFFF5555, p), true);
 
-        // Row 2: Save Config
+        // Row 2: Save Config, which briefly confirms the save in place
         int r1 = y + 20 + GLOBAL_ROW_SAVE_CONFIG * 20;
         if (hoverRow(mouseX, mouseY, x, r1, w)) context.fill(x, r1, x + w, r1 + 20, fade(0xFF444444, p));
-        context.text(this.font, Component.literal("Save Config"), x + 5, r1 + 6, fade(0xFF55FFFF, p), true);
+        boolean justSaved = System.currentTimeMillis() < savedUntil;
+        context.text(this.font, Component.literal(justSaved ? "Saved!" : "Save Config"), x + 5, r1 + 6,
+            fade(justSaved ? 0xFFAAFFAA : 0xFF55FFFF, p), true);
 
         // Row 3: Configs (fly-out)
         int r2 = y + 20 + GLOBAL_ROW_CONFIGS * 20;
@@ -1939,13 +1959,27 @@ public class HudEditorScreen extends Screen {
         // The text prompt is reached from a context menu, not from a focused widget,
         // so there is no moment left to ask for typed text once it opens.
         com.eymistaken.simplecps.gui.settings.TextInput.setTyping(this, true);
+        // Vanilla skips the HUD layer entirely while F1 has it hidden, so opening the
+        // editor then showed an empty screen with nothing to drag. Show the HUD while
+        // the editor is open and hide it again on the way out.
+        if (this.minecraft != null && this.minecraft.gui.hud.isHidden() && !unhidHud) {
+            this.minecraft.gui.hud.toggle();
+            unhidHud = true;
+        }
         super.init();
     }
+
+    /** Whether this editor turned F1's hidden HUD back on, and so owes hiding it again. */
+    private boolean unhidHud = false;
 
     @Override
     public void removed() {
         com.eymistaken.simplecps.gui.settings.TextInput.setTyping(this, false);
         finishGlides();
+        if (unhidHud && this.minecraft != null && !this.minecraft.gui.hud.isHidden()) {
+            this.minecraft.gui.hud.toggle();
+        }
+        unhidHud = false;
         super.removed();
     }
 

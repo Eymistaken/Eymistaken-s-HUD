@@ -562,7 +562,20 @@ public final class SettingsSchema {
                 new Tab("style", "STYLE", List.of(
                     color("keys.textColor", "Text Color", "Color of the key text.",
                         c -> c.keystrokesColor, (c, v) -> c.keystrokesColor = v),
-                    color("keys.pressedColor", "Pressed Color", "Color used while a key is held down.",
+                    bool("keys.pressedTextAuto", "Auto Pressed Text",
+                        "Pick the text color of a held key for you: dark or light where the accent fills "
+                            + "the key, the accent itself where the key stays empty.",
+                        c -> c.keystrokesPressedTextAuto, (c, v) -> c.keystrokesPressedTextAuto = v),
+                    // Picking a color turns Auto off: a color that silently did nothing
+                    // until a second switch was found is the confusion this row exists to end.
+                    color("keys.pressedTextColor", "Pressed Text Color",
+                        "Color of the key text while the key is held. Picking one turns Auto Pressed Text off.",
+                        c -> c.keystrokesPressedTextColor,
+                        (c, v) -> { c.keystrokesPressedTextColor = v; c.keystrokesPressedTextAuto = false; }),
+                    color("keys.pressedColor", "Accent Color",
+                        "Paints a held key: its body, outline and animations, depending on the design. "
+                            + "Designs that leave the key empty put it on the text instead, unless "
+                            + "a pressed text color is set.",
                         c -> c.keystrokesPressedColor, (c, v) -> c.keystrokesPressedColor = v),
                     bool("keys.rainbow", "Rainbow", "Enable the rainbow effect.",
                         c -> c.keystrokesRainbow, (c, v) -> c.keystrokesRainbow = v),

@@ -113,9 +113,14 @@ public final class KeystrokesTimeline {
         return label.substring(0, 4);
     }
 
+    /**
+     * @param pressedText the lane label's color while its key is held, or null to use
+     *                    the accent: nothing floods the label here, so the accent reads
+     */
     public static void draw(GuiGraphicsExtractor ctx, Font font, Store store,
                             List<SimpleCPSConfig.KeyButtonData> keys,
-                            int idle, int accent) {
+                            int idle, int accent, Integer pressedText) {
+        int activeLabel = pressedText != null ? pressedText | 0xFF000000 : accent;
         long now = System.currentTimeMillis();
         // Pixels per millisecond: the lane holds exactly WINDOW_MS of history.
         float speed = (float) LANE_W / WINDOW_MS;
@@ -136,7 +141,7 @@ public final class KeystrokesTimeline {
             int textW = font.width(Component.literal(label));
             ctx.text(font, Component.literal(label),
                 laneX - LABEL_GAP - textW, y + (ROW_H - font.lineHeight) / 2 + 1,
-                active ? accent : idle, true);
+                active ? activeLabel : idle, true);
 
             ctx.fill(laneX, y, laneX + LANE_W, y + ROW_H, 0x14FFFFFF);
             // The "now" line: presses are born here and travel left.

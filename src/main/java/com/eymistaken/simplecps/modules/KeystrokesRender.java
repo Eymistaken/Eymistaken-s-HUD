@@ -234,14 +234,16 @@ public final class KeystrokesRender {
      * used to each carry their own copy of the drawing, which is what lets a "what
      * you see is what you get" screen quietly stop being that.
      *
-     * @param accent  the pressed color, which a design may put on the body or the text
-     * @param idle    the resting label color
-     * @param cps     the click counter to draw, or null to skip it
+     * @param accent       the pressed color, which a design may put on the body or the text
+     * @param idle         the resting label color
+     * @param pressedText  the label color while held, or null to let the design pick
+     *                     one; see {@link #pressedLabelColor}
+     * @param cps          the click counter to draw, or null to skip it
      */
     public static void drawKey(GuiGraphicsExtractor ctx, Font font,
                                SimpleCPSConfig.KeyButtonData btn, KeyStyle style,
                                KeystrokesAnim.State state, int bgColor,
-                               int idle, int accent, boolean ghostOn,
+                               int idle, int accent, Integer pressedText, boolean ghostOn,
                                String cps, String labelOverride) {
         boolean pressed = state.press > 0.5f;
 
@@ -268,13 +270,27 @@ public final class KeystrokesRender {
         KeystrokesAnim.drawFill(ctx, state, style.fills(), style.direction(),
             style.design(), btn, accent);
 
-        // A design that floods its body has to move the label off the accent, or the
-        // letter vanishes into the color that was meant to highlight it.
-        int labelColor = pressed ? style.design().labelOn(accent) : idle;
+        int labelColor = pressed ? pressedLabelColor(style, accent, pressedText) : idle;
         drawLabel(ctx, font, btn, labelColor, labelOverride);
         if (cps != null) drawCps(ctx, font, btn, labelColor, cps);
 
         ctx.pose().popMatrix();
+    }
+
+    /**
+     * The label color of a held key.
+     *
+     * <p>A color the player chose wins. Without one, the design decides: when the key
+     * is flooded with the accent — by its body or by a sweep or cascade fill — the label
+     * has to leave the accent or the letter vanishes into the color meant to highlight
+     * it, so it turns dark or light. A key that stays empty shows the accent on the
+     * letter itself.
+     *
+     * @param pressedText the chosen color, or null for automatic
+     */
+    public static int pressedLabelColor(KeyStyle style, int accent, Integer pressedText) {
+        if (pressedText != null) return pressedText | 0xFF000000;
+        return style.design().labelOn(accent, style.fills());
     }
 
     /** Draw the small CPS number at the bottom of a mouse button. */

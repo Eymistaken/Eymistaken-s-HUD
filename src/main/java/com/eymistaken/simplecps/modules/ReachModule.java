@@ -138,15 +138,19 @@ public class ReachModule extends HudModule {
         context.pose().scale(scale, scale);
         
         if (config.reachShowBackground) {
-            int bgX = -padding;
-            int bgY = -padding;
+            // The background fills the module's own box, and the text sits inside it.
+            // It used to hang 2px up and left out of the box, so the editor's frame
+            // and the background visibly disagreed.
+            int bgX = 0;
+            int bgY = 0;
             int bgW_local = (int)(textWidth / scale) + (padding * 2);
             int bgH_local = (int)(textHeight / scale) + (padding * 2);
             int bgAlphaColor = (config.reachBackgroundOpacity << 24) | (config.reachBackgroundColor & 0x00FFFFFF);
             context.fill(bgX, bgY, bgX + bgW_local, bgY + bgH_local, col(bgAlphaColor));
         }
 
-        drawText(context, reachText, 0, 0, color);
+        int inset = config.reachShowBackground ? padding : 0;
+        drawText(context, reachText, inset, inset, color);
         context.pose().popMatrix();
     }
 

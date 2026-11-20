@@ -34,6 +34,46 @@ public class KeystrokesModule extends HudModule {
     }
 
     @Override
+    public void tick(Minecraft client) {
+        releaseStuckKeys(client);
+        // The timeline also records from here, not only while it is drawn: a key let
+        // go while the HUD was hidden was otherwise never seen to come up, and came
+        // back as one long bar for the whole time it was out of sight.
+        SimpleCPSConfig config = SimpleCPSConfig.instance;
+        if (config != null && design(config) == KeystrokesDesign.TIMELINE) {
+            KeystrokesTimeline.update(timelineStore, config.keystrokesLayout, KeystrokesModule::isDown);
+        }
+    }
+
+    /**
+     * Drop keys that are no longer held but whose release never arrived.
+     *
+     * <p>{@link #pressedKeys} only learns about a release from the key event. Let go
+     * of a key while the window is in the background -- an Alt+Tab mid-strafe -- and
+     * that event goes elsewhere, so the key stayed lit until it was pressed again.
+     * Keyboard keys are checked against the game's own key state; mouse buttons have
+     * nothing equivalent to ask, so they are only cleared when the window loses focus.
+     */
+    private static void releaseStuckKeys(Minecraft client) {
+        if (pressedKeys.isEmpty()) return;
+        if (!client.isWindowActive()) {
+            pressedKeys.clear();
+            return;
+        }
+        pressedKeys.removeIf(code -> code < 1000 && !keyHeld(code));
+    }
+
+    /** The game's own key state for a scancode; one it cannot index is treated as up. */
+    private static boolean keyHeld(int scancode) {
+        if (scancode < 0) return false;
+        try {
+            return InputConstants.isKeyDown(scancode);
+        } catch (IndexOutOfBoundsException e) {
+            return false;
+        }
+    }
+
+    @Override
     public com.eymistaken.simplecps.api.HudPreview getPreview() {
         return com.eymistaken.simplecps.api.HudPreview.ofModule(this);
     }
@@ -83,6 +123,8 @@ public class KeystrokesModule extends HudModule {
         config.keystrokesRainbowTarget = SimpleCPSConfig.RainbowTarget.TEXT;
         config.keystrokesColor = 0xFFFFFF;
         config.keystrokesPressedColor = 0x00FF00;
+        config.keystrokesPressedTextAuto = true;
+        config.keystrokesPressedTextColor = 0xFFFFFF;
         config.keystrokesBackgroundColor = 0x000000;
         config.keystrokesBackgroundOpacity = 128;
         config.keystrokesDesign = KeystrokesDesign.BASELINE;
@@ -96,12 +138,16 @@ public class KeystrokesModule extends HudModule {
         config.keystrokesGhost = false;
         config.keystrokesBoard = false;
         // Per-key overrides are part of the look too, so a visual reset that left
-        // them behind would still show a neon key in an otherwise plain layout.
+        // them behind would still show a neon key in an otherwise plain layout. The
+        // same goes for a key's own colors.
         for (SimpleCPSConfig.KeyButtonData btn : config.keystrokesLayout) {
             btn.design = null;
             btn.motion = null;
             btn.fill = null;
             btn.direction = null;
+            btn.btnColor = -1;
+            btn.btnPressedColor = -1;
+            btn.btnPressedTextColor = null;
         }
     }
 
@@ -204,10 +250,15 @@ public class KeystrokesModule extends HudModule {
         // a background none of its neighbors had, which read as a rendering fault rather
         // than a pressed state. Real presses still register while the menu is open.
 
+        // An explicit pressed text color wins over the rainbow, the same way a key's
+        // own colors do: it was chosen on purpose. Null leaves it to the design.
+        Integer modulePressedText = config.keystrokesPressedTextAuto
+            ? null : config.keystrokesPressedTextColor;
+
         if (design(config) == KeystrokesDesign.TIMELINE) {
             KeystrokesTimeline.update(timeline(), config.keystrokesLayout, KeystrokesModule::isDown);
             KeystrokesTimeline.draw(drawContext, client.font, timeline(),
-                config.keystrokesLayout, normalColor, pressedColor);
+                config.keystrokesLayout, normalColor, pressedColor, modulePressedText);
             drawContext.pose().popMatrix();
             return;
         }
@@ -229,9 +280,10 @@ public class KeystrokesModule extends HudModule {
             KeystrokesAnim.step(state, style.motions(), style.fills(), isPressed,
                 style.animated(), config.keystrokesGhost, btn);
 
-            int idle = btn.btnColor != -1 && btn.btnColor != 0 ? btn.btnColor : normalColor;
-            int accent = btn.btnPressedColor != -1 && btn.btnPressedColor != 0
-                ? btn.btnPressedColor : pressedColor;
+            int idle = SimpleCPSConfig.KeyButtonData.keyColorOr(btn.btnColor, normalColor);
+            int accent = SimpleCPSConfig.KeyButtonData.keyColorOr(btn.btnPressedColor, pressedColor);
+            Integer pressedText = btn.btnPressedTextColor != null
+                ? btn.btnPressedTextColor : modulePressedText;
 
             String cps = null;
             if (btn.showCps && btn.isMouse) {
@@ -243,7 +295,7 @@ public class KeystrokesModule extends HudModule {
             }
 
             KeystrokesRender.drawKey(drawContext, client.font, btn, style, state,
-                baseBgColor, idle, accent, config.keystrokesGhost, cps, null);
+                baseBgColor, idle, accent, pressedText, config.keystrokesGhost, cps, null);
         }
 
         drawContext.pose().popMatrix();

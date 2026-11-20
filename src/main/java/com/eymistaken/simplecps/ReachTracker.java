@@ -54,7 +54,10 @@ public class ReachTracker {
             return null;
         }
 
-        return String.format("%.2f blocks", lastReach);
+        // Locale.ROOT: the rest of the line is English, and the default locale is the
+        // operating system's, not the game's, so a Turkish or German system wrote
+        // "2,85 blocks" while an English one wrote "2.85 blocks".
+        return String.format(java.util.Locale.ROOT, "%.2f blocks", lastReach);
     }
     
     public static double getLastReach() {
