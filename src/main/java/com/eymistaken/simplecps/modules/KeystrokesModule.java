@@ -14,9 +14,8 @@ public class KeystrokesModule extends HudModule {
 
     public static final Set<Integer> pressedKeys = new HashSet<>();
 
-    // Animations are stepped once per draw with no delta time, so the preview cannot
-    // share their state: the settings screen renders over a live HUD, and both passes
-    // stepping the same store would run the real keystrokes at double speed.
+    // The settings screen draws a preview over the live HUD; each keeps its own
+    // animation and timeline state, so one never steps the other's.
     private final KeystrokesAnim.Store animStore = new KeystrokesAnim.Store();
     private final KeystrokesAnim.Store previewAnimStore = new KeystrokesAnim.Store();
     private final KeystrokesTimeline.Store timelineStore = new KeystrokesTimeline.Store();

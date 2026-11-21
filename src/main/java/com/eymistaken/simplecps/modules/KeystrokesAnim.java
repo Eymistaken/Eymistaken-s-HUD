@@ -133,7 +133,21 @@ public final class KeystrokesAnim {
 
     // ---------------------------------------------------------------- state
 
-    /** Per-key animation progress. Stepped once per draw, as the old effects were. */
+    /**
+     * The frame rate every rate in {@link #step} was tuned at, by eye, with VSync on a
+     * 165 Hz display. A step advances by the real time since the last one, measured in
+     * frames of this rate, so the animation runs the same at 60 FPS or uncapped. Before
+     * that it moved a fixed amount per draw: uncapped, a press finished within a few
+     * milliseconds and every animation looked absent.
+     */
+    private static final float REFERENCE_FPS = 165f;
+    /**
+     * Longest gap a single step catches up on. A key that was not drawn for a while (HUD
+     * hidden, a menu covering it) settles in one step instead of replaying the gap.
+     */
+    private static final float MAX_STEP_FRAMES = REFERENCE_FPS / 10f;
+
+    /** Per-key animation progress, advanced by real time; see {@link #REFERENCE_FPS}. */
     public static final class State {
         /** Scale for squish and kick; 1 is at rest. */
         public float scale = 1f;
@@ -149,12 +163,14 @@ public final class KeystrokesAnim {
         public float rippleOuter = 0f;
         public float rippleInner = 0f;
         boolean wasPressed = false;
+        /** {@link System#nanoTime()} of the last step; 0 before the first. */
+        long lastStepNanos = 0L;
     }
 
     /**
      * States keyed by button. The settings screen renders a preview over the live
-     * HUD, so a single shared map would be stepped by both passes and run the real
-     * keystrokes at double speed — hence separate stores, picked by the caller.
+     * HUD, and each keeps its own store, picked by the caller, so neither depends on
+     * whether the other was drawn this frame.
      */
     public static final class Store {
         private final Map<Integer, State> states = new HashMap<>();
@@ -182,11 +198,25 @@ public final class KeystrokesAnim {
         return btn.keyCode + (btn.isMouse ? 1000 : 0);
     }
 
-    /** Move {@code current} toward {@code target}, snapping once it is close. */
-    private static float approach(float current, float target, float speed) {
+    /**
+     * Move {@code current} toward {@code target} by {@code speed} of the remaining distance
+     * per reference frame, over {@code frames} of them; snaps once it is close.
+     */
+    private static float approach(float current, float target, float speed, float frames) {
         float diff = target - current;
         if (Math.abs(diff) < 0.01f) return target;
-        return current + diff * speed;
+        float share = 1f - (float) Math.pow(1f - speed, frames);
+        return current + diff * share;
+    }
+
+    /** Reference frames since this state's last step, capped; one on the first step. */
+    private static float elapsedFrames(State s) {
+        long now = System.nanoTime();
+        long last = s.lastStepNanos;
+        s.lastStepNanos = now;
+        if (last == 0L) return 1f;
+        float frames = (now - last) / 1_000_000_000f * REFERENCE_FPS;
+        return Math.max(0f, Math.min(frames, MAX_STEP_FRAMES));
     }
 
     private static float clamp01(float v) {
@@ -194,7 +224,7 @@ public final class KeystrokesAnim {
     }
 
     /**
-     * Advance one key's animation by a frame.
+     * Advance one key's animation by the real time since its last step.
      *
      * <p>{@code enabled} is the key's own animation switch, and it gates every axis.
      * Before it did, a key with its animation turned off still rippled, so the
@@ -204,6 +234,7 @@ public final class KeystrokesAnim {
                             boolean pressed, boolean enabled, boolean ghostOn,
                             SimpleCPSConfig.KeyButtonData btn) {
         boolean down = pressed && enabled;
+        float f = elapsedFrames(s);
 
         // Squish and kick both drive the scale. When both are on, kick wins: it is
         // the same compression with a spring on the way back, so running them
@@ -219,20 +250,20 @@ public final class KeystrokesAnim {
         if (kick && !down && s.scale < 1f) {
             // The spring overshoots on release, then settles. Without the overshoot
             // this would just be a slower squish.
-            s.scale = approach(s.scale, 1.06f, 0.35f);
+            s.scale = approach(s.scale, 1.06f, 0.35f, f);
             if (s.scale >= 1.055f) s.scale = 1f;
         } else {
-            s.scale = approach(s.scale, target, kick ? 0.45f : 0.2f);
+            s.scale = approach(s.scale, target, kick ? 0.45f : 0.2f, f);
         }
 
         if (fills.contains(Fill.RIPPLE) && enabled) {
             float maxR = (float) Math.sqrt(btn.w * btn.w + btn.h * btn.h) / 2f * 1.05f;
             if (pressed) {
-                s.rippleOuter = Math.min(s.rippleOuter + maxR * 0.18f, maxR);
+                s.rippleOuter = Math.min(s.rippleOuter + maxR * 0.18f * f, maxR);
                 s.rippleInner = 0f;
             } else if (s.rippleOuter > 0f) {
                 s.rippleOuter = maxR;
-                s.rippleInner = Math.min(s.rippleInner + maxR * 0.15f, maxR);
+                s.rippleInner = Math.min(s.rippleInner + maxR * 0.15f * f, maxR);
                 if (s.rippleInner >= maxR) {
                     s.rippleOuter = 0f;
                     s.rippleInner = 0f;
@@ -243,19 +274,19 @@ public final class KeystrokesAnim {
             s.rippleInner = 0f;
         }
 
-        s.press = clamp01(approach(s.press, down ? 1f : 0f, down ? 0.22f : 0.18f));
+        s.press = clamp01(approach(s.press, down ? 1f : 0f, down ? 0.22f : 0.18f, f));
 
-        // The hold ring counts real held frames rather than easing toward a target,
+        // The hold ring counts real held time rather than easing toward a target,
         // because saying how long the key has been down is its whole job.
-        if (down && fills.contains(Fill.HOLD_RING)) s.hold = clamp01(s.hold + 1f / 42f);
-        else s.hold = clamp01(s.hold - 1f / 26f);
+        if (down && fills.contains(Fill.HOLD_RING)) s.hold = clamp01(s.hold + f / 42f);
+        else s.hold = clamp01(s.hold - f / 26f);
 
-        if (down && fills.contains(Fill.EDGE_RUN)) s.run = (s.run + 1f / 54f) % 1f;
+        if (down && fills.contains(Fill.EDGE_RUN)) s.run = (s.run + f / 54f) % 1f;
         else s.run = 0f;
 
         // The trail fires on the press-to-release edge, then fades on its own.
         if (s.wasPressed && !pressed && ghostOn && enabled) s.ghost = 1f;
-        else if (s.ghost > 0f) s.ghost = Math.max(0f, s.ghost - 0.07f);
+        else if (s.ghost > 0f) s.ghost = Math.max(0f, s.ghost - 0.07f * f);
         s.wasPressed = pressed;
     }
 
