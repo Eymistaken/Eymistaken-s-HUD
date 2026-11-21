@@ -4,6 +4,8 @@ import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.input.KeyEvent;
 //? if <26.3
 //import net.minecraft.client.Minecraft;
+//? if <26.1
+//import net.minecraft.client.input.InputQuirks;
 
 /**
  * Held-key state and the few key numbers that differ between Minecraft versions.
@@ -55,7 +57,14 @@ public final class Keys {
      * game's own text fields read it.
      */
     public static boolean ctrlDown(KeyEvent event) {
+        //? if >=26.1 {
         return event.hasControlDownWithQuirk();
+        //?} else {
+        /*// The 1.21.x jar runs on two meanings of hasControlDown: 1.21.9 and 1.21.10 count
+        // Command on macOS, 1.21.11 only Ctrl and adds hasControlDownWithQuirk for the old
+        // reading. Testing the modifier both read gives the same answer on all three.
+        return (event.modifiers() & InputQuirks.EDIT_SHORTCUT_KEY_MODIFIER) != 0;
+        *///?}
     }
 
     /** What the game calls a keyboard key in Controls, on this keyboard layout. */

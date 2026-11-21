@@ -2,7 +2,7 @@ package com.eymistaken.simplecps.compat;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
-//? if <26.3 {
+//? if >=26.1 <26.3 {
 /*import net.minecraft.client.Options;
 import net.minecraft.client.gui.Gui;
 
@@ -19,9 +19,10 @@ import java.lang.invoke.MethodType;
  * {@code compat} touches them directly.
  *
  * <p>The jar for 26.1 to 26.2 is compiled against 26.2, so it calls {@code Gui} directly and
- * reaches 26.1's versions through {@link Legacy}, which looks them up at run time. 26.x is
+ * reaches 26.1's versions through {@code Legacy}, which looks them up at run time. 26.x is
  * not obfuscated, so the names it looks up are the real ones and do not change between
- * 26.1 patches.
+ * 26.1 patches. The jar for 1.21.9 to 1.21.11 calls {@code Minecraft} directly: all three
+ * stay there, under the same intermediary names, up to 1.21.11.
  */
 public final class Screens {
 
@@ -29,44 +30,56 @@ public final class Screens {
 
     /** Show {@code screen}, or return to the game for {@code null}. */
     public static void open(Screen screen) {
-        //? if <26.3 {
+        //? if >=26.1 <26.3 {
         /*if (Legacy.ACTIVE) {
             Legacy.open(screen);
             return;
         }
         *///?}
+        //? if >=26.1 {
         Minecraft.getInstance().gui.setScreen(screen);
+        //?} else
+        //Minecraft.getInstance().setScreen(screen);
     }
 
     /** The screen on display, or {@code null} while playing. */
     public static Screen current() {
-        //? if <26.3 {
+        //? if >=26.1 <26.3 {
         /*if (Legacy.ACTIVE) return Legacy.current();
         *///?}
+        //? if >=26.1 {
         return Minecraft.getInstance().gui.screen();
+        //?} else
+        //return Minecraft.getInstance().screen;
     }
 
     /** Whether F1 has the HUD hidden. */
     public static boolean hudHidden() {
-        //? if <26.3 {
+        //? if >=26.1 <26.3 {
         /*if (Legacy.ACTIVE) return Legacy.hudHidden();
         *///?}
+        //? if >=26.1 {
         return Minecraft.getInstance().gui.hud.isHidden();
+        //?} else
+        //return Minecraft.getInstance().options.hideGui;
     }
 
     /** Hide or show the HUD the way F1 does. Does nothing if it is already that way. */
     public static void setHudHidden(boolean hidden) {
         if (hudHidden() == hidden) return;
-        //? if <26.3 {
+        //? if >=26.1 <26.3 {
         /*if (Legacy.ACTIVE) {
             Legacy.setHudHidden(hidden);
             return;
         }
         *///?}
+        //? if >=26.1 {
         Minecraft.getInstance().gui.hud.toggle();
+        //?} else
+        //Minecraft.getInstance().options.hideGui = hidden;
     }
 
-    //? if <26.3 {
+    //? if >=26.1 <26.3 {
     /*/^*
      * 26.1's homes for the three, found once, the first time any of them is used.
      *

@@ -1,7 +1,9 @@
 // Shared by every node. Stonecutter runs this once per versions/<node> project, with that
 // node's gradle.properties layered over the root one.
 plugins {
-    id 'net.fabricmc.fabric-loom' version '1.16-SNAPSHOT'
+    // Applies fabric-loom-remap on 1.21.x and fabric-loom on 26.x (see settings.gradle), and
+    // gives the 26.x nodes the mod* configurations too, so one dependency block serves both.
+    id 'dev.kikugie.loom-back-compat'
     id 'maven-publish'
 }
 
@@ -19,12 +21,47 @@ repositories {
 
 dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
-    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
-    implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+    // Mojang's names for the obfuscated 1.21.x game; nothing on 26.x, which ships them.
+    loomx.applyMojangMappings()
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 
     // ModMenu only supplies the entrypoint that opens HudSettingsScreen; the screen
     // itself is plain Minecraft, so the mod has no GUI library dependency at runtime.
-    compileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
+    modCompileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
+}
+
+// Names that differ between the 26.x and 1.21.x games, swapped across the whole source
+// when Stonecutter writes it for a node. src/ is committed with the 26.x names, and a node
+// below each bound gets the old ones. The 1.21.x jar is remapped to intermediary names, so
+// the 1.21.9 name still runs on 1.21.11, where ResourceLocation is called Identifier.
+// Only names nothing else in the mod uses belong here. The drawing calls (text, item and
+// the rest) are switched in compat.Draw instead, because SettingsTheme.text and
+// EymHudFonts.text are this mod's own methods with the same names.
+stonecutter {
+    replacements.regex(current.parsed.matches('>=26.1')) {
+        replace '\\bGuiGraphics\\b', 'GuiGraphicsExtractor', '\\bGuiGraphicsExtractor\\b', 'GuiGraphics'
+    }
+    replacements.regex(current.parsed.matches('>=1.21.11')) {
+        replace '\\bResourceLocation\\b', 'Identifier', '\\bIdentifier\\b', 'ResourceLocation'
+    }
+    // Fabric API renamed these during 26.1: key registration took Mojang's names with the
+    // game, and resource-loader-v1's registerReloader became registerReloadListener.
+    replacements.string(current.parsed.matches('>=26.1')) {
+        replace 'client.keybinding.v1.KeyBindingHelper', 'client.keymapping.v1.KeyMappingHelper'
+        replace 'KeyBindingHelper.registerKeyBinding', 'KeyMappingHelper.registerKeyMapping'
+        replace '.registerReloader(', '.registerReloadListener('
+    }
+    // A screen draws itself in extractRenderState on 26.x and in render on 1.21.x. Only
+    // the overrides of the screen method change, picked out by its four parameters
+    // (graphics, mouse x and y, partial tick), and the super calls inside them. HudModule's
+    // extractRenderState is this mod's own API and keeps its name everywhere; it takes two.
+    replacements.regex(current.parsed.matches('>=26.1')) {
+        replace '\\brender(?=\\(GuiGraphics \\w+, int \\w+, int \\w+, float \\w+\\))', 'extractRenderState',
+            '\\bextractRenderState(?=\\(GuiGraphicsExtractor \\w+, int \\w+, int \\w+, float \\w+\\))', 'render'
+        replace '\\bsuper\\.render(?=\\(\\w+, \\w+, \\w+, \\w+\\))', 'super.extractRenderState',
+            '\\bsuper\\.extractRenderState(?=\\(\\w+, \\w+, \\w+, \\w+\\))', 'super.render'
+    }
 }
 
 // Mixins only some nodes have, appended to the shared list in simplecps.mixins.json.
@@ -44,6 +81,13 @@ loom {
         runConfigs.configureEach {
             runDir = '../../run'
         }
+    }
+}
+
+// The dev client runs on the Java its players run, not on Gradle's: 21 for 1.21.x.
+tasks.withType(JavaExec).matching { it.name.startsWith('run') }.configureEach {
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(project.java_version as int)
     }
 }
 
@@ -72,10 +116,11 @@ java {
 }
 
 // Every node's jars in one folder, build/libs/ at the repository root, for the release.
+// On 1.21.x the jar to ship is the remapped one (remapJar); loomx.modJar picks it per node.
 tasks.register('collectJars', Copy) {
     group = 'build'
     description = "Copies this node's mod and sources jars to the root build/libs/."
-    from tasks.named('jar'), tasks.named('sourcesJar')
+    from loomx.modJar, loomx.modSourcesJar
     into rootProject.layout.buildDirectory.dir('libs')
 }
 
