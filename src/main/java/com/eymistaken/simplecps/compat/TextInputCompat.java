@@ -10,6 +10,11 @@ import net.minecraft.client.Minecraft;
  * and a field looks alive — caret and all — while swallowing everything typed into it.
  * Vanilla turns it on from {@code EditBox}'s focus. How that request is made differs between
  * versions, which is why it lives here.
+ *
+ * <p>Before 26.3, under GLFW, characters arrive whether or not anything asked for them; the
+ * request only switches the input method (IME) on for languages that compose text. Those
+ * versions also take no owner, so the last screen to stop typing turns it off for everyone,
+ * which is how vanilla's own fields behave there.
  */
 public final class TextInputCompat {
 
@@ -22,10 +27,18 @@ public final class TextInputCompat {
     public static void setTyping(Object owner, boolean typing) {
         Minecraft client = Minecraft.getInstance();
         if (client == null) return;
+        //? if >=26.3 {
         if (typing) {
             client.textInputManager().startTextInput(owner);
         } else {
             client.textInputManager().stopTextInput(owner);
         }
+        //?} else {
+        /*if (typing) {
+            client.textInputManager().startTextInput();
+        } else {
+            client.textInputManager().stopTextInput();
+        }
+        *///?}
     }
 }

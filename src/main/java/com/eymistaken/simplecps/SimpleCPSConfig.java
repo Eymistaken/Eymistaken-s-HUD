@@ -168,17 +168,20 @@ public class SimpleCPSConfig {
     }
 
     /**
-     * Bring key codes written before Minecraft 26.3 into the numbering 26.3 reports.
+     * Bring the key codes into the numbering this jar's game reports, whichever one they
+     * were written in.
      *
      * <p>26.3 moved the client from GLFW to SDL, which numbers keys and mouse buttons
-     * differently, so a config, preset or share code from an older build names the wrong
-     * keys until it is translated. Runs once per config: the scheme it stamps is then
-     * written back on the next save.
+     * differently, so a config, preset or share code written by a build for the other side
+     * of that line names the wrong keys until it is translated. The same file can go both
+     * ways: saved on 26.3, opened on 26.2, then back. Runs once per config: the scheme it
+     * stamps is then written back on the next save.
      */
     private void migrateKeyCodes() {
-        if (keyCodeScheme != null && keyCodeScheme >= KEY_CODES_SDL) return;
-        com.eymistaken.simplecps.util.InputCodes.migrate(keystrokesLayout);
-        keyCodeScheme = KEY_CODES_SDL;
+        int from = com.eymistaken.simplecps.util.InputCodes.schemeOf(keyCodeScheme);
+        int to = com.eymistaken.simplecps.util.InputCodes.NATIVE;
+        com.eymistaken.simplecps.util.InputCodes.translate(keystrokesLayout, from, to);
+        keyCodeScheme = to;
     }
 
     /** A missing/unknown enum name deserializes to null; fall back to the default. */
@@ -882,15 +885,23 @@ public class SimpleCPSConfig {
     public List<KeyButtonData> keystrokesLayout = new ArrayList<>();
 
     /**
-     * Which numbering the {@link KeyButtonData#keyCode}s above are written in. Null is a
-     * config from before Minecraft 26.3, whose codes are GLFW's; {@link #KEY_CODES_SDL} is
-     * the scancodes 26.3 reports. It has to be recorded, because the two numberings overlap
-     * and no code can be told apart by its value alone: GLFW's W is 87, which is SDL's
-     * keypad plus. {@link com.eymistaken.simplecps.util.InputCodes} does the translation.
+     * Which numbering the {@link KeyButtonData#keyCode}s above are written in:
+     * {@link #KEY_CODES_SDL}, the scancodes 26.3 reports, or {@link #KEY_CODES_GLFW}, the key
+     * codes of every version before it. Null is a config from before 26.3, whose codes are
+     * GLFW's. It has to be recorded, because the two numberings overlap and no code can be
+     * told apart by its value alone: GLFW's W is 87, which is SDL's keypad plus.
+     * {@link com.eymistaken.simplecps.util.InputCodes} does the translation, and each jar
+     * writes its own game's numbering.
      */
     public Integer keyCodeScheme = null;
 
-    /** The numbering Minecraft 26.3 reports, and the only one this build writes. */
+    /**
+     * The numbering Minecraft before 26.3 reports. Zero rather than null, so the stamp says
+     * which numbering was written instead of leaving it to the reader; a 26.3 build that
+     * knows only {@link #KEY_CODES_SDL} still reads it as "not SDL" and translates.
+     */
+    public static final int KEY_CODES_GLFW = 0;
+    /** The numbering Minecraft 26.3 reports. */
     public static final int KEY_CODES_SDL = 1;
 
     public SimpleCPSConfig() {
@@ -928,8 +939,8 @@ public class SimpleCPSConfig {
         keystrokesLayout.add(new KeyButtonData("CTRL", 0, 84, 33, 13, InputConstants.KEY_LCONTROL));
         keystrokesLayout.add(new KeyButtonData("SHIFT", 34, 84, 33, 13, InputConstants.KEY_LSHIFT));
 
-        // These are written in the current numbering, so there is nothing to migrate.
-        keyCodeScheme = KEY_CODES_SDL;
+        // These are written in this game's numbering, so there is nothing to migrate.
+        keyCodeScheme = com.eymistaken.simplecps.util.InputCodes.NATIVE;
     }
 
     // --- COMBO ---

@@ -1,5 +1,9 @@
 package com.eymistaken.simplecps.mixin;
 
+// 26.3 and later only. Older nodes compile this file empty and leave it out of
+// simplecps.mixins.json (build.gradle, nodeMixins); they read a swing from
+// MixinClientPacketListener.onAnimate instead.
+//? if >=26.3 {
 import com.eymistaken.simplecps.ComboTracker;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.network.protocol.game.ClientboundSwingAnimationPacket;
@@ -13,8 +17,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  *
  * <p>Kept apart from {@link MixinClientPacketListener} because this packet and its handler
  * exist only from 26.3 on: before that a swing arrived as an action of
- * {@code ClientboundAnimatePacket}. A build for an older version leaves this mixin out and
- * reads the swing from there instead.
+ * {@code ClientboundAnimatePacket}, and the node built for those versions leaves this
+ * mixin out and reads the swing from there instead.
  *
  * <p>Like the other handlers it hops to the client thread first, so RETURN only ever runs there.
  */
@@ -25,3 +29,4 @@ public class MixinClientPacketListenerSwing {
         ComboTracker.onSwingAnimation(packet.entityId());
     }
 }
+//?}

@@ -40,6 +40,11 @@ public final class HudShareCodec {
      * imports — its key codes are translated on the way in — while stamping them is what
      * makes an older build reject ours with "not a valid share code" rather than binding
      * a layout to whatever keys those numbers happen to mean there.
+     *
+     * <p>Since there are jars for both numberings, a keystrokes payload is always written in
+     * SDL's, whichever game wrote it: the stamp is all it has to say which numbering it holds,
+     * and schema 3 already means SDL to every 26.3 build. A config payload says so itself,
+     * in its {@code keyCodeScheme}, and is written in the sender's own numbering.
      */
     private static final int SCHEMA_CONFIG = 2;
     private static final int SCHEMA_KEYSTROKES = 3;
@@ -52,6 +57,8 @@ public final class HudShareCodec {
     private static final int MAX_INFLATED_BYTES = 512 * 1024;
 
     private static final Gson GSON = new GsonBuilder().create();
+    private static final java.lang.reflect.Type LAYOUT_TYPE =
+        new TypeToken<List<SimpleCPSConfig.KeyButtonData>>() {}.getType();
 
     private HudShareCodec() {}
 
@@ -75,9 +82,14 @@ public final class HudShareCodec {
      * repainted as a plain grid. See {@link SimpleCPSConfig.KeystrokesShare}.
      */
     public static String encodeKeystrokes() {
-        return encode(TYPE_KEYSTROKES,
-            GSON.toJsonTree(SimpleCPSConfig.KeystrokesShare.capture(SimpleCPSConfig.instance)),
-            SCHEMA_KEYSTROKES);
+        SimpleCPSConfig.KeystrokesShare share =
+            SimpleCPSConfig.KeystrokesShare.capture(SimpleCPSConfig.instance);
+        if (InputCodes.NATIVE != SimpleCPSConfig.KEY_CODES_SDL) {
+            // capture() hands over the live key list, so translate a copy of it.
+            share.layout = GSON.fromJson(GSON.toJsonTree(share.layout), LAYOUT_TYPE);
+            InputCodes.translate(share.layout, InputCodes.NATIVE, SimpleCPSConfig.KEY_CODES_SDL);
+        }
+        return encode(TYPE_KEYSTROKES, GSON.toJsonTree(share), SCHEMA_KEYSTROKES);
     }
 
     /** Mod version of this install, or "" if it cannot be determined. */
@@ -189,10 +201,13 @@ public final class HudShareCodec {
                 case TYPE_KEYSTROKES -> {
                     SimpleCPSConfig.KeystrokesShare share = readKeystrokes(decoded.payloadJson());
                     if (share == null) return false;
-                    // A code written before 26.3 names GLFW's keys. The config payload
-                    // carries its own numbering marker and normalize() handles it; a
-                    // keystrokes payload has only the stamp on the envelope.
-                    if (decoded.schemaVersion() < SCHEMA_KEYSTROKES) InputCodes.migrate(share.layout);
+                    // A code written before 26.3 names GLFW's keys, every later one SDL's.
+                    // The config payload carries its own numbering marker and normalize()
+                    // handles it; a keystrokes payload has only the stamp on the envelope.
+                    int wire = decoded.schemaVersion() < SCHEMA_KEYSTROKES
+                        ? SimpleCPSConfig.KEY_CODES_GLFW
+                        : SimpleCPSConfig.KEY_CODES_SDL;
+                    InputCodes.translate(share.layout, wire, InputCodes.NATIVE);
                     if (!share.applyTo(SimpleCPSConfig.instance)) return false;
                     SimpleCPSConfig.instance.normalize();
                 }
@@ -224,8 +239,7 @@ public final class HudShareCodec {
             return GSON.fromJson(payload, SimpleCPSConfig.KeystrokesShare.class);
         }
         if (payload.isJsonArray()) {
-            List<SimpleCPSConfig.KeyButtonData> layout = GSON.fromJson(
-                payload, new TypeToken<List<SimpleCPSConfig.KeyButtonData>>() {}.getType());
+            List<SimpleCPSConfig.KeyButtonData> layout = GSON.fromJson(payload, LAYOUT_TYPE);
             SimpleCPSConfig.KeystrokesShare share =
                 SimpleCPSConfig.KeystrokesShare.capture(SimpleCPSConfig.instance);
             share.layout = layout;

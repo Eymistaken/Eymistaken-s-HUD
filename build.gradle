@@ -27,15 +27,34 @@ dependencies {
     compileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
 }
 
+// Mixins only some nodes have, appended to the shared list in simplecps.mixins.json.
+// 26.3 sends other players' arm swings as their own packet, and this mixin injects into its
+// handler. Before 26.3 that handler does not exist: a swing is an action of
+// ClientboundAnimatePacket, which MixinClientPacketListener already reads.
+def nodeMixins = []
+if (stonecutter.eval(stonecutter.current.version, '>=26.3')) {
+    nodeMixins << 'MixinClientPacketListenerSwing'
+}
+
 loom {
-    // The dev client keeps the run/ folder at the repository root, with its config and world.
-    runConfigs.configureEach {
-        runDir = '../../run'
+    // The 26.3 dev client keeps the run/ folder at the repository root, with its config
+    // and world. Older nodes get their own (versions/<node>/run, Loom's default): a world
+    // or options.txt saved by a newer game does not open in an older one.
+    if (project.name == '26.3') {
+        runConfigs.configureEach {
+            runDir = '../../run'
+        }
     }
 }
 
 processResources {
-    def props = [version: project.version, mc_dep: project.mc_dep, java: project.java_version]
+    def props = [
+        version    : project.version,
+        mc_dep     : project.mc_dep,
+        fabric_dep : project.fabric_api_dep,
+        java       : project.java_version,
+        node_mixins: nodeMixins.collect { ",\n        \"${it}\"" }.join(''),
+    ]
     inputs.properties props
     filesMatching(['fabric.mod.json', 'simplecps.mixins.json']) {
         expand props

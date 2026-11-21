@@ -193,9 +193,18 @@ public final class ComboTracker {
     }
 
     public static void onAnimate(ClientboundAnimatePacket packet) {
-        if (packet.getAction() == ClientboundAnimatePacket.CRITICAL_HIT) {
+        int action = packet.getAction();
+        if (action == ClientboundAnimatePacket.CRITICAL_HIT) {
             onCriticalHit(packet.getId());
         }
+        // Before 26.3 an arm swing is one of this packet's actions. 26.3 moved it to its own
+        // packet, read by MixinClientPacketListenerSwing, and dropped these two constants.
+        //? if <26.3 {
+        /*else if (action == ClientboundAnimatePacket.SWING_MAIN_HAND
+            || action == ClientboundAnimatePacket.SWING_OFF_HAND) {
+            onSwingAnimation(packet.getId());
+        }
+        *///?}
     }
 
     /**

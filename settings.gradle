@@ -12,14 +12,19 @@ plugins {
     id 'dev.kikugie.stonecutter' version '0.9.8'
 }
 
-// One source tree, one jar per node. Each node is compiled against the oldest Minecraft
-// version its jar runs on; the values that differ live in versions/<node>/gradle.properties.
+// One source tree, one jar per node. Each node is compiled against one Minecraft version
+// and runs on the range in its mc_dep; the values that differ live in
+// versions/<node>/gradle.properties.
 stonecutter {
     kotlinController = false
     centralScript = 'build.gradle'
 
     create(getRootProject()) {
-        versions '26.3'
+        // 26.2 runs on 26.1 to 26.2: the jar is built against the newest of them, and
+        // compat.Screens finds the three calls 26.1 keeps elsewhere at run time.
+        versions '26.3', '26.2'
+        // The state src/ is committed in; see stonecutter.active.
+        vcsVersion = '26.3'
     }
 }
 

@@ -7,9 +7,8 @@
         "MixinMinecraftClient",
         "MixinClientPlayerInteractionManager",
         "MixinClientPacketListener",
-        "MixinClientPacketListenerSwing",
         "MixinMouse",
-        "MixinKeyboard"
+        "MixinKeyboard"${node_mixins}
     ],
     "injectors": {
         "defaultRequire": 1
