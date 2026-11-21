@@ -17,11 +17,14 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Java 25
+      # Gradle runs on 25, the last one listed. The 1.21.x jar targets Java 21.
+      - name: Setup Java 21 and 25
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '25'
+          java-version: |
+            21
+            25
           cache: gradle
 
       - name: Grant Gradle Permissions
@@ -34,8 +37,9 @@ jobs:
           echo "Found Version: $VERSION"
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 
+      # Builds every Stonecutter node and collects each one's jars into build/libs/.
       - name: Build Mod
-        run: ./gradlew clean build --refresh-dependencies --stacktrace
+        run: ./gradlew clean build collectJars --refresh-dependencies --stacktrace
 
       - name: Create Release
         uses: softprops/action-gh-release@v2

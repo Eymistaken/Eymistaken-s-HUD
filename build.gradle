@@ -1,9 +1,12 @@
+// Shared by every node. Stonecutter runs this once per versions/<node> project, with that
+// node's gradle.properties layered over the root one.
 plugins {
     id 'net.fabricmc.fabric-loom' version '1.16-SNAPSHOT'
     id 'maven-publish'
 }
 
-version = project.mod_version
+// eymistakens-hud-<mod_version>+<jar_label>.jar, with the same version in fabric.mod.json.
+version = "${project.mod_version}+${project.jar_label}"
 group = project.maven_group
 
 base {
@@ -21,13 +24,21 @@ dependencies {
 
     // ModMenu only supplies the entrypoint that opens HudSettingsScreen; the screen
     // itself is plain Minecraft, so the mod has no GUI library dependency at runtime.
-    compileOnly "com.terraformersmc:modmenu:21.0.0-beta.1"
+    compileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
+}
+
+loom {
+    // The dev client keeps the run/ folder at the repository root, with its config and world.
+    runConfigs.configureEach {
+        runDir = '../../run'
+    }
 }
 
 processResources {
-    inputs.property "version", project.version
-    filesMatching("fabric.mod.json") {
-        expand "version": project.version
+    def props = [version: project.version, mc_dep: project.mc_dep, java: project.java_version]
+    inputs.properties props
+    filesMatching(['fabric.mod.json', 'simplecps.mixins.json']) {
+        expand props
     }
 }
 
@@ -41,10 +52,23 @@ java {
     targetCompatibility = JavaVersion.toVersion(project.java_version)
 }
 
+// Every node's jars in one folder, build/libs/ at the repository root, for the release.
+tasks.register('collectJars', Copy) {
+    group = 'build'
+    description = "Copies this node's mod and sources jars to the root build/libs/."
+    from tasks.named('jar'), tasks.named('sourcesJar')
+    into rootProject.layout.buildDirectory.dir('libs')
+}
+
 publishing {
     publications {
         mavenJava(MavenPublication) {
             from components.java
+            // Add-ons get this through JitPack as com.github.Eymistaken:Eymistaken-s-hud.
+            // These are the coordinates the build published before it had nodes, so that
+            // line keeps resolving to the same 26.3 jar.
+            artifactId = rootProject.name
+            version = project.mod_version
         }
     }
 }

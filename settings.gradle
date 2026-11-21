@@ -7,4 +7,20 @@ pluginManagement {
         gradlePluginPortal()
     }
 }
+
+plugins {
+    id 'dev.kikugie.stonecutter' version '0.9.8'
+}
+
+// One source tree, one jar per node. Each node is compiled against the oldest Minecraft
+// version its jar runs on; the values that differ live in versions/<node>/gradle.properties.
+stonecutter {
+    kotlinController = false
+    centralScript = 'build.gradle'
+
+    create(getRootProject()) {
+        versions '26.3'
+    }
+}
+
 rootProject.name = 'simplecps'

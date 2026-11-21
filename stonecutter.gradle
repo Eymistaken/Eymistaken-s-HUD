@@ -1,0 +1,16 @@
+plugins {
+    id 'dev.kikugie.stonecutter'
+}
+
+// The version src/ is written for. It is always 26.3 in a commit: the other nodes build
+// from sources Stonecutter generates out of src/, so committing with another version
+// active would hand everyone a src/ switched to that version.
+stonecutter.active '26.3'
+
+// The nodes' collectJars put their jars in build/libs/ here. The root takes no `base`
+// plugin (Stonecutter warns against it), so this is its `clean`.
+tasks.register('clean', Delete) {
+    group = 'build'
+    description = 'Deletes the jars the nodes collected into the root build/libs/.'
+    delete layout.buildDirectory
+}
