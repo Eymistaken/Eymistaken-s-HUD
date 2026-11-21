@@ -4067,10 +4067,12 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
         keys.add(new SimpleCPSConfig.KeyButtonData("S", 23, 23, 21, 21, InputConstants.KEY_S));
         keys.add(new SimpleCPSConfig.KeyButtonData("D", 46, 23, 21, 21, InputConstants.KEY_D));
 
-        SimpleCPSConfig.KeyButtonData lmb = new SimpleCPSConfig.KeyButtonData("LMB", 0, 46, 33, 21, 0, true);
+        SimpleCPSConfig.KeyButtonData lmb = new SimpleCPSConfig.KeyButtonData("LMB", 0, 46, 33, 21,
+            InputConstants.MOUSE_BUTTON_LEFT, true);
         lmb.showCps = true;
         keys.add(lmb);
-        SimpleCPSConfig.KeyButtonData rmb = new SimpleCPSConfig.KeyButtonData("RMB", 34, 46, 33, 21, 1, true);
+        SimpleCPSConfig.KeyButtonData rmb = new SimpleCPSConfig.KeyButtonData("RMB", 34, 46, 33, 21,
+            InputConstants.MOUSE_BUTTON_RIGHT, true);
         rmb.showCps = true;
         keys.add(rmb);
 
@@ -4088,9 +4090,11 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
 
     private List<SimpleCPSConfig.KeyButtonData> mousePreset() {
         List<SimpleCPSConfig.KeyButtonData> keys = new ArrayList<>();
-        SimpleCPSConfig.KeyButtonData lmb = new SimpleCPSConfig.KeyButtonData("LMB", 0, 0, 33, 27, 0, true);
+        SimpleCPSConfig.KeyButtonData lmb = new SimpleCPSConfig.KeyButtonData("LMB", 0, 0, 33, 27,
+            InputConstants.MOUSE_BUTTON_LEFT, true);
         lmb.showCps = true;
-        SimpleCPSConfig.KeyButtonData rmb = new SimpleCPSConfig.KeyButtonData("RMB", 34, 0, 33, 27, 1, true);
+        SimpleCPSConfig.KeyButtonData rmb = new SimpleCPSConfig.KeyButtonData("RMB", 34, 0, 33, 27,
+            InputConstants.MOUSE_BUTTON_RIGHT, true);
         rmb.showCps = true;
         keys.add(lmb);
         keys.add(rmb);
