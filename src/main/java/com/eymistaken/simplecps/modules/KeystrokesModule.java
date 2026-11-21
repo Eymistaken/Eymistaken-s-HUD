@@ -2,6 +2,8 @@ package com.eymistaken.simplecps.modules;
 
 import com.eymistaken.simplecps.SimpleCPSConfig;
 import com.eymistaken.simplecps.api.HudModule;
+import com.eymistaken.simplecps.compat.Keys;
+import com.eymistaken.simplecps.compat.Screens;
 import com.mojang.blaze3d.platform.InputConstants;
 import java.util.HashSet;
 import java.util.Set;
@@ -67,7 +69,7 @@ public class KeystrokesModule extends HudModule {
     private static boolean keyHeld(int scancode) {
         if (scancode < 0) return false;
         try {
-            return InputConstants.isKeyDown(scancode);
+            return Keys.isKeyDown(scancode);
         } catch (IndexOutOfBoundsException e) {
             return false;
         }
@@ -337,7 +339,7 @@ public class KeystrokesModule extends HudModule {
                 v -> { config.keystrokesBoard = v; SimpleCPSConfig.save(); }),
             new com.eymistaken.simplecps.api.ActionSetting("Open Designer...", 0xFF6EE7A8, () -> {
                 net.minecraft.client.Minecraft client = net.minecraft.client.Minecraft.getInstance();
-                client.execute(() -> client.gui.setScreen(new com.eymistaken.simplecps.gui.KeystrokesDesignerScreen(client.gui.screen())));
+                client.execute(() -> Screens.open(new com.eymistaken.simplecps.gui.KeystrokesDesignerScreen(Screens.current())));
             })
         ));
         return settings;

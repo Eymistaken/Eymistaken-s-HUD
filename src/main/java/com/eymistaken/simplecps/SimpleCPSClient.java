@@ -1,5 +1,6 @@
 package com.eymistaken.simplecps;
 
+import com.eymistaken.simplecps.compat.Screens;
 import com.eymistaken.simplecps.gui.HudEditorScreen;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.fabricmc.api.ClientModInitializer;
@@ -85,8 +86,8 @@ public class SimpleCPSClient implements ClientModInitializer {
         HudModuleManager.getInstance().tickAll(client);
 
         while (openEditorKey.consumeClick()) {
-            if (client.gui.screen() == null) {
-                client.gui.setScreen(new HudEditorScreen(null));
+            if (Screens.current() == null) {
+                Screens.open(new HudEditorScreen(null));
             }
         }
     }

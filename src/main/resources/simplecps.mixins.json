@@ -7,6 +7,7 @@
         "MixinMinecraftClient",
         "MixinClientPlayerInteractionManager",
         "MixinClientPacketListener",
+        "MixinClientPacketListenerSwing",
         "MixinMouse",
         "MixinKeyboard"
     ],

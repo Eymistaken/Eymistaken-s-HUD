@@ -5,6 +5,7 @@ import com.eymistaken.simplecps.ConfigPresetManager;
 import com.eymistaken.simplecps.SimpleCPSConfig;
 import com.eymistaken.simplecps.api.HudModule;
 import com.eymistaken.simplecps.api.HudPreview;
+import com.eymistaken.simplecps.compat.Screens;
 import com.eymistaken.simplecps.gui.HudEditorScreen;
 import com.eymistaken.simplecps.gui.KeystrokesDesignerScreen;
 import com.eymistaken.simplecps.gui.settings.SettingsSchema.ActionRow;
@@ -290,12 +291,8 @@ public class HudSettingsScreen extends ScaledDesignScreen implements SettingsSch
         // code swaps the config out.
         if (!snapshotTaken) takeSnapshot();
         else adoptSubScreenWork();
-        layout();
-    }
-
-    @Override
-    public void resize(int width, int height) {
-        super.resize(width, height);
+        // Also the resize hook: vanilla re-runs init() on every resize. Overriding resize
+        // itself is avoided because its signature differs between versions.
         layout();
     }
 
@@ -500,7 +497,7 @@ public class HudSettingsScreen extends ScaledDesignScreen implements SettingsSch
 
     private void close() {
         if (this.minecraft != null) {
-            this.minecraft.gui.setScreen(parent);
+            Screens.open(parent);
         }
     }
 
@@ -568,7 +565,7 @@ public class HudSettingsScreen extends ScaledDesignScreen implements SettingsSch
         SimpleCPSConfig.collectModuleState();
         subScreenEntry = GSON.toJsonTree(SimpleCPSConfig.instance);
         if (this.minecraft != null) {
-            this.minecraft.gui.setScreen(screen);
+            Screens.open(screen);
         }
     }
 

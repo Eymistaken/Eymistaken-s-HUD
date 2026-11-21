@@ -1,5 +1,6 @@
 package com.eymistaken.simplecps.util;
 
+import com.eymistaken.simplecps.compat.Draw;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
@@ -21,10 +22,10 @@ public final class RenderUtil {
         for (int dx = -1; dx <= 1; dx++) {
             for (int dy = -1; dy <= 1; dy++) {
                 if (dx == 0 && dy == 0) continue;
-                ctx.text(font, text, x + dx, y + dy, outlineColor, false);
+                Draw.text(ctx, font, text, x + dx, y + dy, outlineColor, false);
             }
         }
-        ctx.text(font, text, x, y, color, false);
+        Draw.text(ctx, font, text, x, y, color, false);
     }
 
     /**

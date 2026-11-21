@@ -1,6 +1,7 @@
 package com.eymistaken.simplecps.modules;
 
 import com.eymistaken.simplecps.SimpleCPSConfig;
+import com.eymistaken.simplecps.compat.Draw;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
@@ -166,7 +167,7 @@ public final class KeystrokesRender {
         MutableComponent text = labelText(btn, override);
         float s = scaleFactor(btn);
         if (s == 1f) {
-            ctx.text(font, text, lx, ly, textColor, btn.shadow);
+            Draw.text(ctx, font, text, lx, ly, textColor, btn.shadow);
             return;
         }
         // Scaling around the label's own top-left keeps labelX/labelY meaning the same
@@ -174,7 +175,7 @@ public final class KeystrokesRender {
         ctx.pose().pushMatrix();
         ctx.pose().translate(lx, ly);
         ctx.pose().scale(s, s);
-        ctx.text(font, text, 0, 0, textColor, btn.shadow);
+        Draw.text(ctx, font, text, 0, 0, textColor, btn.shadow);
         ctx.pose().popMatrix();
     }
 
@@ -309,7 +310,7 @@ public final class KeystrokesRender {
         ctx.pose().scale(small, small);
         // Always shadowed, as it was before this drawing moved out of the module:
         // the number is small enough that dropping the shadow makes it hard to read.
-        ctx.text(font, Component.literal(cps), 0, 0, textColor);
+        Draw.text(ctx, font, Component.literal(cps), 0, 0, textColor);
         ctx.pose().popMatrix();
     }
 }

@@ -1,5 +1,6 @@
 package com.eymistaken.simplecps.gui.settings;
 
+import com.eymistaken.simplecps.compat.Draw;
 import java.util.Locale;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -217,7 +218,7 @@ public final class SettingsTheme {
 
     /** Draw shadowless text; the mock has no drop shadows anywhere. */
     public static void text(GuiGraphicsExtractor ctx, Font font, String s, int x, int y, int color) {
-        ctx.text(font, label(s), x, y, color, false);
+        Draw.text(ctx, font, label(s), x, y, color, false);
     }
 
     public static void centeredText(GuiGraphicsExtractor ctx, Font font, String s, int cx, int y, int color) {

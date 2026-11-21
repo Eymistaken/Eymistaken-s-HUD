@@ -1,5 +1,7 @@
 package com.eymistaken.simplecps.gui.settings;
 
+import com.eymistaken.simplecps.compat.Keys;
+import com.eymistaken.simplecps.compat.TextInputCompat;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -44,21 +46,13 @@ public final class TextInput {
     /**
      * Tell the game whether typed text is wanted, on behalf of the screen that owns a field.
      *
-     * <p>Minecraft 26.3 only asks the system for text while something has text focus; with it
-     * off, no character ever reaches {@link net.minecraft.client.gui.screens.Screen#charTyped}
-     * and a field looks alive — caret and all — while swallowing everything typed into it.
-     * Vanilla turns it on from {@code EditBox}'s focus, and this field is deliberately not a
-     * widget, so the screen says it instead. Passing {@code owner} means a screen can only
-     * ever turn off its own.
+     * <p>Vanilla asks for text from {@code EditBox}'s focus, and this field is deliberately not
+     * a widget, so the screen says it instead; without it nothing typed reaches the field (see
+     * {@link TextInputCompat}). Passing {@code owner} means a screen can only ever turn off
+     * its own.
      */
     public static void setTyping(Object owner, boolean typing) {
-        Minecraft client = Minecraft.getInstance();
-        if (client == null) return;
-        if (typing) {
-            client.textInputManager().startTextInput(owner);
-        } else {
-            client.textInputManager().stopTextInput(owner);
-        }
+        TextInputCompat.setTyping(owner, typing);
     }
 
     private String value = "";
@@ -239,7 +233,7 @@ public final class TextInput {
         }
 
         boolean shift = event.hasShiftDown();
-        boolean ctrl = event.hasControlDownWithQuirk();
+        boolean ctrl = Keys.ctrlDown(event);
 
         if (event.isLeft()) {
             setCursor(ctrl ? wordBoundary(-1) : cursor - 1, shift);

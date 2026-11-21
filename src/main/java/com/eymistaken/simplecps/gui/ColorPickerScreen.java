@@ -1,5 +1,8 @@
 package com.eymistaken.simplecps.gui;
 
+import com.eymistaken.simplecps.compat.Draw;
+import com.eymistaken.simplecps.compat.Keys;
+import com.eymistaken.simplecps.compat.Screens;
 import com.mojang.blaze3d.platform.InputConstants;
 import java.awt.Color;
 import java.util.function.IntConsumer;
@@ -103,7 +106,7 @@ public class ColorPickerScreen extends Screen {
         context.fill(cx, cy + 160, cx + 200, cy + 180, saveHovered ? 0xFF444444 : 0xFF222222);
         drawBorder(context, cx, cy + 160, 200, 20, 0xFFFFFFFF);
         
-        context.text(this.font, net.minecraft.network.chat.Component.literal("Save & Close"), cx + 65, cy + 166, 0xFFFFFFFF, true);
+        Draw.text(context, this.font, net.minecraft.network.chat.Component.literal("Save & Close"), cx + 65, cy + 166, 0xFFFFFFFF, true);
 
         // Phase 1 - Hex Box
         int hexBoxX = cx;
@@ -124,7 +127,7 @@ public class ColorPickerScreen extends Screen {
             context.fill(hexBoxX + 4, hexBoxY + 3, hexBoxX + 4 + textW, hexBoxY + 13, 0x804444FF);
         }
         
-        context.text(this.font, net.minecraft.network.chat.Component.literal(displayHex), hexBoxX + 4, hexBoxY + 4, 0xFFFFFFFF, true);
+        Draw.text(context, this.font, net.minecraft.network.chat.Component.literal(displayHex), hexBoxX + 4, hexBoxY + 4, 0xFFFFFFFF, true);
 
         // Phase 2 - Copy Button
         int copyBtnX = hexBoxX + hexBoxW + 5;
@@ -138,7 +141,7 @@ public class ColorPickerScreen extends Screen {
         
         boolean isCopied = System.currentTimeMillis() - copiedTime < 2000;
         String copyText = isCopied ? "Copied!" : "Copy";
-        context.text(this.font, net.minecraft.network.chat.Component.literal(copyText), copyBtnX + 4, copyBtnY + 4, isCopied ? 0xFF55FF55 : 0xFFFFFFFF, true);
+        Draw.text(context, this.font, net.minecraft.network.chat.Component.literal(copyText), copyBtnX + 4, copyBtnY + 4, isCopied ? 0xFF55FF55 : 0xFFFFFFFF, true);
 
         super.extractRenderState(context, mouseX, mouseY, delta);
     }
@@ -286,8 +289,7 @@ public class ColorPickerScreen extends Screen {
         }
     }
     private boolean isCtrlDown() {
-        return InputConstants.isKeyDown(InputConstants.KEY_LCONTROL)
-            || InputConstants.isKeyDown(InputConstants.KEY_RCONTROL);
+        return Keys.ctrlDown();
     }
 
     @Override
@@ -336,7 +338,7 @@ public class ColorPickerScreen extends Screen {
 
         if (keyCode == InputConstants.KEY_ESCAPE) {
             if (this.minecraft != null) {
-                this.minecraft.gui.setScreen(parent);
+                Screens.open(parent);
             }
             return true;
         }
@@ -347,7 +349,7 @@ public class ColorPickerScreen extends Screen {
         onSave.accept(getCurrentColor() & 0x00FFFFFF);
         com.eymistaken.simplecps.SimpleCPSConfig.save();
         if (this.minecraft != null) {
-            this.minecraft.gui.setScreen(parent);
+            Screens.open(parent);
         }
     }
 
@@ -366,7 +368,7 @@ public class ColorPickerScreen extends Screen {
     @Override
     public void onClose() {
         if (this.minecraft != null) {
-            this.minecraft.gui.setScreen(parent);
+            Screens.open(parent);
         }
     }
 }

@@ -5,6 +5,8 @@ import com.eymistaken.simplecps.ComboTracker;
 import com.eymistaken.simplecps.SimpleCPSConfig;
 import com.eymistaken.simplecps.api.ComboHeatmap;
 import com.eymistaken.simplecps.api.HudModule;
+import com.eymistaken.simplecps.compat.Draw;
+import com.eymistaken.simplecps.compat.Screens;
 import com.eymistaken.simplecps.gui.HudEditorScreen;
 import com.eymistaken.simplecps.util.Easings;
 import com.eymistaken.simplecps.util.RenderUtil;
@@ -353,7 +355,7 @@ public class ComboModule extends HudModule {
      */
     private Stage stage() {
         if (isPreviewing()) return preview;
-        return client.gui.screen() instanceof HudEditorScreen ? null : live;
+        return Screens.current() instanceof HudEditorScreen ? null : live;
     }
 
     /** Plays what the tracker reported since the last frame. */
@@ -750,8 +752,8 @@ public class ComboModule extends HudModule {
         if (outline) {
             RenderUtil.outlinedText(context, client.font, component, textX, textY, shown, edge);
         } else {
-            context.text(client.font, component, textX + 1, textY + 1, edge, false);
-            context.text(client.font, component, textX, textY, shown, false);
+            Draw.text(context, client.font, component, textX + 1, textY + 1, edge, false);
+            Draw.text(context, client.font, component, textX, textY, shown, false);
         }
     }
 

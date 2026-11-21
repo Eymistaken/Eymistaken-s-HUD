@@ -1,6 +1,8 @@
 package com.eymistaken.simplecps.gui;
 
 import com.eymistaken.simplecps.SimpleCPSConfig;
+import com.eymistaken.simplecps.compat.Keys;
+import com.eymistaken.simplecps.compat.Screens;
 import com.eymistaken.simplecps.gui.settings.HudSettingsScreen;
 import com.eymistaken.simplecps.gui.settings.ScaledDesignScreen;
 import com.eymistaken.simplecps.gui.settings.SettingsTheme;
@@ -381,12 +383,8 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
             snapshotTaken = true;
         }
         recenter();
-        layout0();
-    }
-
-    @Override
-    public void resize(int width, int height) {
-        super.resize(width, height);
+        // Also the resize hook: vanilla re-runs init() on every resize. Overriding resize
+        // itself is avoided because its signature differs between versions.
         layout0();
     }
 
@@ -3735,7 +3733,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
             return true;
         }
 
-        boolean ctrl = keyInput.hasControlDownWithQuirk();
+        boolean ctrl = Keys.ctrlDown(keyInput);
         if (ctrl && keyCode == InputConstants.KEY_Z) {
             undo();
             return true;
@@ -4437,14 +4435,14 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
         // Write the restore through: an import along the way already touched disk, so
         // leaving it in memory only would make CANCEL a half-undo.
         saveNow();
-        if (this.minecraft != null) this.minecraft.gui.setScreen(parent);
+        if (this.minecraft != null) Screens.open(parent);
     }
 
     private void openSettings() {
         saveNow();
         if (this.minecraft == null) return;
         // Coming from the settings screen, go back to it rather than stacking a second.
-        this.minecraft.gui.setScreen(
+        Screens.open(
             parent instanceof HudSettingsScreen ? parent : new HudSettingsScreen(parent));
     }
 
@@ -4470,7 +4468,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
         setLabelFocus(false);
         saveNow();
         if (this.minecraft != null) {
-            this.minecraft.gui.setScreen(parent);
+            Screens.open(parent);
         } else {
             super.onClose();
         }
@@ -4483,8 +4481,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
     }
 
     private boolean isCtrlDown() {
-        return InputConstants.isKeyDown(InputConstants.KEY_LCONTROL)
-            || InputConstants.isKeyDown(InputConstants.KEY_RCONTROL);
+        return Keys.ctrlDown();
     }
 
     private static boolean isModifierKey(int keyCode) {
@@ -4492,7 +4489,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
             case InputConstants.KEY_LSHIFT, InputConstants.KEY_RSHIFT,
                  InputConstants.KEY_LCONTROL, InputConstants.KEY_RCONTROL,
                  InputConstants.KEY_LALT, InputConstants.KEY_RALT,
-                 InputConstants.KEY_LGUI, InputConstants.KEY_RGUI -> true;
+                 Keys.LEFT_SUPER, Keys.RIGHT_SUPER -> true;
             default -> false;
         };
     }
@@ -4544,11 +4541,11 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
             case InputConstants.KEY_LSHIFT -> "LSHIFT";
             case InputConstants.KEY_LCONTROL -> "LCTRL";
             case InputConstants.KEY_LALT -> "LALT";
-            case InputConstants.KEY_LGUI -> "LSUPER";
+            case Keys.LEFT_SUPER -> "LSUPER";
             case InputConstants.KEY_RSHIFT -> "RSHIFT";
             case InputConstants.KEY_RCONTROL -> "RCTRL";
             case InputConstants.KEY_RALT -> "RALT";
-            case InputConstants.KEY_RGUI -> "RSUPER";
+            case Keys.RIGHT_SUPER -> "RSUPER";
             case InputCodes.KEY_MENU -> "MENU";
             default -> null;
         };
@@ -4569,7 +4566,7 @@ public class KeystrokesDesignerScreen extends ScaledDesignScreen {
 
         // What the key prints on this layout, e.g. "A" or ";". A key the system cannot
         // name comes back as its translation key, which is worse than the raw number.
-        String printed = InputConstants.Type.KEYBOARD.getOrCreate(keyCode).getDisplayName().getString();
+        String printed = Keys.displayName(keyCode);
         if (printed != null && !printed.isBlank() && !printed.startsWith("key.")) {
             return printed.toUpperCase(java.util.Locale.ROOT);
         }

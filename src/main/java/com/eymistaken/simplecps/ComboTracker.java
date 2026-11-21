@@ -17,7 +17,6 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.protocol.game.ClientboundAnimatePacket;
 import net.minecraft.network.protocol.game.ClientboundDamageEventPacket;
 import net.minecraft.network.protocol.game.ClientboundEntityEventPacket;
-import net.minecraft.network.protocol.game.ClientboundSwingAnimationPacket;
 import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -200,11 +199,17 @@ public final class ComboTracker {
     }
 
     /**
-     * Someone swung. Only the blame fallback needs this: a server that names the attacker in its
-     * damage events makes the guess unnecessary, and swings arrive far more often than hits.
+     * Entity {@code entityId} swung. Only the blame fallback needs this: a server that names the
+     * attacker in its damage events makes the guess unnecessary, and swings arrive far more often
+     * than hits.
+     *
+     * <p>Takes the id rather than the packet because the packet is version-specific: 26.3 sends a
+     * swing as its own packet, older versions as an action of {@link ClientboundAnimatePacket}.
+     * Should no swing ever be reported, damage the server does not attribute is taken for the
+     * environment's: it starts no received combo, and breaks ours only with "Break on Any Damage".
      */
-    public static void onSwingAnimation(ClientboundSwingAnimationPacket packet) {
-        if (!serverNamesAttackers) recentSwings.put(packet.entityId(), now());
+    public static void onSwingAnimation(int entityId) {
+        if (!serverNamesAttackers) recentSwings.put(entityId, now());
     }
 
     public static void onTick(Minecraft client) {

@@ -1,6 +1,7 @@
 package com.eymistaken.simplecps.api;
 
 import com.eymistaken.simplecps.SimpleCPSClient;
+import com.eymistaken.simplecps.compat.Draw;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
@@ -54,7 +55,7 @@ public abstract class HudModule implements IHudElement {
         if (com.eymistaken.simplecps.SimpleCPSConfig.instance.textOutline) {
             com.eymistaken.simplecps.util.RenderUtil.outlinedText(context, client.font, comp, x, y, col(color), col(0xFF000000));
         } else {
-            context.text(client.font, comp, x, y, col(color));
+            Draw.text(context, client.font, comp, x, y, col(color));
         }
     }
 

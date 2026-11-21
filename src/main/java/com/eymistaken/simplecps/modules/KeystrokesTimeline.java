@@ -1,6 +1,7 @@
 package com.eymistaken.simplecps.modules;
 
 import com.eymistaken.simplecps.SimpleCPSConfig;
+import com.eymistaken.simplecps.compat.Draw;
 import net.minecraft.network.chat.Component;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -139,7 +140,7 @@ public final class KeystrokesTimeline {
 
             String label = shortLabel(btn);
             int textW = font.width(Component.literal(label));
-            ctx.text(font, Component.literal(label),
+            Draw.text(ctx, font, Component.literal(label),
                 laneX - LABEL_GAP - textW, y + (ROW_H - font.lineHeight) / 2 + 1,
                 active ? activeLabel : idle, true);
 

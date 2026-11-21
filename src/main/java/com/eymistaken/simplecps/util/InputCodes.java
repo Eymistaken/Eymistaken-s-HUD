@@ -1,6 +1,7 @@
 package com.eymistaken.simplecps.util;
 
 import com.eymistaken.simplecps.SimpleCPSConfig;
+import com.eymistaken.simplecps.compat.Keys;
 import com.mojang.blaze3d.platform.InputConstants;
 
 import java.util.HashMap;
@@ -86,11 +87,11 @@ public final class InputCodes {
         put(340, InputConstants.KEY_LSHIFT);
         put(341, InputConstants.KEY_LCONTROL);
         put(342, InputConstants.KEY_LALT);
-        put(343, InputConstants.KEY_LGUI);
+        put(343, Keys.LEFT_SUPER);
         put(344, InputConstants.KEY_RSHIFT);
         put(345, InputConstants.KEY_RCONTROL);
         put(346, InputConstants.KEY_RALT);
-        put(347, InputConstants.KEY_RGUI);
+        put(347, Keys.RIGHT_SUPER);
         put(348, KEY_MENU);
     }
 

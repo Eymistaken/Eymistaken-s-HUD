@@ -1,6 +1,7 @@
 package com.eymistaken.simplecps;
 
 import com.eymistaken.simplecps.api.HudModule;
+import com.eymistaken.simplecps.compat.Screens;
 import com.eymistaken.simplecps.gui.HudEditorScreen;
 import com.eymistaken.simplecps.modules.*;
 import com.eymistaken.simplecps.util.Anim;
@@ -261,8 +262,8 @@ public class HudModuleManager {
         // The editor needs the HUD on screen to edit it. It turns F1 off while it is
         // open (see HudEditorScreen), which is what actually gets us called: vanilla
         // skips this whole layer while the HUD is hidden.
-        boolean isEditor = client.gui.screen() instanceof HudEditorScreen;
-        if (client.gui.hud.isHidden() && !isEditor) return;
+        boolean isEditor = Screens.current() instanceof HudEditorScreen;
+        if (Screens.hudHidden() && !isEditor) return;
 
         moduleBounds.clear();
 

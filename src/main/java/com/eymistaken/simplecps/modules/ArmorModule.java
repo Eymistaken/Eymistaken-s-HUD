@@ -3,6 +3,8 @@ package com.eymistaken.simplecps.modules;
 import com.eymistaken.simplecps.SimpleCPSConfig;
 import com.eymistaken.simplecps.api.HudModule;
 import com.eymistaken.simplecps.api.IHudElement;
+import com.eymistaken.simplecps.compat.Draw;
+import com.eymistaken.simplecps.compat.Screens;
 import com.eymistaken.simplecps.gui.HudEditorScreen;
 import com.eymistaken.simplecps.util.GhostIcons;
 import java.util.ArrayList;
@@ -237,7 +239,7 @@ public class ArmorModule extends HudModule {
                         }
 
                         SimpleCPSConfig.Position anchor = getPositionType();
-                        net.minecraft.client.gui.screens.Screen screen = client.gui.screen();
+                        net.minecraft.client.gui.screens.Screen screen = Screens.current();
                         int screenW = screen != null ? screen.width : 400;
                         int screenH = screen != null ? screen.height : 300;
 
@@ -291,7 +293,7 @@ public class ArmorModule extends HudModule {
      * editor even when opened from it: it brings its own gear and never shows ghosts.
      */
     private boolean isEditing() {
-        return !isPreviewing() && client.gui.screen() instanceof HudEditorScreen;
+        return !isPreviewing() && Screens.current() instanceof HudEditorScreen;
     }
 
     /**
@@ -628,7 +630,7 @@ public class ArmorModule extends HudModule {
         if (!GhostIcons.draw(context, ghostSource(el.slot), x + 1, y + 1)) {
             // No texture to gray (a broken pack): dim the real piece instead, so the slot
             // still says what belongs in it.
-            context.item(previewStackFor(el.slot), x + 1, y + 1);
+            Draw.item(context, previewStackFor(el.slot), x + 1, y + 1);
             context.fill(x + 1, y + 1, x + 17, y + 17, 0xB0101010);
         }
     }
@@ -740,8 +742,8 @@ public class ArmorModule extends HudModule {
             context.pose().scale(scale, scale);
             context.pose().translate(-(ix + 8f), -(iy + 8f));
         }
-        context.item(stack, ix, iy);
-        context.itemDecorations(client.font, stack, ix, iy);
+        Draw.item(context, stack, ix, iy);
+        Draw.itemDecorations(context, client.font, stack, ix, iy);
 
         // Chip: what the hit took stays on the bar in white for a moment, then drains away,
         // so a small loss is visible at all.
@@ -764,9 +766,9 @@ public class ArmorModule extends HudModule {
             int color = getDurabilityColor(durability, stack.getMaxDamage());
 
             if (vertical) {
-                context.text(client.font, net.minecraft.network.chat.Component.literal(text), elX + 20, elY + 5, color);
+                Draw.text(context, client.font, net.minecraft.network.chat.Component.literal(text), elX + 20, elY + 5, color);
             } else {
-                context.text(client.font, net.minecraft.network.chat.Component.literal(text), elX + 9 - tw / 2, elY + 20, color);
+                Draw.text(context, client.font, net.minecraft.network.chat.Component.literal(text), elX + 9 - tw / 2, elY + 20, color);
             }
         }
     }

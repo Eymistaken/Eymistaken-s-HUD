@@ -3,6 +3,7 @@ package com.eymistaken.simplecps.modules;
 import com.eymistaken.simplecps.ReachTracker;
 import com.eymistaken.simplecps.SimpleCPSConfig;
 import com.eymistaken.simplecps.api.HudModule;
+import com.eymistaken.simplecps.compat.Screens;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 public class ReachModule extends HudModule {
@@ -89,7 +90,7 @@ public class ReachModule extends HudModule {
         // The settings preview wants the same stand-in the editor gets: without a recent
         // hit there is no reach to report, and an empty box shows nothing to configure.
         boolean placeholder = isPreviewing()
-            || client.gui.screen() instanceof com.eymistaken.simplecps.gui.HudEditorScreen;
+            || Screens.current() instanceof com.eymistaken.simplecps.gui.HudEditorScreen;
 
         if (text == null) {
             if (placeholder) {

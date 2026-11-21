@@ -6,6 +6,9 @@ import com.eymistaken.simplecps.HudPlacementResolver;
 import com.eymistaken.simplecps.SimpleCPSClient;
 import com.eymistaken.simplecps.SimpleCPSConfig;
 import com.eymistaken.simplecps.ServerConfigManager;
+import com.eymistaken.simplecps.compat.Draw;
+import com.eymistaken.simplecps.compat.Keys;
+import com.eymistaken.simplecps.compat.Screens;
 import com.eymistaken.simplecps.util.Anim;
 import com.eymistaken.simplecps.util.Easings;
 import com.eymistaken.simplecps.util.RenderUtil;
@@ -307,7 +310,7 @@ public class HudEditorScreen extends Screen {
                 context.fill(ex + ew - 2, ey + eh + 1, ex + ew + 3, ey + eh + 2, 0xFFFFFFFF);
                 context.fill(ex + ew + 2, ey + eh - 2, ex + ew + 3, ey + eh + 2, 0xFFFFFFFF);
 
-                context.text(this.font, Component.literal(element.getName()), ex, ey - 10, 0xFF00FFFF, true);
+                Draw.text(context, this.font, Component.literal(element.getName()), ex, ey - 10, 0xFF00FFFF, true);
             } else if (isHovered || element == draggingElement) {
                 int borderColor = 0xFFFFFFFF;
                 context.fill(ex - 1, ey - 1, ex + ew + 1, ey, borderColor); // Top
@@ -315,7 +318,7 @@ public class HudEditorScreen extends Screen {
                 context.fill(ex - 1, ey, ex, ey + eh, borderColor); // Left
                 context.fill(ex + ew, ey, ex + ew + 1, ey + eh, borderColor); // Right
                 
-                context.text(this.font, Component.literal(element.getName()), ex, ey - 10, 0xFFFFFFFF, true);
+                Draw.text(context, this.font, Component.literal(element.getName()), ex, ey - 10, 0xFFFFFFFF, true);
             }
         }
 
@@ -344,7 +347,7 @@ public class HudEditorScreen extends Screen {
             context.fill(0, snapLineY, this.width, snapLineY + 1, 0xFFFF00FF);
         }
         
-        context.centeredText(this.font, Component.literal("Eymistaken's HUD"), this.width / 2, 10, 0xFFFFFFFF);
+        Draw.centeredText(context, this.font, Component.literal("Eymistaken's HUD"), this.width / 2, 10, 0xFFFFFFFF);
 
         renderAlignToolbar(context, mouseX, mouseY);
 
@@ -383,7 +386,7 @@ public class HudEditorScreen extends Screen {
             context.fill(box[0] + box[2], box[1], box[0] + box[2] + 1, box[1] + box[3], 0xFFFFFFFF);
 
             String label = textPromptLabel + ": ";
-            context.text(this.font, Component.literal(label), box[0] + 4, box[1] + 6, 0xFFFFFFFF, true);
+            Draw.text(context, this.font, Component.literal(label), box[0] + 4, box[1] + 6, 0xFFFFFFFF, true);
 
             int fieldX = promptFieldX();
             int fieldW = box[0] + box[2] - 4 - fieldX;
@@ -508,7 +511,7 @@ public class HudEditorScreen extends Screen {
                             // Pass our own parent through: closing the settings screen
                             // should land where the editor would have, not back here.
                             SimpleCPSConfig.save();
-                            this.minecraft.gui.setScreen(
+                            Screens.open(
                                 new com.eymistaken.simplecps.gui.settings.HudSettingsScreen(parent));
                             return true;
                         }
@@ -777,9 +780,8 @@ public class HudEditorScreen extends Screen {
 
             // Apply Snapping to Leader (unless Shift is held)
             java.awt.Point snappedPos = new java.awt.Point();
-            boolean isShiftDown = InputConstants.isKeyDown(InputConstants.KEY_LSHIFT)
-                                  || InputConstants.isKeyDown(InputConstants.KEY_RSHIFT);
-            
+            boolean isShiftDown = Keys.shiftDown();
+
             if (isShiftDown) {
                 snappedPos.x = rawTargetX;
                 snappedPos.y = rawTargetY;
@@ -999,7 +1001,7 @@ public class HudEditorScreen extends Screen {
     public void onClose() {
         SimpleCPSConfig.save();
         if (this.minecraft != null) {
-            this.minecraft.gui.setScreen(this.parent);
+            Screens.open(this.parent);
         }
     }
 
@@ -1190,7 +1192,7 @@ public class HudEditorScreen extends Screen {
                 cycleSetting.setter.accept(next);
                 SimpleCPSConfig.save();
             } else if (setting instanceof com.eymistaken.simplecps.api.ColorSetting colorSetting) {
-                this.minecraft.gui.setScreen(new ColorPickerScreen(
+                Screens.open(new ColorPickerScreen(
                     colorSetting.getter.get(),
                     newColor -> {
                         colorSetting.setter.accept(newColor);
@@ -1244,7 +1246,7 @@ public class HudEditorScreen extends Screen {
         // Row 0 is the "Reset Position" entry (hit-tested as index -1 elsewhere).
         boolean hoverReset = mouseX >= x && mouseX <= x + w && mouseY >= y && mouseY < y + 20;
         if (hoverReset) context.fill(x, y, x + w, y + 20, fade(0xFF444444, p));
-        context.text(this.font, Component.literal("Reset Position"), x + 5, y + 6, fade(0xFFFFFFFF, p), true);
+        Draw.text(context, this.font, Component.literal("Reset Position"), x + 5, y + 6, fade(0xFFFFFFFF, p), true);
 
         java.util.List<com.eymistaken.simplecps.api.HudModuleSetting> settings = target.getContextMenuSettings();
         int currentY = y + 20;
@@ -1260,17 +1262,17 @@ public class HudEditorScreen extends Screen {
             // than reading as one more value to toggle.
             int labelColor = setting instanceof com.eymistaken.simplecps.api.ActionSetting act && act.color != 0
                 ? act.color : 0xFFFFFFFF;
-            context.text(this.font, Component.literal(setting.label), x + 5, currentY + (itemHeight / 2) - 4, fade(labelColor, p), true);
+            Draw.text(context, this.font, Component.literal(setting.label), x + 5, currentY + (itemHeight / 2) - 4, fade(labelColor, p), true);
 
             if (setting instanceof com.eymistaken.simplecps.api.BooleanSetting boolSetting) {
                 String val = boolSetting.getter.get() ? "[ON]" : "[OFF]";
                 int valW = this.font.width(Component.literal(val));
                 int color = boolSetting.getter.get() ? 0xFF55FF55 : 0xFFFF5555;
-                context.text(this.font, Component.literal(val), x + w - valW - 5, currentY + 6, fade(color, p), true);
+                Draw.text(context, this.font, Component.literal(val), x + w - valW - 5, currentY + 6, fade(color, p), true);
             } else if (setting instanceof com.eymistaken.simplecps.api.CycleSetting cycleSetting) {
                 String val = cycleSetting.options.get(cycleSetting.getter.get());
                 int valW = this.font.width(Component.literal(val));
-                context.text(this.font, Component.literal(val), x + w - valW - 5, currentY + 6, fade(0xFFFFAA00, p), true);
+                Draw.text(context, this.font, Component.literal(val), x + w - valW - 5, currentY + 6, fade(0xFFFFAA00, p), true);
             } else if (setting instanceof com.eymistaken.simplecps.api.ColorSetting colorSetting) {
                 int c = colorSetting.getter.get() | 0xFF000000;
                 context.fill(x + w - 15, currentY + 5, x + w - 5, currentY + 15, fade(c, p));
@@ -1283,7 +1285,7 @@ public class HudEditorScreen extends Screen {
                 String val = textSetting.getter.get();
                 if (val.length() > 5) val = val.substring(0, 5) + "...";
                 int valW = this.font.width(Component.literal(val));
-                context.text(this.font, Component.literal(val), x + w - valW - 5, currentY + 6, fade(0xFFAAAAAA, p), true);
+                Draw.text(context, this.font, Component.literal(val), x + w - valW - 5, currentY + 6, fade(0xFFAAAAAA, p), true);
             } else if (setting instanceof com.eymistaken.simplecps.api.SliderSetting slider) {
                 int val = slider.getter.get();
                 float ratio = (float)(val - slider.min) / (slider.max - slider.min);
@@ -1298,13 +1300,13 @@ public class HudEditorScreen extends Screen {
                 // Draw Value text centered in Bar
                 String valStr = val + "%";
                 int valW = this.font.width(Component.literal(valStr));
-                context.text(this.font, Component.literal(valStr), x + 78 + (94 - valW) / 2, currentY + 8, fade(0xFFFFFFFF, p), true);
+                Draw.text(context, this.font, Component.literal(valStr), x + 78 + (94 - valW) / 2, currentY + 8, fade(0xFFFFFFFF, p), true);
 
                 // Draw Reset Button (width 40px starting at x+176)
                 boolean hoverRButton = mouseX >= x + 176 && mouseX <= x + 176 + 40 && mouseY >= currentY && mouseY < currentY + itemHeight;
                 int rColor = hoverRButton ? 0xFF990000 : 0xFF550000;
                 context.fill(x + 176, currentY + 4, x + 176 + 40, currentY + 20, fade(rColor, p));
-                context.centeredText(this.font, Component.literal("Reset"), x + 176 + 20, currentY + 8, fade(0xFFFFFFFF, p));
+                Draw.centeredText(context, this.font, Component.literal("Reset"), x + 176 + 20, currentY + 8, fade(0xFFFFFFFF, p));
             }
 
             currentY += itemHeight;
@@ -1313,7 +1315,7 @@ public class HudEditorScreen extends Screen {
         // Bottom row: hand off to the full settings screen for this module.
         boolean hoverSettings = mouseX >= x && mouseX <= x + w && mouseY >= currentY && mouseY < currentY + 20;
         if (hoverSettings) context.fill(x, currentY, x + w, currentY + 20, fade(0xFF444444, p));
-        context.text(this.font, Component.literal("Open Settings..."), x + 5, currentY + 6, fade(0xFF55FFFF, p), true);
+        Draw.text(context, this.font, Component.literal("Open Settings..."), x + 5, currentY + 6, fade(0xFF55FFFF, p), true);
 
         context.pose().popMatrix();
     }
@@ -1337,73 +1339,73 @@ public class HudEditorScreen extends Screen {
         context.fill(x - 1, y, x, y + h, fade(0xFFFFFFFF, p));
         context.fill(x + w, y, x + w + 1, y + h, fade(0xFFFFFFFF, p));
 
-        context.text(this.font, Component.literal("HUD Settings"), x + 5, y + 6, fade(0xFFFFFFFF, p), true);
+        Draw.text(context, this.font, Component.literal("HUD Settings"), x + 5, y + 6, fade(0xFFFFFFFF, p), true);
 
         // Row 0: Settings (opens the full settings screen)
         int rSet = y + 20 + GLOBAL_ROW_SETTINGS * 20;
         if (hoverRow(mouseX, mouseY, x, rSet, w)) context.fill(x, rSet, x + w, rSet + 20, fade(0xFF444444, p));
-        context.text(this.font, Component.literal("Settings..."), x + 5, rSet + 6, fade(0xFF55FFFF, p), true);
+        Draw.text(context, this.font, Component.literal("Settings..."), x + 5, rSet + 6, fade(0xFF55FFFF, p), true);
 
         // Row 1: Prevent Overlap toggle
         int r0 = y + 20 + GLOBAL_ROW_PREVENT_OVERLAP * 20;
         if (hoverRow(mouseX, mouseY, x, r0, w)) context.fill(x, r0, x + w, r0 + 20, fade(0xFF444444, p));
-        context.text(this.font, Component.literal("Prevent Overlap"), x + 5, r0 + 6, fade(0xFFFFFFFF, p), true);
+        Draw.text(context, this.font, Component.literal("Prevent Overlap"), x + 5, r0 + 6, fade(0xFFFFFFFF, p), true);
         String val = SimpleCPSConfig.instance.preventOverlap ? "[ON]" : "[OFF]";
         int valW = this.font.width(Component.literal(val));
         int color = SimpleCPSConfig.instance.preventOverlap ? 0xFF55FF55 : 0xFFFF5555;
-        context.text(this.font, Component.literal(val), x + w - valW - 5, r0 + 6, fade(color, p), true);
+        Draw.text(context, this.font, Component.literal(val), x + w - valW - 5, r0 + 6, fade(color, p), true);
 
         // Row 1: Grid toggle (left-click) / step (right-click)
         int rGrid = y + 20 + GLOBAL_ROW_GRID * 20;
         if (hoverRow(mouseX, mouseY, x, rGrid, w)) context.fill(x, rGrid, x + w, rGrid + 20, fade(0xFF444444, p));
-        context.text(this.font, Component.literal("Grid"), x + 5, rGrid + 6, fade(0xFFFFFFFF, p), true);
+        Draw.text(context, this.font, Component.literal("Grid"), x + 5, rGrid + 6, fade(0xFFFFFFFF, p), true);
         boolean gridOn = SimpleCPSConfig.instance.editorGridEnabled;
         String gridVal = gridOn ? ("[" + gridSize() + "px]") : "[OFF]";
         int gridValW = this.font.width(Component.literal(gridVal));
-        context.text(this.font, Component.literal(gridVal), x + w - gridValW - 5, rGrid + 6,
+        Draw.text(context, this.font, Component.literal(gridVal), x + w - gridValW - 5, rGrid + 6,
             fade(gridOn ? 0xFF55FF55 : 0xFFFF5555, p), true);
 
         // Row 2: Save Config, which briefly confirms the save in place
         int r1 = y + 20 + GLOBAL_ROW_SAVE_CONFIG * 20;
         if (hoverRow(mouseX, mouseY, x, r1, w)) context.fill(x, r1, x + w, r1 + 20, fade(0xFF444444, p));
         boolean justSaved = System.currentTimeMillis() < savedUntil;
-        context.text(this.font, Component.literal(justSaved ? "Saved!" : "Save Config"), x + 5, r1 + 6,
+        Draw.text(context, this.font, Component.literal(justSaved ? "Saved!" : "Save Config"), x + 5, r1 + 6,
             fade(justSaved ? 0xFFAAFFAA : 0xFF55FFFF, p), true);
 
         // Row 3: Configs (fly-out)
         int r2 = y + 20 + GLOBAL_ROW_CONFIGS * 20;
         if (hoverRow(mouseX, mouseY, x, r2, w) || configsSubmenuOpen) context.fill(x, r2, x + w, r2 + 20, fade(0xFF444444, p));
-        context.text(this.font, Component.literal("Configs"), x + 5, r2 + 6, fade(0xFFFFFFFF, p), true);
-        context.text(this.font, Component.literal(">"), x + w - this.font.width(Component.literal(">")) - 6, r2 + 6, fade(0xFFFFFFFF, p), true);
+        Draw.text(context, this.font, Component.literal("Configs"), x + 5, r2 + 6, fade(0xFFFFFFFF, p), true);
+        Draw.text(context, this.font, Component.literal(">"), x + w - this.font.width(Component.literal(">")) - 6, r2 + 6, fade(0xFFFFFFFF, p), true);
 
         // Row 4: Server Configs (fly-out)
         int rSrv = y + 20 + GLOBAL_ROW_SERVER_CONFIGS * 20;
         if (hoverRow(mouseX, mouseY, x, rSrv, w) || serverSubmenuOpen) context.fill(x, rSrv, x + w, rSrv + 20, fade(0xFF444444, p));
-        context.text(this.font, Component.literal("Server Configs"), x + 5, rSrv + 6, fade(0xFFFFFFFF, p), true);
-        context.text(this.font, Component.literal(">"), x + w - this.font.width(Component.literal(">")) - 6, rSrv + 6, fade(0xFFFFFFFF, p), true);
+        Draw.text(context, this.font, Component.literal("Server Configs"), x + 5, rSrv + 6, fade(0xFFFFFFFF, p), true);
+        Draw.text(context, this.font, Component.literal(">"), x + w - this.font.width(Component.literal(">")) - 6, rSrv + 6, fade(0xFFFFFFFF, p), true);
 
         // Row 5: Export Code, which briefly confirms the copy in place
         int rExp = y + 20 + GLOBAL_ROW_EXPORT_CODE * 20;
         if (hoverRow(mouseX, mouseY, x, rExp, w)) context.fill(x, rExp, x + w, rExp + 20, fade(0xFF444444, p));
         boolean justCopied = System.currentTimeMillis() < copiedUntil;
-        context.text(this.font, Component.literal(justCopied ? "Copied!" : "Export Code"), x + 5, rExp + 6,
+        Draw.text(context, this.font, Component.literal(justCopied ? "Copied!" : "Export Code"), x + 5, rExp + 6,
             fade(justCopied ? 0xFFAAFFAA : 0xFF55FF55, p), true);
 
         // Row 6: Import Code
         int rImp = y + 20 + GLOBAL_ROW_IMPORT_CODE * 20;
         if (hoverRow(mouseX, mouseY, x, rImp, w)) context.fill(x, rImp, x + w, rImp + 20, fade(0xFF444444, p));
-        context.text(this.font, Component.literal("Import Code"), x + 5, rImp + 6, fade(0xFF55FF55, p), true);
+        Draw.text(context, this.font, Component.literal("Import Code"), x + 5, rImp + 6, fade(0xFF55FF55, p), true);
 
         // Row 7: Reset HUD
         int r3 = y + 20 + GLOBAL_ROW_RESET_HUD * 20;
         if (hoverRow(mouseX, mouseY, x, r3, w)) context.fill(x, r3, x + w, r3 + 20, fade(0xFF444444, p));
-        context.text(this.font, Component.literal("Reset HUD"), x + 5, r3 + 6, fade(0xFFFFAA55, p), true);
+        Draw.text(context, this.font, Component.literal("Reset HUD"), x + 5, r3 + 6, fade(0xFFFFAA55, p), true);
 
         // Transient feedback for the export/import actions. Moves above the menu when
         // it opened near the bottom, where the line below would be off screen.
         if (System.currentTimeMillis() < shareStatusUntil && !shareStatus.isEmpty()) {
             int statusY = (y + h + 13 <= this.height) ? y + h + 4 : y - 13;
-            context.text(this.font, Component.literal(shareStatus), x + 5, statusY, fade(0xFFFFFF55, p), true);
+            Draw.text(context, this.font, Component.literal(shareStatus), x + 5, statusY, fade(0xFFFFFF55, p), true);
         }
 
         context.pose().popMatrix();
@@ -1603,14 +1605,14 @@ public class HudEditorScreen extends Screen {
         // Title row is also the switch.
         boolean on = SimpleCPSConfig.instance.serverConfigsEnabled;
         if (hoverRow(mouseX, mouseY, x, y, w)) context.fill(x, y, x + w, y + 20, fade(0xFF444444, p));
-        context.text(this.font, Component.literal("Per Server"), x + 5, y + 6, fade(0xFFFFAA55, p), true);
+        Draw.text(context, this.font, Component.literal("Per Server"), x + 5, y + 6, fade(0xFFFFAA55, p), true);
         String sw = on ? "[ON]" : "[OFF]";
         int swW = this.font.width(Component.literal(sw));
-        context.text(this.font, Component.literal(sw), x + w - swW - 5, y + 6, fade(on ? 0xFF55FF55 : 0xFFFF5555, p), true);
+        Draw.text(context, this.font, Component.literal(sw), x + w - swW - 5, y + 6, fade(on ? 0xFF55FF55 : 0xFFFF5555, p), true);
 
         int rowY = y + 20;
         if (cachedServerKeys.isEmpty()) {
-            context.text(this.font, Component.literal("No server configs"), x + 5, rowY + 6, fade(0xFF888888, p), true);
+            Draw.text(context, this.font, Component.literal("No server configs"), x + 5, rowY + 6, fade(0xFF888888, p), true);
             context.pose().popMatrix();
             return;
         }
@@ -1633,7 +1635,7 @@ public class HudEditorScreen extends Screen {
             }
             // Green marks the server we are on, so it is obvious which one is live.
             int nameColor = key.equals(activeKey) ? 0xFF55FF55 : 0xFFFFFFFF;
-            context.text(this.font, Component.literal(disp), x + 5, rowY + 6, fade(nameColor, p), true);
+            Draw.text(context, this.font, Component.literal(disp), x + 5, rowY + 6, fade(nameColor, p), true);
 
             int tx = x + w - 15;
             int ty = rowY + 5;
@@ -1663,11 +1665,11 @@ public class HudEditorScreen extends Screen {
         context.fill(x - 1, y, x, y + h, fade(0xFFFFFFFF, p));
         context.fill(x + w, y, x + w + 1, y + h, fade(0xFFFFFFFF, p));
 
-        context.text(this.font, Component.literal("Saved Configs"), x + 5, y + 6, fade(0xFFFFAA55, p), true);
+        Draw.text(context, this.font, Component.literal("Saved Configs"), x + 5, y + 6, fade(0xFFFFAA55, p), true);
 
         int rowY = y + 20;
         if (cachedPresetNames.isEmpty()) {
-            context.text(this.font, Component.literal("No saved configs"), x + 5, rowY + 6, fade(0xFF888888, p), true);
+            Draw.text(context, this.font, Component.literal("No saved configs"), x + 5, rowY + 6, fade(0xFF888888, p), true);
             context.pose().popMatrix();
             return;
         }
@@ -1687,7 +1689,7 @@ public class HudEditorScreen extends Screen {
                 }
                 disp = disp + "...";
             }
-            context.text(this.font, Component.literal(disp), x + 5, rowY + 6, fade(0xFFFFFFFF, p), true);
+            Draw.text(context, this.font, Component.literal(disp), x + 5, rowY + 6, fade(0xFFFFFFFF, p), true);
 
             // Trash icon (drawn with fills to match the rest of this UI).
             int tx = x + w - 15;
@@ -1962,8 +1964,8 @@ public class HudEditorScreen extends Screen {
         // Vanilla skips the HUD layer entirely while F1 has it hidden, so opening the
         // editor then showed an empty screen with nothing to drag. Show the HUD while
         // the editor is open and hide it again on the way out.
-        if (this.minecraft != null && this.minecraft.gui.hud.isHidden() && !unhidHud) {
-            this.minecraft.gui.hud.toggle();
+        if (this.minecraft != null && Screens.hudHidden() && !unhidHud) {
+            Screens.setHudHidden(false);
             unhidHud = true;
         }
         super.init();
@@ -1976,8 +1978,8 @@ public class HudEditorScreen extends Screen {
     public void removed() {
         com.eymistaken.simplecps.gui.settings.TextInput.setTyping(this, false);
         finishGlides();
-        if (unhidHud && this.minecraft != null && !this.minecraft.gui.hud.isHidden()) {
-            this.minecraft.gui.hud.toggle();
+        if (unhidHud && this.minecraft != null) {
+            Screens.setHudHidden(true);
         }
         unhidHud = false;
         super.removed();
@@ -2025,7 +2027,7 @@ public class HudEditorScreen extends Screen {
         if (module == null) return;
 
         SimpleCPSConfig.save();
-        this.minecraft.gui.setScreen(new com.eymistaken.simplecps.gui.settings.HudSettingsScreen(
+        Screens.open(new com.eymistaken.simplecps.gui.settings.HudSettingsScreen(
             parent, com.eymistaken.simplecps.gui.settings.SettingsSchema.pageIdFor(module)));
     }
 
@@ -2121,7 +2123,7 @@ public class HudEditorScreen extends Screen {
             context.fill(bx, y, bx + 1, y + ALIGN_BTN_H, border);
             context.fill(bx + ALIGN_BTN_W - 1, y, bx + ALIGN_BTN_W, y + ALIGN_BTN_H, border);
 
-            context.centeredText(this.font, Component.literal(ALIGN_LABELS[i]),
+            Draw.centeredText(context, this.font, Component.literal(ALIGN_LABELS[i]),
                 bx + ALIGN_BTN_W / 2, y + 5, enabled ? 0xFFFFFFFF : 0xFF777777);
         }
 
@@ -2129,7 +2131,7 @@ public class HudEditorScreen extends Screen {
         if (hovered >= 0) {
             String tip = ALIGN_TOOLTIPS[hovered];
             if (!isAlignActionEnabled(hovered)) tip = tip + " (needs 3+)";
-            context.centeredText(this.font, Component.literal(tip),
+            Draw.centeredText(context, this.font, Component.literal(tip),
                 this.width / 2, y + ALIGN_BTN_H + 4, 0xFFAAAAAA);
         }
     }
