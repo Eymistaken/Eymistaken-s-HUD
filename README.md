@@ -8,7 +8,7 @@ A client-side PvP HUD for Fabric. Seven modules, a live drag-and-drop editor, a 
 [![CurseForge downloads](https://img.shields.io/curseforge/dt/1445158?logo=curseforge&label=CurseForge&color=F16436)](https://www.curseforge.com/minecraft/mc-mods/eymistakenshud)
 [![Latest release](https://img.shields.io/github/v/release/Eymistaken/Eymistaken-s-HUD?label=release)](https://github.com/Eymistaken/Eymistaken-s-HUD/releases/latest)
 [![Minecraft version](https://img.shields.io/modrinth/game-versions/eymistakenshud?label=Minecraft&color=62B47A)](https://modrinth.com/mod/eymistakenshud/versions)
-[![Java version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FEymistaken%2FEymistaken-s-HUD%2Fmain%2Fsrc%2Fmain%2Fresources%2Ffabric.mod.json&query=%24.depends.java&label=Java&color=E76F00)](src/main/resources/fabric.mod.json)
+[![Java version](https://img.shields.io/badge/Java-21%20%7C%2025-E76F00)](#installation)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENCE)
 
 **[Website](https://eymistaken.github.io/Eymistaken-s-HUD-Website/)** ·
@@ -84,25 +84,25 @@ Open it from Mod Menu, or from the editor's right-click menu.
 
 ## Installation
 
-| Requirement | Version |
-|---|---|
-| Minecraft | 26.3 |
-| Java | 25 |
-| Fabric Loader | 0.19.5 or newer |
-| Fabric API | 0.160.6+26.3 or newer |
-| Mod Menu | Optional; adds a button for the settings screen |
+Each release comes as three jars, one for each range of Minecraft versions. Download the one that covers yours:
 
-1. Install [Fabric Loader](https://fabricmc.net/use/) for Minecraft 26.3.
-2. Put [Fabric API](https://modrinth.com/mod/fabric-api) and the Eymistaken's HUD jar in `.minecraft/mods/`.
+| Minecraft | Jar | Java | Fabric API |
+|---|---|---|---|
+| 26.3 | `eymistakens-hud-<version>+26.3.jar` | 25 | 0.160.6+26.3 or newer |
+| 26.1, 26.1.1, 26.1.2, 26.2 | `eymistakens-hud-<version>+26.1-26.2.jar` | 25 | 0.140.3 or newer |
+| 1.21.9, 1.21.10, 1.21.11 | `eymistakens-hud-<version>+1.21.9-1.21.11.jar` | 21 | 0.133.9 or newer |
+
+Every jar needs Fabric Loader 0.19.5 or newer. Mod Menu is optional and adds a button for the settings screen.
+
+1. Install [Fabric Loader](https://fabricmc.net/use/) for your Minecraft version.
+2. Put [Fabric API](https://modrinth.com/mod/fabric-api) and the matching Eymistaken's HUD jar in `.minecraft/mods/`.
 3. Launch the game and press Right Shift.
 
 Download the jar from [Modrinth](https://modrinth.com/mod/eymistakenshud), [CurseForge](https://www.curseforge.com/minecraft/mc-mods/eymistakenshud) or [GitHub Releases](https://github.com/Eymistaken/Eymistaken-s-HUD/releases/latest). The mod is client-side only and needs nothing on the server.
 
-**Still on Minecraft 26.1 or 26.2?** v1.2.2 is the last build for those versions and stays available on all three.
-
 ## Building from source
 
-You need JDK 25.
+You need JDK 25. Launching the 1.21.x development client also needs JDK 21.
 
 ```bash
 git clone https://github.com/Eymistaken/Eymistaken-s-HUD.git
@@ -110,10 +110,12 @@ cd Eymistaken-s-HUD
 ./gradlew build
 ```
 
-The jars land in `build/libs/`. To launch a development client with the mod loaded:
+One source tree builds all three jars with [Stonecutter](https://stonecutter.kikugie.dev/). Each Minecraft range is a node under `versions/`, named after the version it is compiled against (`26.3`, `26.2` and `1.21.9`), and every node is built from the same `src/`. A node's jar lands in `versions/<node>/build/libs/`; `./gradlew build collectJars` also gathers all three into `build/libs/`.
+
+To launch a development client with the mod loaded, name the node:
 
 ```bash
-./gradlew runClient
+./gradlew :26.3:runClient
 ```
 
 Mod Menu is a compile-only dependency and is not present in the development client, so reach the settings screen through the in-game editor there: Right Shift, then right-click empty space.
@@ -132,11 +134,23 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.github.Eymistaken:Eymistaken-s-HUD:1.2.4'
+    implementation 'com.github.Eymistaken:Eymistaken-s-HUD:1.2.6'
 }
 ```
 
-Minecraft 26.x runs unobfuscated and Loom no longer remaps mod dependencies, so this is a plain `implementation` rather than `modImplementation`. Use a release version without the leading `v`, or `main-SNAPSHOT` to track the main branch.
+That line is the 26.3 jar. Minecraft 26.x runs unobfuscated and Loom no longer remaps mod dependencies, so this is a plain `implementation` rather than `modImplementation`. Use a release version without the leading `v`, or `main-SNAPSHOT` to track the main branch.
+
+From 1.2.6 on, the other two jars are published beside it, each under a classifier named after its range. The `@jar` keeps the 26.3 jar's dependencies out of your build:
+
+```gradle
+// Minecraft 26.1 to 26.2
+implementation 'com.github.Eymistaken:Eymistaken-s-HUD:1.2.6:26.1-26.2@jar'
+
+// Minecraft 1.21.9 to 1.21.11, which is obfuscated, so Loom remaps the jar
+modImplementation 'com.github.Eymistaken:Eymistaken-s-HUD:1.2.6:1.21.9-1.21.11@jar'
+```
+
+On 1.21.x the drawing class is called `GuiGraphics`, so the examples below take a `GuiGraphics` there instead of a `GuiGraphicsExtractor`.
 
 The mod id is `simplecps`; declare it under `depends` or `suggests` in your `fabric.mod.json` as appropriate.
 
@@ -218,11 +232,12 @@ Every one of those hooks has a default, so a module compiled against an older bu
 ```
 src/main/java/com/eymistaken/simplecps/
 ├── api/                    Public plugin API: HudModule, setting types, events, HudPreview
+├── compat/                 The calls that differ between Minecraft versions, kept in one place
 ├── gui/                    In-game editor, keystrokes designer, color picker
 │   └── settings/           Settings screen and the shared screen toolkit
 ├── mixin/                  Client-only hooks: input, client tick, attacks, combat packets
 ├── modules/                The seven built-in modules and the keystrokes renderer
-├── util/                   Share codes, fonts, input-code migration, easing
+├── util/                   Share codes, fonts, input-code translation, easing
 ├── SimpleCPSClient         Client initializer
 ├── HudModuleManager        Module registry; ticks and renders every module
 ├── HudPlacementResolver    Layout engine
