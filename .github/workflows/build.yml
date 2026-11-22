@@ -41,12 +41,31 @@ jobs:
       - name: Build Mod
         run: ./gradlew clean build collectJars --refresh-dependencies --stacktrace
 
+      # One jar per node goes into the release, and the sources jars collectJars puts beside
+      # them stay out. If any node's jar is missing, the job stops here and no release is
+      # made, rather than a release that lacks one Minecraft range.
+      - name: Pick Release Jars
+        run: |
+          mkdir -p build/release
+          for props in versions/*/gradle.properties; do
+            label=$(grep '^jar_label' "$props" | cut -d'=' -f2 | tr -d '[:space:]')
+            jar="build/libs/eymistakens-hud-${VERSION}+${label}.jar"
+            if [ ! -f "$jar" ]; then
+              echo "::error::Missing $jar"
+              exit 1
+            fi
+            cp "$jar" build/release/
+          done
+          ls -l build/release
+
+      # The body starts as GitHub's generated notes and is replaced by the changelog by hand.
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ env.VERSION }}
           name: Version v${{ env.VERSION }}
-          files: build/libs/*.jar
+          files: build/release/*.jar
+          fail_on_unmatched_files: true
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
