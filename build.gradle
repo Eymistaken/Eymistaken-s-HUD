@@ -124,15 +124,41 @@ tasks.register('collectJars', Copy) {
     into rootProject.layout.buildDirectory.dir('libs')
 }
 
-publishing {
-    publications {
-        mavenJava(MavenPublication) {
-            from components.java
-            // Add-ons get this through JitPack as com.github.Eymistaken:Eymistaken-s-hud.
-            // These are the coordinates the build published before it had nodes, so that
-            // line keeps resolving to the same 26.3 jar.
-            artifactId = rootProject.name
-            version = project.mod_version
+// Add-ons get the mod through JitPack as com.github.Eymistaken:Eymistaken-s-HUD. JitPack hands
+// that line to the build's one module, and when a build publishes several modules it turns
+// the line into an aggregate of all of them, which would put every jar on an add-on's
+// classpath. Three nodes publishing the same coordinates is no better: the last one written
+// wins. So the 26.3 node alone publishes, under the coordinates the build had before it had
+// nodes, and carries the other nodes' jars beside its own, each under a classifier named
+// after its jar_label (com.github.Eymistaken:Eymistaken-s-HUD:<version>:1.21.9-1.21.11@jar).
+// The pom's dependencies are the 26.3 jar's, and the @jar in that line is what makes Gradle
+// skip them.
+if (project.name == '26.3') {
+    def otherNodes = rootProject.childProjects.values().findAll {
+        it != project && it.hasProperty('jar_label')
+    }
+    otherNodes.each { evaluationDependsOn(it.path) }
+
+    // The pom alone, no Gradle module metadata: that marks the whole module as needing the
+    // 26.3 jar's Java 25, and Gradle checks the mark before it looks at the classifier, so a
+    // 1.21.x add-on on Java 21 could not resolve its own jar. Everything else the metadata
+    // said, the pom says too.
+    tasks.withType(GenerateModuleMetadata).configureEach {
+        enabled = false
+    }
+
+    publishing {
+        publications {
+            mavenJava(MavenPublication) {
+                from components.java
+                artifactId = rootProject.name
+                version = project.mod_version
+                otherNodes.each { node ->
+                    artifact(node.loomx.modJar) {
+                        classifier = node.jar_label
+                    }
+                }
+            }
         }
     }
 }
