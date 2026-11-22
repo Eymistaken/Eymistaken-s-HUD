@@ -176,10 +176,17 @@ public class SimpleCPSConfig {
      * of that line names the wrong keys until it is translated. The same file can go both
      * ways: saved on 26.3, opened on 26.2, then back. Runs once per config: the scheme it
      * stamps is then written back on the next save.
+     *
+     * <p>A layout saved in SDL is first checked for the broken mouse presets of 1.2.3 to
+     * 1.2.5-1. That has to happen before the translation, which would otherwise carry their
+     * wrong buttons into the other numbering where they could no longer be told apart.
      */
     private void migrateKeyCodes() {
         int from = com.eymistaken.simplecps.util.InputCodes.schemeOf(keyCodeScheme);
         int to = com.eymistaken.simplecps.util.InputCodes.NATIVE;
+        if (from == KEY_CODES_SDL) {
+            com.eymistaken.simplecps.util.InputCodes.repairPresetMouseButtons(keystrokesLayout);
+        }
         com.eymistaken.simplecps.util.InputCodes.translate(keystrokesLayout, from, to);
         keyCodeScheme = to;
     }

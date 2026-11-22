@@ -207,6 +207,9 @@ public final class HudShareCodec {
                     int wire = decoded.schemaVersion() < SCHEMA_KEYSTROKES
                         ? SimpleCPSConfig.KEY_CODES_GLFW
                         : SimpleCPSConfig.KEY_CODES_SDL;
+                    // A code taken from a broken mouse preset (1.2.3 to 1.2.5-1) carries its
+                    // wrong buttons; mend them while the numbers are still SDL's.
+                    if (wire == SimpleCPSConfig.KEY_CODES_SDL) InputCodes.repairPresetMouseButtons(share.layout);
                     InputCodes.translate(share.layout, wire, InputCodes.NATIVE);
                     if (!share.applyTo(SimpleCPSConfig.instance)) return false;
                     SimpleCPSConfig.instance.normalize();

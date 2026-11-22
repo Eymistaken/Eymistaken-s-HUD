@@ -169,6 +169,36 @@ public final class InputCodes {
         };
     }
 
+    /**
+     * Repair a layout made with the designer's Full or Mouse preset by builds 1.2.3 to
+     * 1.2.5-1. Those presets bound their mouse keys to 0 and 1, GLFW's left and right
+     * buttons, in a config stamped SDL, so LMB was bound to no button and RMB to the left one.
+     *
+     * <p>SDL counts mouse buttons from 1, so a mouse key on 0 can only have come from there,
+     * and it marks the whole layout: in it, 0 and 1 are GLFW's numbers. Only such a layout
+     * is touched, and in it only the mouse keys on 0 and 1. {@code layout} must still be in
+     * SDL numbering, so this runs before anything translates it out of SDL.
+     *
+     * @return whether the layout needed it
+     */
+    public static boolean repairPresetMouseButtons(List<SimpleCPSConfig.KeyButtonData> layout) {
+        if (layout == null) return false;
+        boolean broken = false;
+        for (SimpleCPSConfig.KeyButtonData key : layout) {
+            if (key != null && key.isMouse && key.keyCode == 0) {
+                broken = true;
+                break;
+            }
+        }
+        if (!broken) return false;
+        for (SimpleCPSConfig.KeyButtonData key : layout) {
+            if (key != null && key.isMouse && (key.keyCode == 0 || key.keyCode == 1)) {
+                key.keyCode = mouse(key.keyCode, SimpleCPSConfig.KEY_CODES_GLFW, SimpleCPSConfig.KEY_CODES_SDL);
+            }
+        }
+        return true;
+    }
+
     /** Translate a whole keystrokes layout in place. */
     public static void translate(List<SimpleCPSConfig.KeyButtonData> layout, int from, int to) {
         if (layout == null || from == to) return;
